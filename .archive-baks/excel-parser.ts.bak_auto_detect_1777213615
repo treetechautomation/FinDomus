@@ -1,0 +1,51 @@
+import * as XLSX from 'xlsx';
+
+import { classifyTransaction, type ParsedTransaction } from './transaction-classifier';
+
+function normalizeKey(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function findValue(row: any, keys: string[]) {
+  const rowKeys = Object.keys(row);
+  const found = rowKeys.find((key) =>
+    keys.some((target) => normalizeKey(key).includes(normalizeKey(target)))
+  );
+  return found ? row[found] : '';
+}
+
+export function parseExcelFile(buffer: ArrayBuffer): ParsedTransaction[] {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+  const parsed = rows
+    .map((row: any) => {
+      const date = String(findValue(row, ['data', 'date', 'dt']) || '');
+      const description = String(findValue(row, ['descrição', 'descricao', 'histórico', 'historico', 'lançamento', 'lancamento', 'estabelecimento', 'title', 'memo']) || '');
+      const rawAmount = findValue(row, ['valor', 'amount', 'total']);
+      const amount = Number(String(rawAmount).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.'));
+
+      if (!description || Number.isNaN(amount) || amount === 0) return null;
+
+      return {
+        ...classifyTransaction(description, amount),
+        date,
+      };
+    })
+    .filter(Boolean) as ParsedTransaction[];
+
+  if (!parsed.length) {
+    const headers = Object.keys(rows[0] || {});
+    const sample = rows.slice(0, 5);
+    throw new Error(
+      `Excel lido, mas não encontrei lançamentos. Colunas: ${headers.join(' | ')}. Amostra: ${JSON.stringify(sample).slice(0, 900)}`
+    );
+  }
+
+  return parsed;
+}

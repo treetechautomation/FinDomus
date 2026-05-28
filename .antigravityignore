@@ -1,0 +1,5 @@
+/node_modules/
+/.next/
+/.archive-baks/
+/backups/
+/scripts/migrations/backups/

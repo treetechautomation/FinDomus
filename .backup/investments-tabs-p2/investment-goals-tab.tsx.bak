@@ -1,0 +1,169 @@
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
+
+type Goal = {
+  name: string;
+  value: number;
+};
+
+type Props = {
+  goals: Goal[];
+  selectedProfile: 'Conservador' | 'Moderado' | 'Arrojado';
+  applyInvestmentProfile: (profile: 'Conservador' | 'Moderado' | 'Arrojado') => void;
+  setGoals: (goal: Goal[]) => void;
+  handleResetGoals: () => void;
+  handleSaveGoals: () => void;
+};
+
+export function InvestmentGoalsTab({
+  goals,
+  selectedProfile,
+  applyInvestmentProfile,
+  setGoals,
+  handleResetGoals,
+  handleSaveGoals,
+}: Props) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold">Metas de Investimento</h2>
+        <p className="text-muted-foreground">
+          Edite os itens abaixo para ajustar suas metas.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {(['Conservador', 'Moderado', 'Arrojado'] as const).map((profile) => (
+          <button
+            key={profile}
+            type="button"
+            onClick={() => applyInvestmentProfile(profile)}
+            className={`rounded-xl border text-left transition-all hover:border-yellow-500/60 hover:bg-yellow-500/5 ${
+              selectedProfile === profile
+                ? 'border-yellow-500/80 bg-yellow-500/10 shadow-[0_0_24px_rgba(234,179,8,0.12)]'
+                : 'border-border bg-card'
+            }`}
+          >
+            <Card className="border-0 bg-transparent shadow-none">
+              <CardContent className="p-5">
+                <h3 className="font-bold">{profile}</h3>
+
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {profile === 'Conservador' &&
+                    'Proteção do patrimônio, liquidez e maior peso em renda fixa.'}
+
+                  {profile === 'Moderado' &&
+                    'Equilíbrio entre segurança e crescimento com diversificação.'}
+
+                  {profile === 'Arrojado' &&
+                    'Maior busca por crescimento, aceitando mais volatilidade.'}
+                </p>
+              </CardContent>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Total:{' '}
+              {(() => {
+                const total = goals.reduce((sum, g) => sum + g.value, 0);
+
+                return (
+                  <span
+                    className={
+                      total === 100
+                        ? 'text-emerald-400'
+                        : 'text-red-400'
+                    }
+                  >
+                    {total}%
+                  </span>
+                );
+              })()}
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="space-y-2">
+            {goals.map((goal) => (
+              <div
+                key={goal.name}
+                className="flex items-center justify-between text-sm"
+              >
+                <span>{goal.name}</span>
+
+                <strong className="text-yellow-400">
+                  {goal.value}%
+                </strong>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-8 p-6">
+            {goals.map((goal) => (
+              <div key={goal.name} className="space-y-3">
+                <div className="flex justify-between">
+                  <h3 className="text-xl font-bold">{goal.name}</h3>
+                  <span>{goal.value}%</span>
+                </div>
+
+                <Slider
+                  value={[goal.value]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onValueChange={(val) => {
+                    const newGoals = [...goals];
+
+                    const index = newGoals.findIndex(
+                      (g) => g.name === goal.name
+                    );
+
+                    newGoals[index].value = val[0];
+
+                    const total = newGoals.reduce(
+                      (sum, g) => sum + g.value,
+                      0
+                    );
+
+                    if (total <= 100) {
+                      setGoals(newGoals);
+                    }
+                  }}
+                />
+
+                <div className="flex justify-between text-sm">
+                  <span>0%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex justify-center gap-4">
+        <Button
+          variant="outline"
+          className="w-56"
+          onClick={handleResetGoals}
+        >
+          Resetar valores
+        </Button>
+
+        <Button
+          className="w-56"
+          onClick={handleSaveGoals}
+        >
+          Salvar
+        </Button>
+      </div>
+    </div>
+  );
+}

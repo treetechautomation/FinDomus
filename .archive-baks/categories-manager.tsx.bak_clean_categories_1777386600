@@ -1,0 +1,200 @@
+import { normalizeCategoryName, formatCategoryName } from '@/utils/normalize';
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { X } from 'lucide-react';
+
+import { addCategory, deleteCategory, updateCategory, migrateCategoryTransactions } from '@/services/firestore';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type Category = {
+  id?: string;
+  name: string;
+  keywords?: string[];
+};
+
+export function CategoriesManager({ categories }: { categories: Category[] }) {
+  const router = useRouter();
+    const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [targetCategory, setTargetCategory] = useState('');
+
+  async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    const cleanName = formatCategoryName(name);
+
+    if (!cleanName) {
+      alert('Informe o nome da categoria.');
+      return;
+    }
+
+    const alreadyExists = categories.some(
+      (category) => normalizeCategoryName(category.name) === normalizeCategoryName(cleanName)
+    );
+
+    if (alreadyExists) {
+      alert('Essa categoria já existe.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await addCategory({ name: cleanName, keywords: [] });
+      setName('');
+      router.refresh();
+    } catch (error) {
+      console.error('Erro ao adicionar categoria:', error);
+      alert('Não foi possível adicionar a categoria.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(category: Category) {
+  setSelectedCategory(category);
+  setOpenDialog(true);
+}
+
+  async function confirmDeleteWithMigration() {
+  if (!selectedCategory?.id || !targetCategory) return;
+
+  if (targetCategory === selectedCategory.name) {
+    alert("Escolha uma categoria diferente.");
+    return;
+  }
+
+  try {
+    setDeletingId(selectedCategory.id);
+
+    const count = await migrateCategoryTransactions(selectedCategory.name, targetCategory);
+
+    console.log("Migradas:", count);
+
+    await deleteCategory(selectedCategory.id);
+
+    setOpenDialog(false);
+    setSelectedCategory(null);
+    setTargetCategory('');
+
+    router.refresh();
+  } catch (error) {
+    console.error("Erro ao excluir categoria:", error);
+    alert("Erro ao excluir categoria.");
+  } finally {
+    setDeletingId(null);
+  }
+}
+
+async function handleKeywordsBlur(category: Category, value: string) {
+    if (!category.id) return;
+
+    const keywords = value
+      .split(',')
+      .map((keyword) => keyword.trim().toLowerCase())
+      .filter(Boolean);
+
+    try {
+      await updateCategory(category.id, { keywords });
+
+      console.log('salvo');
+      router.refresh();
+    } catch (error) {
+      console.error('Erro ao salvar keywords:', error);
+      alert('Não foi possível salvar as keywords.');
+    }
+  }
+
+  return (
+    <>
+      <div className="grid gap-3 mb-4 md:grid-cols-2">
+        {categories.map((category) => (
+          <div key={category.id ?? category.name} className="rounded-lg border p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant="secondary" className="text-sm font-normal py-1 px-3">
+                {category.name}
+              </Badge>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={!category.id || deletingId === category.id}
+                onClick={() => handleDelete(category)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <Input
+              placeholder="keywords: nutag, pedagio, sem parar"
+              defaultValue={(category.keywords || []).join(', ')}
+              onBlur={(e) => handleKeywordsBlur(category, e.target.value)}
+              disabled={!category.id}
+            />
+          </div>
+        ))}
+
+        {categories.length === 0 && (
+          <div className="text-muted-foreground">Nenhuma categoria cadastrada ainda.</div>
+        )}
+      </div>
+
+      <form onSubmit={handleAdd} className="flex gap-2">
+        <Input
+          placeholder="Nova categoria"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Button type="submit" disabled={saving}>
+          {saving ? 'Adicionando...' : 'Adicionar'}
+        </Button>
+      </form>
+    
+  <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Migrar e excluir categoria</DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-4">
+        <p>
+          Para excluir <strong>{selectedCategory?.name}</strong>, selecione para onde migrar:
+        </p>
+
+        <Select value={targetCategory} onValueChange={setTargetCategory}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione a categoria destino" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories
+              .filter(c => c.name !== selectedCategory?.name)
+              .map(c => (
+                <SelectItem key={c.name} value={c.name}>
+                  {c.name}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          onClick={confirmDeleteWithMigration}
+          disabled={!targetCategory || deletingId !== null}
+        >
+          Migrar e excluir
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+</>
+  );
+}

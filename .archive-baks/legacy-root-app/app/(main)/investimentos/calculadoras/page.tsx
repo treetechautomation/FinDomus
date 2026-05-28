@@ -1,0 +1,150 @@
+import Link from 'next/link';
+import {
+  ArrowRight,
+  Calculator,
+  Landmark,
+  PiggyBank,
+  Shield,
+  Target,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+const calculators = [
+  {
+    title: 'Primeiro Milhão',
+    description: 'Descubra o prazo e o aporte mensal necessário para chegar a R$ 1 milhão.',
+    href: '/investimentos/calculadoras/primeiro-milhao',
+    icon: Target,
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-400/10',
+  },
+  {
+    title: 'Juros compostos',
+    description: 'Simule crescimento com aporte mensal, taxa e prazo.',
+    href: '/investimentos/calculadoras/juros-compostos',
+    icon: TrendingUp,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+  },
+  {
+    title: 'Simulador de aposentadoria',
+    description: 'Planeje sua renda futura e veja se está no caminho certo.',
+    href: '/investimentos/calculadoras/aposentadoria',
+    icon: PiggyBank,
+    color: 'text-violet-400',
+    bg: 'bg-violet-400/10',
+  },
+  {
+    title: 'Reserva de emergência',
+    description: 'Calcule a reserva ideal para proteger sua estabilidade financeira.',
+    href: '/investimentos/calculadoras/reserva',
+    icon: Shield,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+  },
+  {
+    title: 'Poupança vs SELIC',
+    description: 'Compare cenários de rendimento conservador.',
+    href: '/investimentos/calculadoras/poupanca-selic',
+    icon: Landmark,
+    color: 'text-sky-400',
+    bg: 'bg-sky-400/10',
+  },
+];
+
+export default function CalculadorasPage() {
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col gap-2">
+        <div className="text-sm text-muted-foreground">
+          <Link href="/investimentos" className="hover:text-primary">Investimentos</Link>
+          <span className="mx-2">›</span>
+          <span className="text-foreground">Calculadoras</span>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Ferramentas de Investimento</h1>
+            <p className="text-muted-foreground">
+              Simule metas, aposentadoria, reserva e cenários para reduzir instabilidade financeira.
+            </p>
+          </div>
+
+          <Link
+            href="/investimentos"
+            className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:border-primary hover:text-primary"
+          >
+            <Wallet className="h-4 w-4" />
+            Voltar para carteira
+          </Link>
+        </div>
+      </div>
+
+      <Card className="overflow-hidden border-primary/20 bg-card/70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Calculator className="h-5 w-5 text-primary" />
+            Calculadora do Primeiro Milhão
+          </CardTitle>
+          <CardDescription>
+            Comece pela meta principal: quanto preciso investir por mês para chegar ao primeiro milhão?
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/investimentos/calculadoras/primeiro-milhao"
+            className="group flex items-center justify-between rounded-xl border bg-background/40 p-5 transition hover:border-primary"
+          >
+            <div>
+              <div className="font-semibold">Abrir calculadora principal</div>
+              <div className="text-sm text-muted-foreground">
+                Valor inicial, aporte mensal, taxa de juros e prazo estimado.
+              </div>
+            </div>
+            <div className="rounded-full bg-primary/10 p-3 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
+              <ArrowRight className="h-5 w-5" />
+            </div>
+          </Link>
+        </CardContent>
+      </Card>
+
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Outras calculadoras</h2>
+        <p className="text-muted-foreground">Explore ferramentas para planejamento financeiro.</p>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+        {calculators.map((item) => (
+          <Link key={item.href} href={item.href}>
+            <Card className="group h-full cursor-pointer border-border/70 bg-card/70 transition hover:-translate-y-1 hover:border-primary hover:shadow-lg">
+              <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+                <div className={`rounded-2xl ${item.bg} p-4 ${item.color} transition group-hover:scale-110`}>
+                  <item.icon className="h-7 w-7" />
+                </div>
+                <div>
+                  <div className="font-bold">{item.title}</div>
+                  <p className="mt-2 text-xs text-muted-foreground">{item.description}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-destructive" />
+            Instabilidade financeira
+          </CardTitle>
+          <CardDescription>
+            O objetivo dessas calculadoras é antecipar riscos: falta de reserva, aporte insuficiente,
+            concentração de patrimônio e aposentadoria incompatível com o padrão desejado.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    </div>
+  );
+}

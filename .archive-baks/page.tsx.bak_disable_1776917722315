@@ -1,0 +1,54 @@
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { accounts } from "@/lib/data";
+import { Banknote, Landmark, PiggyBank, PlusCircle, TrendingUp } from "lucide-react";
+
+const accountIcons = {
+  checking: <Landmark className="w-6 h-6 text-primary" />,
+  savings: <PiggyBank className="w-6 h-6 text-primary" />,
+  investment: <TrendingUp className="w-6 h-6 text-primary" />,
+  other: <Banknote className="w-6 h-6 text-primary" />,
+};
+
+const accountTypes = {
+    checking: "Conta Corrente",
+    savings: "Poupança",
+    investment: "Investimentos",
+    other: "Outro"
+}
+
+export default function ContasPage() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Minhas Contas</h1>
+        <Button>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Adicionar Conta
+        </Button>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {accounts.map((account) => (
+          <Card key={account.id} className="flex flex-col">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle>{account.name}</CardTitle>
+                <CardDescription>{accountTypes[account.type]}</CardDescription>
+              </div>
+              <div className="p-3 bg-secondary rounded-lg">
+                {accountIcons[account.type]}
+              </div>
+            </CardHeader>
+            <CardContent className="mt-auto">
+              <span className="text-sm text-muted-foreground">{account.bank}</span>
+              <p className="text-2xl font-bold">
+                {account.balance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}

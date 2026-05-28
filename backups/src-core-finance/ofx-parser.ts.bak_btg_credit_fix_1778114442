@@ -1,0 +1,371 @@
+import { normalizeText, type ParsedTransaction } from './transaction-classifier';
+import { getCategories } from '@/services/firestore/categories';
+
+function getTag(block: string, tag: string) {
+  const match = block.match(new RegExp(`<${tag}>([^<\r\n]+)`));
+  return match ? match[1].trim() : '';
+}
+
+function formatOfxDate(value: string) {
+  const raw = value.slice(0, 8);
+  if (raw.length !== 8) return '';
+  return `${raw.slice(6, 8)}/${raw.slice(4, 6)}/${raw.slice(0, 4)}`;
+}
+
+function isCreditCardPayment(descLower: string) {
+  return (
+    descLower.includes('pagamento recebido') ||
+    descLower.includes('pagamento em') ||
+    descLower.includes('pagamento de fatura')
+  );
+}
+
+function inferCategoryFromMemo(descLower: string) {
+    if (descLower.includes('gol linhas')) {
+      return 'Viagem';
+    }
+
+  if (
+    descLower.includes('milkymoo') ||
+    descLower.includes('pao da serra') ||
+    descLower.includes('grill lanchonete')
+  ) {
+    return 'Alimentação';
+  }
+
+  if (
+    descLower.includes('america restaurant') ||
+    descLower.includes('restaurant') ||
+    descLower.includes('berbigao') ||
+    descLower.includes('companhia do churras')
+  ) {
+    return 'Restaurante';
+  }
+
+  if (
+    descLower.includes('atacadao') ||
+    descLower.includes('panamil')
+  ) {
+    return 'Supermercado';
+  }
+
+  if (descLower.includes('dosecerta')) {
+    return 'Farmácia';
+  }
+
+  if (descLower.includes('beach park')) {
+    return 'Lazer';
+  }
+
+  if (descLower.includes('comunidade catolica')) {
+    return 'Doações';
+  }
+
+  if (descLower.includes('edicoesshalom')) {
+    return 'Livros';
+  }
+
+  if (descLower.includes('liritty')) {
+    return 'Compras';
+  }
+
+  if (
+    descLower.includes('99 pop') ||
+    /pop\s+\d{1,2}/i.test(descLower)
+  ) {
+    return 'Transporte';
+  }
+
+  if (descLower.includes('printsolutions')) {
+    return 'Serviços';
+  }
+
+  if (
+    descLower.includes('viuva') ||
+    descLower.includes('saulo vala') ||
+    descLower.includes('andrade tavares')
+  ) {
+    return 'Prestação de contas';
+  }
+
+  if (descLower.includes('j sleiman')) {
+    return 'Compras';
+  }
+
+    if (descLower.includes('rede tetra')) {
+      return 'Combustível';
+    }
+
+    if (descLower.includes('rede varejao')) return 'Supermercado';
+
+    if (
+      descLower.includes('aqua rio') ||
+      descLower.includes('ingresse') ||
+      descLower.includes('summer santa rosa')
+    ) return 'Lazer';
+
+    if (
+      descLower.includes('casa e video') ||
+      descLower.includes('cea ipm') ||
+      descLower.includes('figueira silva') ||
+      descLower.includes('baby festas') ||
+      descLower.includes('big nectar')
+    ) return 'Compras';
+
+    if (descLower.includes('rdsaude')) return 'Farmácia';
+
+    if (
+      descLower.includes('ddtrioburgers') ||
+      descLower.includes('mvg gohan')
+    ) return 'Restaurante';
+
+    if (
+      descLower.includes('sophia de almeida') ||
+      descLower.includes('esphera anima')
+    ) return 'Prestação de contas';
+
+    return null;
+}
+
+function extractInstallmentData(description: string) {
+  const match = String(description || '').match(/parcela\s+(\d+)\s*\/\s*(\d+)/i);
+
+  if (!match) {
+    return {
+      isInstallment: false,
+      installmentCurrent: null,
+      installmentTotal: null,
+      remainingInstallments: null,
+      installmentKey: null,
+    };
+  }
+
+  const current = Number(match[1]);
+  const total = Number(match[2]);
+
+  const normalized = String(description || '')
+    .replace(/-\s*parcela\s+\d+\s*\/\s*\d+/i, '')
+    .trim()
+    .toLowerCase();
+
+  return {
+    isInstallment: true,
+    installmentCurrent: current,
+    installmentTotal: total,
+    remainingInstallments: Math.max(total - current, 0),
+    installmentKey: normalized,
+  };
+}
+
+export async function parseOFX(text: string): Promise<ParsedTransaction[]> {
+  const categories = (await getCategories()) as Array<{ name: string; keywords?: string[] }>;
+
+  const transactions = text
+    .split('<STMTTRN>')
+    .slice(1)
+    .map((block) => {
+      const memo =
+        getTag(block, 'MEMO') ||
+        getTag(block, 'NAME') ||
+        'Lançamento';
+
+      const rawAmount = getTag(block, 'TRNAMT');
+      const amount = Number(rawAmount);
+
+      const date = formatOfxDate(getTag(block, 'DTPOSTED'));
+
+        const trnType = getTag(block, 'TRNTYPE').toUpperCase();
+        const fitId = getTag(block, 'FITID');
+        const descLower = normalizeText(memo);
+
+let type: 'expense' | 'income' | 'transfer' = 'expense';
+
+// base inicial
+if (trnType === 'CREDIT') {
+
+  // 🧠 CLASSIFICAÇÃO INTELIGENTE DE RECEITA
+
+  const onlyNumbers = memo.replace(/\D/g, '');
+
+  // CPF (11 dígitos) → pessoa física
+  if (onlyNumbers.length === 11) {
+    return {
+      date,
+      description: memo,
+      merchant: memo,
+      amount: Math.abs(amount),
+      category: 'Recebimentos',
+      type: 'income',
+    };
+  }
+
+  // CNPJ (14 dígitos) → empresa
+  if (onlyNumbers.length === 14) {
+    return {
+      date,
+      description: memo,
+      merchant: memo,
+      amount: Math.abs(amount),
+      category: 'Serviços prestados',
+      type: 'income',
+    };
+  }
+
+    // pagamento de fatura/cartão
+    if (isCreditCardPayment(descLower)) {
+      return {
+        date,
+        description: memo,
+        merchant: memo,
+        externalId: fitId || undefined,
+        amount: Math.abs(amount),
+        category: 'Pagamento de fatura',
+        type: 'transfer',
+      };
+    }
+
+    // salário real
+    if (descLower.includes('salario')) {
+      return {
+        date,
+        description: memo,
+        merchant: memo,
+        externalId: fitId || undefined,
+        amount: Math.abs(amount),
+        category: 'Salário',
+        type: 'income',
+      };
+    }
+      // rendimentos
+      if (descLower.includes('remunera')) {
+        return {
+          date,
+          description: memo,
+          merchant: memo,
+          externalId: fitId || undefined,
+          amount: Math.abs(amount),
+          category: 'Rendimentos financeiros',
+          type: 'income',
+        };
+      }
+
+      // TED/PIX recebidos = receita operacional PJ
+      if (
+        descLower.includes('ted recebida') ||
+        descLower.includes('pix recebido')
+      ) {
+        return {
+          date,
+          description: memo,
+          merchant: memo,
+          externalId: fitId || undefined,
+          amount: Math.abs(amount),
+          category: 'Serviços prestados',
+          type: 'income',
+        };
+      }
+
+      // movimentações internas bancárias em crédito
+      if (
+        descLower.includes('resgate') ||
+        descLower.includes('aplicacao') ||
+        descLower.includes('aplicação') ||
+        descLower.includes('credito conta corrente') ||
+        descLower.includes('crédito conta corrente') ||
+        descLower.includes('credito na conta corrente') ||
+        descLower.includes('crédito na conta corrente')
+      ) {
+        return {
+          date,
+          description: memo,
+          merchant: memo,
+          externalId: fitId || undefined,
+          amount: Math.abs(amount),
+          category: 'Transferência',
+          type: 'transfer',
+        };
+      }
+
+      // fallback para cartão: estorno/cashback/crédito compensatório
+      return {
+        date,
+        description: memo,
+        merchant: memo,
+        externalId: fitId || undefined,
+        amount: Math.abs(amount),
+        category: 'Estorno',
+        type: 'income',
+      };
+      }
+  if (trnType === 'DEBIT') type = 'expense';
+
+  // inteligência PJ
+  // impostos
+  if (
+    descLower.includes('inss') ||
+    descLower.includes('das') ||
+    descLower.includes('imposto') ||
+    descLower.includes('prefeitura')
+  ) {
+    type = 'expense';
+  }
+
+  // transferências internas em débito
+  if (
+    descLower.includes('resgate') ||
+    descLower.includes('aplicacao') ||
+    descLower.includes('aplicação') ||
+    descLower.includes('debito conta corrente') ||
+    descLower.includes('débito conta corrente') ||
+    descLower.includes('debito na conta corrente') ||
+    descLower.includes('débito na conta corrente') ||
+    descLower.includes('credito conta corrente') ||
+    descLower.includes('crédito conta corrente') ||
+    descLower.includes('credito na conta corrente') ||
+    descLower.includes('crédito na conta corrente')
+  ) {
+    type = 'transfer';
+  }
+
+
+        const clean = normalizeText(memo);
+
+        // �� IGNORAR SALDO DO DIA
+        if (clean.includes("saldo do dia")) {
+          return null;
+        }
+
+        let category = inferCategoryFromMemo(descLower) || "Outros";
+
+        if (category === "Outros") {
+          for (const cat of categories) {
+            if (!cat.keywords) continue;
+
+            if (cat.keywords.some((k: string) => clean.includes(normalizeText(k)))) {
+              category = cat.name;
+              break;
+            }
+          }
+        }
+
+          const installment = extractInstallmentData(memo);
+
+        return {
+          date,
+          description: memo,
+          merchant: memo,
+          externalId: fitId || undefined,
+          amount: Math.abs(amount),
+            ...installment,
+
+          category,
+          type,
+        };
+    })
+    .filter(
+  (item): item is ParsedTransaction =>
+    Boolean(item && item.date && item.amount)
+);
+
+  return transactions;
+}

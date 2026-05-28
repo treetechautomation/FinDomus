@@ -1,0 +1,100 @@
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { transactions } from "@/lib/data";
+import { cn } from "@/lib/utils";
+import { Edit, Filter, PlusCircle, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+export default function LancamentosPage() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Lançamentos</h1>
+        <Button>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Adicionar Lançamento
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
+          <CardDescription>Filtre seus lançamentos para encontrar o que precisa.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Input placeholder="Buscar por descrição..." />
+            <Select>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="income">Receita</SelectItem>
+                <SelectItem value="expense">Despesa</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="food">Alimentação</SelectItem>
+                <SelectItem value="transport">Transporte</SelectItem>
+                <SelectItem value="salary">Salário</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" className="w-full">
+              <Filter className="mr-2 h-4 w-4" /> Aplicar Filtros
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+            <CardTitle>Todos os Lançamentos</CardTitle>
+        </CardHeader>
+        <CardContent>
+        <Table>
+            <TableHeader>
+            <TableRow>
+                <TableHead>Descrição</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead className="hidden md:table-cell">Categoria</TableHead>
+                <TableHead className="hidden md:table-cell">Data</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+            </TableHeader>
+            <TableBody>
+            {transactions.map((t) => (
+                <TableRow key={t.id}>
+                <TableCell className="font-medium">{t.description}</TableCell>
+                <TableCell>
+                    <span className={cn('font-medium', t.type === 'income' ? 'text-green-600' : 'text-red-600')}>
+                        {t.type === 'income' ? '+' : '-'} {Math.abs(t.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                    <Badge variant="secondary">{t.category}</Badge>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">{new Date(t.date).toLocaleDateString('pt-BR')}</TableCell>
+                <TableCell className="text-right">
+                    <Button variant="ghost" size="icon">
+                        <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon">
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </TableCell>
+                </TableRow>
+            ))}
+            </TableBody>
+        </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

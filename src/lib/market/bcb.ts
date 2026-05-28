@@ -1,0 +1,85 @@
+import { cacheGet, cacheSet } from './cache';
+
+const SGS_BASE = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs';
+const BCB_TTL = 24 * 60 * 60 * 1000;
+
+type SgsItem = { data: string; valor: string };
+
+async function fetchSgs(codigo: number, ultimos: number = 1): Promise<number | null> {
+  try {
+    const res = await fetch(`${SGS_BASE}.${codigo}/dados/ultimos/${ultimos}?formato=json`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    const data: SgsItem[] = await res.json();
+    if (!data?.length) return null;
+    return Number(data[data.length - 1].valor) || null;
+  } catch {
+    return null;
+  }
+}
+
+export type BcbIndicador = {
+  symbol: string;
+  name: string;
+  price: number | null;
+  changePercent: number | null;
+  source: 'BCB';
+  status: 'live' | 'closed' | 'fallback';
+};
+
+const INDICATORS: { codigo: number; symbol: string; name: string }[] = [
+  { codigo: 10813, symbol: 'USD/BRL', name: 'Dólar' },
+  { codigo: 4189, symbol: 'SELIC', name: 'Selic' },
+  { codigo: 4389, symbol: 'CDI', name: 'CDI' },
+  { codigo: 10844, symbol: 'IPCA', name: 'IPCA' },
+];
+
+async function fetchIndicator(codigo: number): Promise<number | null> {
+  return fetchSgs(codigo);
+}
+
+const BCB_CACHE_KEY = 'bcb_indicators';
+
+export async function getBcbIndicators(): Promise<BcbIndicador[]> {
+  const cached = cacheGet<BcbIndicador[]>(BCB_CACHE_KEY);
+  if (cached && !cached.stale) return cached.data;
+
+  const result = await fetchBcbIndicators();
+  if (result.length > 0 && result.some((r) => r.price !== null)) {
+    cacheSet(BCB_CACHE_KEY, result, BCB_TTL);
+    return result;
+  }
+
+  if (cached) return cached.data;
+  return result;
+}
+
+async function fetchBcbIndicators(): Promise<BcbIndicador[]> {
+  const results = await Promise.allSettled(
+    INDICATORS.map(async (ind) => {
+      const price = await fetchIndicator(ind.codigo);
+      return {
+        symbol: ind.symbol,
+        name: ind.name,
+        price,
+        changePercent: null,
+        source: 'BCB' as const,
+        status: price !== null ? 'live' as const : 'fallback' as const,
+      };
+    })
+  );
+
+  return results.map((r) => {
+    if (r.status === 'fulfilled') return r.value;
+    const ind = INDICATORS[results.indexOf(r)];
+    return {
+      symbol: ind.symbol,
+      name: ind.name,
+      price: null,
+      changePercent: null,
+      source: 'BCB' as const,
+      status: 'fallback' as const,
+    };
+  });
+}

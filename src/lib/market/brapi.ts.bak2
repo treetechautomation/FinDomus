@@ -1,0 +1,104 @@
+export type BrapiTicker = {
+  symbol: string;
+  name: string;
+  price: number | null;
+  changePercent: number | null;
+  source: 'BRAPI';
+  status: 'live' | 'closed' | 'fallback';
+};
+
+const BRAPI_BASE = 'https://brapi.dev/api';
+
+const SYMBOL_NORMALIZE: Record<string, string> = {
+  '^BVSP': 'IBOV',
+};
+
+const DEFAULT_SYMBOLS = [
+  'PETR4.SA',
+  'VALE3.SA',
+  'ITUB4.SA',
+  '^BVSP',
+  'BBAS3.SA',
+  'WEGE3.SA',
+  'MGLU3.SA',
+  'ITUB3.SA',
+  'ITSA3.SA',
+  'ITSA4.SA',
+  'BBDC4.SA',
+  'SANB11.SA',
+  'CSMG3.SA',
+  'SAPR4.SA',
+  'MXRF11.SA',
+  'KNCR11.SA',
+  'BTRA11.SA',
+  'SDIL11.SA',
+  'BTAI11.SA',
+  'CVBI11.SA',
+  'HSML11.SA',
+  'HCTR11.SA',
+  'HGLG11.SA',
+  'VINO11.SA',
+  'VISC11.SA',
+  'BTLG11.SA',
+  'XPML11.SA',
+  'RBRF11.SA',
+  'AMZN',
+  'AAPL',
+  'MSFT',
+  'NVDA',
+  'TSLA',
+  'GOOG',
+  'META',
+];
+
+const BATCH_SIZE = 20;
+
+async function fetchBrapiBatch(batch: string[]): Promise<BrapiTicker[]> {
+  const token = process.env.BRAPI_TOKEN;
+  try {
+    const symbols = batch.join(',');
+    const res = await fetch(`${BRAPI_BASE}/quote/${symbols}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const results = json?.results || [];
+    return results.map((item: any) => {
+      if (!item) return null;
+      const rawSymbol = String(item.symbol || '').replace('.SA', '');
+      return {
+        symbol: SYMBOL_NORMALIZE[rawSymbol] || rawSymbol,
+        name: item.shortName || item.longName || item.symbol,
+        price: Number(item.regularMarketPrice) || null,
+        changePercent: Number(item.regularMarketChangePercent) || null,
+        source: 'BRAPI' as const,
+        status: 'live' as const,
+      };
+    }).filter(Boolean) as BrapiTicker[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getBrapiTickers(
+  symbols: string[] = DEFAULT_SYMBOLS
+): Promise<BrapiTicker[]> {
+  const batches: string[][] = [];
+  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+    batches.push(symbols.slice(i, i + BATCH_SIZE));
+  }
+
+  const results = await Promise.allSettled(
+    batches.map((batch) => fetchBrapiBatch(batch))
+  );
+
+  const tickers: BrapiTicker[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      tickers.push(...r.value);
+    }
+  }
+
+  return tickers;
+}

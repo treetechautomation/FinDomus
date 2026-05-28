@@ -1,0 +1,111 @@
+import { ArrowDown, ArrowUp, Banknote, Landmark, ShieldAlert, TrendingUp, Users, Building2, Bell } from 'lucide-react';
+import { StatCard } from '@/components/overview/stat-card';
+import { ConsolidatedBalance } from '@/components/overview/consolidated-balance';
+import { MonthlyFlow } from '@/components/overview/monthly-flow';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { calculateMonthlyBalance, calculateNetWorth, calculateTotalAssets, calculateTotalLiabilities, formatCurrency } from '@/core/finance/engine';
+
+export default function DashboardPage() {
+  const monthly = calculateMonthlyBalance();
+  const totalAssets = calculateTotalAssets();
+  const totalLiabilities = calculateTotalLiabilities();
+  const netWorth = calculateNetWorth();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Visão Geral</h1>
+          <p className="text-muted-foreground">Dashboard consolidado da sua vida financeira.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon">
+            <Bell className="h-4 w-4" />
+          </Button>
+          <Button>Novo Lançamento</Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Patrimônio Líquido"
+          value={formatCurrency(netWorth)}
+          icon={Landmark}
+          description="Ativos - Passivos"
+        />
+        <StatCard
+          title="Total de Ativos"
+          value={formatCurrency(totalAssets)}
+          icon={TrendingUp}
+          variant="positive"
+          description="Soma de todos os bens e investimentos"
+        />
+        <StatCard
+          title="Total de Passivos"
+          value={formatCurrency(totalLiabilities)}
+          icon={ShieldAlert}
+          variant="negative"
+          description="Soma de todas as dívidas e obrigações"
+        />
+        <StatCard
+          title="Balanço Mensal"
+          value={formatCurrency(monthly.balance)}
+          icon={Banknote}
+          description="Receitas - Despesas no mês atual"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ConsolidatedBalance />
+        <MonthlyFlow />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Users /> Resumo Pessoal</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <StatCard
+              title="Receitas Pessoais"
+              value={formatCurrency(monthly.income)}
+              icon={ArrowUp}
+              variant="positive"
+              size="sm"
+            />
+            <StatCard
+              title="Despesas Pessoais"
+              value={formatCurrency(monthly.expenses)}
+              icon={ArrowDown}
+              variant="negative"
+              size="sm"
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Building2 /> Resumo Empresarial</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <StatCard
+              title="Receitas PJ"
+              value="R$ 45.000,00"
+              icon={ArrowUp}
+              variant="positive"
+              size="sm"
+            />
+            <StatCard
+              title="Despesas PJ"
+              value="R$ 22.200,00"
+              icon={ArrowDown}
+              variant="negative"
+              size="sm"
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

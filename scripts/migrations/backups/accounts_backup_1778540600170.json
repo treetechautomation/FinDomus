@@ -1,0 +1,64 @@
+[
+  {
+    "id": "4kSrWqjro5U4x1492tOP",
+    "createdAt": "2026-05-07T03:21:17.044Z",
+    "balance": 1347.57,
+    "owner": "PF",
+    "name": "Banco do Brasil",
+    "updatedAt": "2026-05-11T17:59:19.699Z",
+    "type": "checking",
+    "companyId": null
+  },
+  {
+    "id": "VtCikxgo97b5ricLdHnR",
+    "name": "Banco Inter",
+    "owner": "PF",
+    "createdAt": "2026-05-07T03:21:36.822Z",
+    "balance": 1347.57,
+    "companyId": null,
+    "type": "checking",
+    "updatedAt": "2026-05-11T17:59:19.666Z"
+  },
+  {
+    "id": "mEfzRIgO8gYmDZ15L7C5",
+    "balanceSource": "C/C BTG Pactual",
+    "owner": "PF",
+    "balance": 1347.57,
+    "name": "BTG Pactual",
+    "companyId": null,
+    "updatedAt": "2026-05-11T17:59:19.755Z",
+    "balanceSourceDate": "30/04/2026",
+    "type": "checking",
+    "createdAt": "2026-04-23T21:16:23.294Z"
+  },
+  {
+    "id": "sZRKhFPzt4YVdNdnugx1",
+    "updatedAt": "2026-05-11T17:59:19.548Z",
+    "type": "checking",
+    "companyId": null,
+    "name": "XP Bank",
+    "owner": "PF",
+    "createdAt": "2026-05-07T03:22:39.879Z",
+    "balance": 1347.57
+  },
+  {
+    "id": "wygehaaJbbKcHCV2CLsE",
+    "createdAt": "2026-04-23T20:28:53.452Z",
+    "owner": "PF",
+    "name": "Nubank",
+    "balance": 1347.57,
+    "updatedAt": "2026-05-11T17:59:19.813Z",
+    "type": "checking",
+    "companyId": null
+  },
+  {
+    "id": "zcGhsiMZfzXxYo75GUoF",
+    "type": "checking",
+    "updatedAt": "2026-05-06T23:08:39.128Z",
+    "companyId": "v3b0C0sh2UmD7meVO50m",
+    "name": "BTG Pactual Empresas",
+    "createdAt": "2026-04-24T01:33:27.068Z",
+    "owner": "PJ",
+    "balance": 8486.73
+  }
+]

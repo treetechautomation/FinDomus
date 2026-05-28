@@ -1,0 +1,319 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useAuth } from '@/providers/auth-provider';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, Landmark, ShieldCheck, LineChart, BrainCircuit, PieChart } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loadingLogin, setLoadingLogin] = useState(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Se já estiver logado, manda para home silenciosamente
+    if (!loading && user) {
+      router.replace('/');
+    }
+  }, [user, loading, router]);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+
+    setLoadingLogin(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // Redirecionamento é feito pelo useEffect assim que o useAuth reage
+    } catch (error: any) {
+      console.error('Erro de login:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Falha na autenticação',
+        description: 'Verifique seu e-mail e senha e tente novamente.',
+      });
+      setLoadingLogin(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoadingGoogle(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // Redirecionamento é feito pelo useEffect
+    } catch (error: any) {
+      console.error('Erro de login com Google:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Falha no login com Google',
+        description: 'Não foi possível concluir a autenticação com sua conta Google.',
+      });
+      setLoadingGoogle(false);
+    }
+  };
+
+  if (loading || user) {
+    // Retorna tela em branco ou loading enquanto checa a sessão
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-zinc-950">
+        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen w-full bg-gradient-to-br from-slate-950 via-zinc-950 to-black text-zinc-50 selection:bg-amber-500/30 font-sans">
+      
+      {/* Coluna Visual (Esquerda em Desktop, Oculta em Mobile) */}
+      <div className="relative hidden w-[55%] flex-col justify-between overflow-hidden border-r border-amber-900/20 bg-transparent lg:flex">
+        
+        {/* Background Gradients & Elements */}
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+          <div className="absolute -left-[20%] -top-[10%] h-[70%] w-[70%] rounded-full bg-blue-900/10 blur-[120px]" />
+          <div className="absolute -right-[10%] top-[40%] h-[60%] w-[60%] rounded-full bg-amber-900/10 blur-[100px]" />
+          
+          {/* Geometria / Grid */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+          
+          {/* Linha abstrata de mercado cruzando o fundo */}
+          <svg className="absolute top-1/2 left-0 w-full h-64 -translate-y-1/2 opacity-20" preserveAspectRatio="none" viewBox="0 0 1000 200">
+            <path d="M0,150 Q150,160 250,110 T500,80 T750,100 T1000,20" fill="none" stroke="url(#goldGradient)" strokeWidth="3" strokeLinecap="round" />
+            <defs>
+              <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#d97706" />
+                <stop offset="50%" stopColor="#fbbf24" />
+                <stop offset="100%" stopColor="#f59e0b" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+
+        {/* Top Header */}
+        <div className="relative z-10 flex flex-col p-12 lg:p-16">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900/80 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] backdrop-blur-md">
+              <Landmark className="h-6 w-6 text-amber-400" />
+            </div>
+            <span className="text-2xl font-bold tracking-tight text-zinc-100 uppercase tracking-widest">FinDomus</span>
+          </div>
+          
+          <div className="mt-16 max-w-lg">
+            <h1 className="text-4xl font-semibold leading-tight text-white lg:text-5xl tracking-tight">
+              Institutional Grade <br />
+              <span className="bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                Wealth Management.
+              </span>
+            </h1>
+            <p className="mt-6 text-lg text-zinc-400 leading-relaxed font-light">
+              Plataforma financeira de alto desempenho. Controle absoluto do seu patrimônio com precisão e segurança de classe mundial.
+            </p>
+          </div>
+        </div>
+
+        {/* Candlesticks Centrais Premium */}
+        <div className="relative z-10 flex-1 flex items-center justify-center">
+          <div className="flex items-end gap-6 h-48 border-b border-amber-500/30 pb-4 relative w-full max-w-md mx-auto px-8">
+            {/* Glow da linha base */}
+            <div className="absolute bottom-0 left-0 w-full h-[1px] bg-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.8)]" />
+            
+            {/* Candle 1 */}
+            <div className="relative flex flex-col items-center w-8">
+              <div className="w-[2px] h-32 bg-emerald-500/80 absolute top-2" />
+              <div className="w-full h-16 bg-emerald-500 rounded-sm shadow-[0_0_15px_rgba(16,185,129,0.4)] z-10 mt-8" />
+            </div>
+
+            {/* Candle 2 */}
+            <div className="relative flex flex-col items-center w-8">
+              <div className="w-[2px] h-24 bg-red-500/80 absolute top-12" />
+              <div className="w-full h-10 bg-red-500 rounded-sm shadow-[0_0_15px_rgba(239,68,68,0.4)] z-10 mt-16" />
+            </div>
+
+            {/* Candle 3 (Dourado Central) */}
+            <div className="relative flex flex-col items-center w-8 -translate-y-4">
+              <div className="w-[2px] h-40 bg-amber-400/80 absolute -top-4" />
+              <div className="w-full h-24 bg-gradient-to-b from-yellow-300 to-amber-500 rounded-sm shadow-[0_0_25px_rgba(245,158,11,0.6)] z-10 mt-2" />
+            </div>
+
+            {/* Candle 4 */}
+            <div className="relative flex flex-col items-center w-8">
+              <div className="w-[2px] h-20 bg-emerald-500/80 absolute top-8" />
+              <div className="w-full h-12 bg-emerald-500 rounded-sm shadow-[0_0_15px_rgba(16,185,129,0.4)] z-10 mt-10" />
+            </div>
+
+            {/* Candle 5 */}
+            <div className="relative flex flex-col items-center w-8">
+              <div className="w-[2px] h-28 bg-emerald-500/80 absolute top-4" />
+              <div className="w-full h-14 bg-emerald-500 rounded-sm shadow-[0_0_15px_rgba(16,185,129,0.4)] z-10 mt-6" />
+            </div>
+          </div>
+        </div>
+
+        {/* Feature Cards Bottom */}
+        <div className="relative z-10 p-12 lg:p-16">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/30 backdrop-blur-sm group hover:border-blue-500/30 hover:bg-zinc-900/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-all duration-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 transition-colors group-hover:bg-blue-500/20 group-hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-medium text-zinc-200">Segurança</h3>
+                <p className="mt-1 text-xs text-zinc-500 font-light">Criptografia de ponta a ponta.</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/30 backdrop-blur-sm group hover:border-emerald-500/30 hover:bg-zinc-900/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 transition-colors group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+                <LineChart className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-medium text-zinc-200">Controle financeiro</h3>
+                <p className="mt-1 text-xs text-zinc-500 font-light">Fluxo preditivo e DRE em tempo real.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/30 backdrop-blur-sm group hover:border-purple-500/30 hover:bg-zinc-900/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] transition-all duration-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400 transition-colors group-hover:bg-purple-500/20 group-hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+                <PieChart className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-medium text-zinc-200">Investimentos</h3>
+                <p className="mt-1 text-xs text-zinc-500 font-light">Carteiras multi-tenant otimizadas.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/30 backdrop-blur-sm group hover:border-amber-500/30 hover:bg-zinc-900/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] transition-all duration-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 transition-colors group-hover:bg-amber-500/20 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.5)]">
+                <BrainCircuit className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-medium text-zinc-200">IA Financeira</h3>
+                <p className="mt-1 text-xs text-zinc-500 font-light">Automação de extratos por inteligência.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Coluna de Login */}
+      <div className="relative flex w-full flex-col justify-center items-center px-6 lg:w-[45%] lg:px-12 xl:px-24 bg-transparent z-20">
+        
+        {/* Efeito Glow subtil atrás do form no mobile */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-amber-900/20 rounded-full blur-[100px] pointer-events-none lg:hidden" />
+
+        <div className="w-full max-w-[420px] relative z-10">
+          
+          {/* Mobile Header (Visível apenas em telas menores) */}
+          <div className="mb-10 flex flex-col items-center gap-3 lg:hidden">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+              <Landmark className="h-8 w-8 text-amber-400" />
+            </div>
+            <span className="text-3xl font-bold tracking-tight text-white uppercase tracking-widest mt-2">FinDomus</span>
+          </div>
+
+          {/* Login Block Wrapper with Premium Glow */}
+          <div className="relative w-full group/login">
+            {/* Outer Glow */}
+            <div className="absolute -inset-0.5 bg-gradient-to-br from-amber-500/30 via-yellow-500/10 to-amber-900/30 rounded-3xl blur opacity-70 transition-opacity duration-500 group-hover/login:opacity-100" />
+            
+            {/* Glass Container */}
+            <div className="relative w-full rounded-3xl border border-amber-500/20 bg-zinc-950/80 backdrop-blur-2xl p-8 shadow-[0_0_40px_-10px_rgba(245,158,11,0.15)]">
+              
+              <div className="mb-8 text-center">
+                <h2 className="text-2xl font-semibold tracking-tight text-zinc-100">
+                  Acesso Restrito
+                </h2>
+                <p className="mt-2 text-sm text-zinc-400 font-light">
+                  Autenticação institucional necessária.
+                </p>
+              </div>
+
+              <form onSubmit={handleEmailLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-zinc-300 text-xs font-medium uppercase tracking-wider">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="nome@instituicao.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="h-12 bg-zinc-900/80 border-zinc-800/80 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-amber-500/50 focus-visible:border-amber-500/50 transition-all rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-zinc-300 text-xs font-medium uppercase tracking-wider">Senha</Label>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="h-12 bg-zinc-900/80 border-zinc-800/80 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-amber-500/50 focus-visible:border-amber-500/50 transition-all rounded-xl"
+                  />
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="h-12 w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-black font-bold text-sm tracking-wide shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_25px_rgba(245,158,11,0.5)] transition-all rounded-xl mt-4" 
+                  disabled={loadingLogin || loadingGoogle}
+                >
+                  {loadingLogin ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                  ENTRAR NA PLATAFORMA
+                </Button>
+              </form>
+
+              <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-zinc-800/80" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                  <span className="bg-zinc-950 px-4 text-zinc-500 font-medium">
+                    SSO Enterprise
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                className="h-12 w-full bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 text-zinc-300 transition-all rounded-xl"
+                onClick={handleGoogleLogin}
+                disabled={loadingLogin || loadingGoogle}
+              >
+                {loadingGoogle ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : (
+                  <svg viewBox="0 0 24 24" className="mr-3 h-5 w-5 opacity-90" aria-hidden="true">
+                    <path d="M12.0003 4.75C13.7703 4.75 15.3553 5.36002 16.6053 6.54998L20.0303 3.125C17.9502 1.19 15.2353 0 12.0003 0C7.31028 0 3.25527 2.69 1.28027 6.60998L5.27028 9.70498C6.21525 6.86002 8.87028 4.75 12.0003 4.75Z" fill="#EA4335" />
+                    <path d="M23.49 12.275C23.49 11.49 23.415 10.73 23.3 10H12V14.51H18.47C18.18 15.99 17.34 17.25 16.08 18.1L19.945 21.1C22.2 19.01 23.49 15.92 23.49 12.275Z" fill="#4285F4" />
+                    <path d="M5.26498 14.2949C5.02498 13.5699 4.88501 12.7999 4.88501 11.9999C4.88501 11.1999 5.01998 10.4299 5.26498 9.7049L1.275 6.60986C0.46 8.22986 0 10.0599 0 11.9999C0 13.9399 0.46 15.7699 1.28 17.3899L5.26498 14.2949Z" fill="#FBBC05" />
+                    <path d="M12.0004 24.0001C15.2404 24.0001 17.9654 22.935 19.9454 21.095L16.0804 18.095C15.0054 18.82 13.6204 19.245 12.0004 19.245C8.8704 19.245 6.21537 17.135 5.26538 14.29L1.27539 17.385C3.25539 21.31 7.3104 24.0001 12.0004 24.0001Z" fill="#34A853" />
+                  </svg>
+                )}
+                <span className="font-medium text-sm">Autenticar com Google Workspace</span>
+              </Button>
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-xs text-zinc-600 uppercase tracking-widest font-light">
+            Sistema Seguro • Criptografia Ativa
+          </p>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+

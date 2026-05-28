@@ -1,0 +1,469 @@
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:UTF-8
+CHARSET:NONE
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+
+<OFX>
+  <SIGNONMSGSRSV1>
+   <SONRS>
+    <STATUS>
+      <CODE>0</CODE>
+      <SEVERITY>INFO</SEVERITY>
+    </STATUS>
+    <DTSERVER>20260506210148[-3:BRT]</DTSERVER>
+    <LANGUAGE>POR</LANGUAGE>
+    <FI>
+     <ORG>Banco do Brasil</ORG>
+     <FID>1</FID>
+    </FI>
+   </SONRS>
+  </SIGNONMSGSRSV1>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1</TRNUID>
+        <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+       </STATUS>
+      <STMTRS>
+        <CURDEF>BRL</CURDEF>
+        <BANKACCTFROM>
+          <BANKID>1</BANKID>
+          <BRANCHID>803</BRANCHID>
+          <ACCTID>49800</ACCTID>
+          <ACCTTYPE>CHECKING</ACCTTYPE>
+        </BANKACCTFROM>
+        <BANKTRANLIST>
+            <DTSTART>20260331000000[-3:BRT]</DTSTART>
+            <DTEND>20260506210148[-3:BRT]</DTEND>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260223000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>826.65</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo Anterior</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260302000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-170.00</TRNAMT>
+              <FITID>30.201</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>01/03 08:17 ROSILENE DE JESUS</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260302000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-24.00</TRNAMT>
+              <FITID>51.840.872</FITID>
+              <NAME>Pagto cartão crédito</NAME>
+              <MEMO>VISA INTERNATIONAL</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>632.65</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260303000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>9883.56</TRNAMT>
+              <FITID>600.803.400.049.800</FITID>
+              <NAME>Transferência recebida</NAME>
+              <MEMO>03/03 20:52 MARINA DE SOUZA BURGOS</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260303000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-300.00</TRNAMT>
+              <FITID>30.301</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>03/03 21:15 ANDERSON MARANHAO DA SILV</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>10216.21</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260304000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>14400.00</TRNAMT>
+              <FITID>41.435.139.426.551</FITID>
+              <NAME>Pix - Recebido</NAME>
+              <MEMO>04/03 14:35 26550803000103 RM SCAN SER</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>24616.21</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260305000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-3172.12</TRNAMT>
+              <FITID>30.501</FITID>
+              <NAME>Pagamento de Boleto</NAME>
+              <MEMO>BRADESCO SAUDE S A</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260305000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-93.00</TRNAMT>
+              <FITID>30.502</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>05/03 15:54 HAMILTON FERREIRA BURGOS</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260305000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-170.00</TRNAMT>
+              <FITID>30.503</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>05/03 20:02 ROSILENE DE JESUS</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260305000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-350.00</TRNAMT>
+              <FITID>30.504</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>05/03 20:03 Joselia Maranhão Silva de</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260305000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-16.10</TRNAMT>
+              <FITID>830.641.100.643.282</FITID>
+              <NAME>Tarifa Pacote de Serviços</NAME>
+              <MEMO>Cobrança referente 05/03/2026</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>20814.99</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260306000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-10000.00</TRNAMT>
+              <FITID>30.601</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>06/03 10:15 ANDERSON MARANHAO DA SILV</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260306000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-40.00</TRNAMT>
+              <FITID>30.602</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>06/03 13:58 MARCELO MARINS DE MOURA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>10774.99</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260309000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-71.00</TRNAMT>
+              <FITID>30.901</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>07/03 11:37 ANA MARIA WISTUBA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260309000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-591.00</TRNAMT>
+              <FITID>30.902</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>07/03 13:10 Luiz André de Souza</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260309000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-660.00</TRNAMT>
+              <FITID>30.903</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>09/03 13:22 DANIELLE CRISTIANE MOURA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260309000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-1200.00</TRNAMT>
+              <FITID>30.904</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>09/03 13:35 MARIA ANGELA DE SOUZA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260309000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-2170.00</TRNAMT>
+              <FITID>30.905</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>09/03 16:44 MARIA ANGELA DE SOUZA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260309000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-76.90</TRNAMT>
+              <FITID>18.429</FITID>
+              <NAME>Prestação de Serviços</NAME>
+              <MEMO>NIO FIBRA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>6006.09</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260311000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-170.00</TRNAMT>
+              <FITID>31.101</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>11/03 16:41 ROSILENE DE JESUS</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>5836.09</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260316000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-280.00</TRNAMT>
+              <FITID>31.601</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>16/03 19:23 PROCEVE CENTRO DE MEDICIN</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260316000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-80.00</TRNAMT>
+              <FITID>59.071</FITID>
+              <NAME>Pagamentos Diversos</NAME>
+              <MEMO>CANCAO NOVA</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>5476.09</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260317000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-160.00</TRNAMT>
+              <FITID>31.701</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>17/03 15:21 OBRA SAGRADOS CORACOES DE</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260317000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-565.75</TRNAMT>
+              <FITID>43.304</FITID>
+              <NAME>Pagto Energia Elétrica</NAME>
+              <MEMO>AMPLA (ANTIGA CERJ)</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>4750.34</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260319000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-739.00</TRNAMT>
+              <FITID>31.901</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>19/03 16:40 Ricardo dos Santos Aguiar</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260319000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-500.00</TRNAMT>
+              <FITID>31.902</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>19/03 16:50 MEDBURGOS SERVICOS MEDICO</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>3511.34</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260320000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-3000.00</TRNAMT>
+              <FITID>32.001</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>20/03 14:22 COMUNIDADE CATOLICA SHALO</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>511.34</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260323000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-100.00</TRNAMT>
+              <FITID>32.301</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>23/03 17:17 João Paulo da Silva Santo</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260323000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-65.39</TRNAMT>
+              <FITID>32.302</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>23/03 18:55 DROGARIAS PACHECO</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>345.95</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260324000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-170.00</TRNAMT>
+              <FITID>32.401</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>24/03 18:22 ROSILENE DE JESUS</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>175.95</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260326000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>100.00</TRNAMT>
+              <FITID>261.702.319.410.961</FITID>
+              <NAME>Pix - Recebido</NAME>
+              <MEMO>26/03 17:02 12213506760 Marina de Souz</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260326000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>10.00</TRNAMT>
+              <FITID>261.703.414.583.461</FITID>
+              <NAME>Pix - Recebido</NAME>
+              <MEMO>26/03 17:03 12213506760 Marina de Souz</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260326000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>65.39</TRNAMT>
+              <FITID>262.155.409.184.661</FITID>
+              <NAME>Pix-Envio devolvido</NAME>
+              <MEMO>26/03 21:55 DROGARIAS PACHECO</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260326000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-447.00</TRNAMT>
+              <FITID>32.601</FITID>
+              <NAME>Pix - Enviado</NAME>
+              <MEMO>26/03 17:04 Ricardo dos Santos Aguiar</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260326000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>95.66</TRNAMT>
+              <FITID>148</FITID>
+              <NAME>Resgate Poupança</NAME>
+              <MEMO>Poupança (var.51)</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>0.00</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>DEBIT</TRNTYPE>
+              <DTPOSTED>20260330000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>-24.00</TRNAMT>
+              <FITID>51.840.872</FITID>
+              <NAME>Pagto cartão crédito</NAME>
+              <MEMO>VISA INTERNATIONAL</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>20260330000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>24.00</TRNAMT>
+              <FITID>148</FITID>
+              <NAME>Resgate Poupança</NAME>
+              <MEMO>Poupança (var.51)</MEMO>
+            </STMTTRN>
+            <STMTTRN>
+              <TRNTYPE>CREDIT</TRNTYPE>
+              <DTPOSTED>00021130000000[-3:BRT]</DTPOSTED>
+              <TRNAMT>0.00</TRNAMT>
+              <FITID></FITID>
+              <NAME>Saldo do dia</NAME>
+              <MEMO></MEMO>
+            </STMTTRN>
+      </BANKTRANLIST>
+      <LEDGERBAL>
+        <BALAMT>0.00</BALAMT>
+        <DTASOF>20260331000000[-3:BRT]</DTASOF>
+      </LEDGERBAL>
+    </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>

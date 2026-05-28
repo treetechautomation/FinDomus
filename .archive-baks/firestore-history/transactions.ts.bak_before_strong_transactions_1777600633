@@ -1,0 +1,23 @@
+import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+// coleção principal
+const COLLECTION = 'transactions';
+
+// salvar lançamento
+export async function addTransaction(data: any) {
+  const docRef = await addDoc(collection(db, COLLECTION), {
+    ...data,
+    createdAt: new Date(),
+  });
+  return docRef.id;
+}
+
+// listar lançamentos
+export async function getTransactions() {
+  const querySnapshot = await getDocs(collection(db, COLLECTION));
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+}

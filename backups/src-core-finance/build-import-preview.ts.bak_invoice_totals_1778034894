@@ -1,0 +1,160 @@
+import { generateImportHash } from '@/services/firestore/transactions';
+
+export type ImportPreviewStatus =
+  | 'new'
+  | 'possible_duplicate'
+  | 'same_external_different_value'
+  | 'installment'
+  | 'recurring';
+
+export type ImportPreviewRow = {
+  index: number;
+  transaction: any;
+  importHash: string;
+  status: ImportPreviewStatus[];
+  reasons: string[];
+};
+
+function isInstallment(description: string) {
+  return /parcela\s+\d+\s*\/\s*\d+/i.test(description || '');
+}
+
+function isRecurringCandidate(description: string) {
+  const text = String(description || '').toLowerCase();
+
+  return (
+    text.includes('google') ||
+    text.includes('microsoft') ||
+    text.includes('netflix') ||
+    text.includes('spotify') ||
+    text.includes('canva') ||
+    text.includes('academia') ||
+    text.includes('tecfit') ||
+    text.includes('internet') ||
+    text.includes('telefone')
+  );
+}
+
+export function buildImportPreview(transactions: any[]) {
+  const rows: ImportPreviewRow[] = transactions.map((transaction, index) => {
+    const importHash =
+      transaction.importHash ??
+      generateImportHash({
+        date: transaction.dateISO || transaction.date,
+        amount: transaction.amount,
+        description: transaction.description,
+        merchant: transaction.merchant,
+        owner: transaction.owner,
+        externalId: transaction.externalId,
+      });
+
+    const status: ImportPreviewStatus[] = ['new'];
+    const reasons: string[] = [];
+
+    if (isInstallment(transaction.description)) {
+      status.push('installment');
+      reasons.push('Parcelamento detectado');
+    }
+
+    if (isRecurringCandidate(transaction.description)) {
+      status.push('recurring');
+      reasons.push('Possível despesa recorrente');
+    }
+
+    return {
+      index,
+      transaction,
+      importHash,
+      status,
+      reasons,
+    };
+  });
+
+  const byExternalId = new Map<string, ImportPreviewRow[]>();
+  const byHash = new Map<string, ImportPreviewRow[]>();
+
+  for (const row of rows) {
+    const externalId = row.transaction.externalId;
+
+    if (externalId) {
+      if (!byExternalId.has(externalId)) byExternalId.set(externalId, []);
+      byExternalId.get(externalId)!.push(row);
+    }
+
+    if (!byHash.has(row.importHash)) byHash.set(row.importHash, []);
+    byHash.get(row.importHash)!.push(row);
+  }
+
+  for (const group of byExternalId.values()) {
+    if (group.length <= 1) continue;
+
+    for (const row of group) {
+      const hasDifferentValue = group.some(
+        (other) =>
+          Number(other.transaction.amount || 0).toFixed(2) !==
+          Number(row.transaction.amount || 0).toFixed(2)
+      );
+
+      row.status.push(
+        hasDifferentValue
+          ? 'same_external_different_value'
+          : 'possible_duplicate'
+      );
+
+      row.reasons.push(
+        hasDifferentValue
+          ? 'Mesmo identificador externo com valor diferente'
+          : 'Mesmo identificador externo no arquivo'
+      );
+    }
+  }
+
+  for (const group of byHash.values()) {
+    if (group.length <= 1) continue;
+
+    for (const row of group) {
+      row.status.push('possible_duplicate');
+      row.reasons.push('Mesmo hash de importação no arquivo');
+    }
+  }
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      const t = row.transaction;
+      const amount = Math.abs(Number(t.amount || 0));
+
+      if (t.type === 'expense') acc.expenses += amount;
+      if (t.type === 'income') acc.income += amount;
+      if (t.type === 'transfer') acc.transfer += amount;
+
+      return acc;
+    },
+    {
+      expenses: 0,
+      income: 0,
+      transfer: 0,
+    }
+  );
+
+  const counts = {
+    total: rows.length,
+    installments: rows.filter((r) => r.status.includes('installment')).length,
+    recurring: rows.filter((r) => r.status.includes('recurring')).length,
+    possibleDuplicates: rows.filter(
+      (r) =>
+        r.status.includes('possible_duplicate') ||
+        r.status.includes('same_external_different_value')
+    ).length,
+  };
+
+  return {
+    rows,
+    totals: {
+      expenses: Number(totals.expenses.toFixed(2)),
+      income: Number(totals.income.toFixed(2)),
+      transfer: Number(totals.transfer.toFixed(2)),
+      net: Number((totals.income - totals.expenses).toFixed(2)),
+    },
+    counts,
+  };
+}

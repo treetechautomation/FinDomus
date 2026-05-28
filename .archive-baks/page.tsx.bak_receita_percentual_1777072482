@@ -1,0 +1,270 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { Pie, PieChart, ResponsiveContainer, Cell, Tooltip } from 'recharts';
+import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  defaultWealthCategories,
+  getDistributionTotal,
+  getWealthInsight,
+  type WealthCategory,
+} from '@/core/finance/wealth-engine';
+import { getWealthProfile, saveWealthProfile } from '@/services/firestore';
+
+const uid = 'test-user-id';
+
+export default function PlanejamentoPage() {
+  const [categories, setCategories] = useState<WealthCategory[]>(defaultWealthCategories);
+  const [saving, setSaving] = useState(false);
+  const [savedMessage, setSavedMessage] = useState('');
+
+  const total = useMemo(() => getDistributionTotal(categories), [categories]);
+  const insight = useMemo(() => getWealthInsight(categories), [categories]);
+  const canSave = total === 100;
+
+  useEffect(() => {
+    async function load() {
+      const profile = await getWealthProfile(uid);
+      if (profile?.categories?.length) {
+        setCategories(profile.categories);
+      }
+    }
+
+    load();
+  }, []);
+
+  function updateCategory(id: string, patch: Partial<WealthCategory>) {
+    setCategories((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item))
+    );
+    setSavedMessage('');
+  }
+
+  function addCategory() {
+    const id = `categoria_${Date.now()}`;
+    setCategories((prev) => [
+      ...prev,
+      {
+        id,
+        name: 'Nova categoria',
+        percentage: 0,
+        color: '#94a3b8',
+      },
+    ]);
+    setSavedMessage('');
+  }
+
+  function removeCategory(id: string) {
+    setCategories((prev) => prev.filter((item) => item.id !== id));
+    setSavedMessage('');
+  }
+
+  function reset() {
+    setCategories(defaultWealthCategories);
+    setSavedMessage('');
+  }
+
+  async function save() {
+    if (!canSave) return;
+
+    setSaving(true);
+    setSavedMessage('');
+
+    try {
+      await saveWealthProfile(uid, categories);
+      setSavedMessage('Estratégia salva com sucesso.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Planejamento financeiro</h1>
+        <p className="text-muted-foreground">
+          Organize seu orçamento, defina metas e alinhe sua estratégia de patrimônio.
+        </p>
+      </div>
+
+      <Tabs defaultValue="estrategia" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="orcamento">Orçamento inteligente</TabsTrigger>
+          <TabsTrigger value="estrategia">Estratégia financeira</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="orcamento">
+          <Card>
+            <CardHeader>
+              <CardTitle>Orçamento inteligente</CardTitle>
+              <CardDescription>
+                Em breve esta aba será integrada ao módulo Pessoal para comparar gasto real vs estratégia.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              A base de orçamento inteligente já existe em /pessoal. O próximo passo é cruzar os gastos reais com a estratégia abaixo.
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="estrategia" className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle>Total: {total}%</CardTitle>
+                <CardDescription>
+                  A soma precisa fechar 100% para salvar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categories}
+                        dataKey="percentage"
+                        nameKey="name"
+                        innerRadius={70}
+                        outerRadius={105}
+                        paddingAngle={2}
+                      >
+                        {categories.map((item) => (
+                          <Cell key={item.id} fill={item.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: any, _name: any, item: any) => [
+                          `${value}%`,
+                          item.payload.name,
+                        ]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="space-y-2">
+                  {categories.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 text-sm">
+                      <span
+                        className="h-3 w-3 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span>{item.name}</span>
+                      <span className="font-semibold text-primary">({item.percentage}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Minha estratégia</CardTitle>
+                <CardDescription>
+                  Personalize nomes, cores e percentuais conforme seu perfil financeiro.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {categories.map((item) => (
+                  <div key={item.id} className="rounded-xl border p-4">
+                    <div className="grid gap-3 md:grid-cols-[1fr_120px_60px_auto]">
+                      <Input
+                        value={item.name}
+                        onChange={(e) => updateCategory(item.id, { name: e.target.value })}
+                      />
+
+                      <Input
+                        type="number"
+                        value={item.percentage}
+                        onChange={(e) =>
+                          updateCategory(item.id, {
+                            percentage: Math.max(0, Math.min(100, Number(e.target.value))),
+                          })
+                        }
+                      />
+
+                      <input
+                        type="color"
+                        value={item.color}
+                        onChange={(e) => updateCategory(item.id, { color: e.target.value })}
+                        className="h-10 w-full rounded-md border bg-background"
+                      />
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => removeCategory(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>0%</span>
+                        <span className="font-semibold text-foreground">{item.percentage}%</span>
+                        <span>100%</span>
+                      </div>
+                      <Slider
+                        value={[item.percentage]}
+                        max={100}
+                        step={1}
+                        onValueChange={(value) =>
+                          updateCategory(item.id, { percentage: value[0] ?? 0 })
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex flex-col gap-3 md:flex-row md:justify-between">
+                  <Button type="button" variant="outline" onClick={addCategory}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Adicionar categoria
+                  </Button>
+
+                  <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={reset}>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Resetar
+                    </Button>
+
+                    <Button type="button" disabled={!canSave || saving} onClick={save}>
+                      <Save className="mr-2 h-4 w-4" />
+                      {saving ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className={canSave ? 'border-emerald-500/30' : 'border-amber-500/40'}>
+            <CardHeader>
+              <CardTitle>Diagnóstico</CardTitle>
+              <CardDescription>
+                Análise estratégica da sua distribuição financeira.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className={canSave ? 'font-semibold text-emerald-500' : 'font-semibold text-amber-500'}>
+                {insight}
+              </div>
+
+              {savedMessage && (
+                <div className="font-semibold text-emerald-500">{savedMessage}</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -1,0 +1,93 @@
+import { normalizeText, type ParsedTransaction } from './transaction-classifier';
+import { getCategories } from '@/services/firestore';
+
+function getTag(block: string, tag: string) {
+  const match = block.match(new RegExp(`<${tag}>([^<\r\n]+)`));
+  return match ? match[1].trim() : '';
+}
+
+function formatOfxDate(value: string) {
+  const raw = value.slice(0, 8);
+  if (raw.length !== 8) return '';
+  return `${raw.slice(6, 8)}/${raw.slice(4, 6)}/${raw.slice(0, 4)}`;
+}
+
+export async function parseOFX(text: string): Promise<ParsedTransaction[]> {
+  const categories = (await getCategories()) as Array<{ name: string; keywords?: string[] }>;
+
+  const transactions = text
+    .split('<STMTTRN>')
+    .slice(1)
+    .map((block) => {
+      const memo =
+        getTag(block, 'MEMO') ||
+        getTag(block, 'NAME') ||
+        'Lançamento';
+
+      const rawAmount = getTag(block, 'TRNAMT');
+      const amount = Number(rawAmount);
+
+      const date = formatOfxDate(getTag(block, 'DTPOSTED'));
+
+      const trnType = getTag(block, 'TRNTYPE').toUpperCase();
+
+let type: 'expense' | 'income' | 'transfer' = 'expense';
+
+// base inicial
+if (trnType === 'CREDIT') type = 'income';
+if (trnType === 'DEBIT') type = 'expense';
+
+// inteligência PJ
+const descLower = memo.toLowerCase();
+
+// impostos
+if (
+  descLower.includes('inss') ||
+  descLower.includes('das') ||
+  descLower.includes('imposto') ||
+  descLower.includes('prefeitura')
+) {
+  type = 'expense';
+}
+
+// transferências internas
+if (
+  descLower.includes('resgate') ||
+  descLower.includes('aplicacao') ||
+  descLower.includes('débito conta corrente') ||
+  descLower.includes('credito conta corrente')
+) {
+  type = 'transfer';
+}
+
+// rendimentos
+if (descLower.includes('remunera')) {
+  type = 'income';
+}
+
+      const clean = normalizeText(memo);
+
+let category = 'Outros';
+
+for (const cat of categories) {
+  if (!cat.keywords) continue;
+
+  if (cat.keywords.some((k: string) => clean.includes(k))) {
+    category = cat.name;
+    break;
+  }
+}
+
+      return {
+        date,
+        description: memo,
+        merchant: memo,
+        amount: Math.abs(amount),
+        category,
+        type,
+      };
+    })
+    .filter((item) => item.date && item.amount);
+
+  return transactions;
+}

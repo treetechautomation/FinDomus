@@ -1,0 +1,123 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { TrendingUp, Target, Shield, PiggyBank, Briefcase, Landmark } from "lucide-react";
+import { StatCard } from "@/components/overview/stat-card";
+import { investments as mockInvestments } from "@/lib/data";
+import { getInvestments } from "@/services/firestore";
+import { analyzePortfolio, getPortfolioInsights } from "@/core/finance/portfolio-analysis";
+
+const investmentIcons = {
+  'CDB': <Landmark className="w-5 h-5" />,
+  'Ações': <TrendingUp className="w-5 h-5" />,
+  'Fundos': <Briefcase className="w-5 h-5" />,
+  'Poupança': <PiggyBank className="w-5 h-5" />,
+  'Reserva de Emergência': <Shield className="w-5 h-5" />,
+};
+
+export default async function InvestimentosPage() {
+  // TODO: Replace 'test-user-id' with dynamic user ID after implementing auth
+  const uid = 'test-user-id';
+  let investments = await getInvestments();
+
+  
+  const totalInvested = investments.reduce((sum, item) => sum + item.currentValue, 0);
+
+const analysis = analyzePortfolio(investments);
+const insights = getPortfolioInsights(analysis.distribution);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <a href="/investimentos/calculadoras" className="text-sm text-primary underline">
+        Ir para Calculadoras →
+      </a>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
+            <TrendingUp className="w-8 h-8 text-primary" />
+            Investimentos e Patrimônio
+          </h1>
+          <p className="text-muted-foreground mt-1">Acompanhe a evolução dos seus ativos e investimentos.</p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumo do Patrimônio Investido</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            title="Total Investido"
+            value={totalInvested.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            icon={TrendingUp}
+            description="Soma de todos os seus investimentos"
+          />
+          <StatCard
+            title="Rentabilidade (Ano)"
+            value="+12.5%"
+            icon={TrendingUp}
+            variant="positive"
+            description="Variação positiva no ano"
+          />
+           <StatCard
+            title="Próxima Meta"
+            value={(100000).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            icon={Target}
+            description="Patrimônio desejado"
+          />
+        </CardContent>
+      </Card>
+
+<Card className="border-yellow-500/30">
+  <CardHeader>
+    <CardTitle>Saúde da Carteira</CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-2">
+    <div>Score: {insights.score}/10</div>
+
+    {insights.alerts.map((a, i) => (
+      <div key={i} className="text-yellow-500 text-sm">
+        ⚠️ {a}
+      </div>
+    ))}
+  </CardContent>
+</Card>
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {investments.map((item) => (
+          <Card key={item.id}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                {investmentIcons[item.type as keyof typeof investmentIcons]}
+                {item.type}
+              </CardTitle>
+              <CardDescription>{item.institution}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-2xl font-bold">{item.currentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                <p className="text-sm text-muted-foreground">{item.objective}</p>
+              </div>
+              
+              {item.goal && (
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-sm font-medium text-muted-foreground">Progresso da Meta</span>
+                    <span className="text-sm font-medium">
+                        {((item.currentValue / item.goal) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <Progress value={(item.currentValue / item.goal) * 100} />
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground pt-2 border-t border-dashed">
+                <p>Aportes: {item.contributions.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                <p>Liquidez: {item.liquidity}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}

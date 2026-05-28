@@ -1,0 +1,92 @@
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:NONE
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <DTSERVER>20260202000000.000[-3:-03]</DTSERVER>
+      <LANGUAGE>POR</LANGUAGE>
+      <FI>
+        <ORG>Banco Inter</ORG>
+        <FID>77</FID>
+      </FI>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <STMTRS>
+        <CURDEF>BRL</CURDEF>
+        <BANKACCTFROM>
+          <BANKID>77</BANKID>
+          <ACCTTYPE>CHECKING</ACCTTYPE>
+        </BANKACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20250908000000.000[-3:-03]</DTSTART>
+          <DTEND>20260202000000.000[-3:-03]</DTEND>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20260202000000.000[-3:-03]</DTPOSTED>
+            <TRNAMT>989.46</TRNAMT>
+            <FITID>20260202001</FITID>
+            <MEMO>PAGAMENTO DE FATURA</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20250908000000.000[-3:-03]</DTPOSTED>
+            <TRNAMT>-264.38</TRNAMT>
+            <FITID>20250908001</FITID>
+            <MEMO>MP *SAMSUNG (Parcela 06 de 18)</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20251119000000.000[-3:-03]</DTPOSTED>
+            <TRNAMT>-66.56</TRNAMT>
+            <FITID>20251119001</FITID>
+            <MEMO>NAT*Natura Pagamentos (Parcela 04 de 06)</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20251216000000.000[-3:-03]</DTPOSTED>
+            <TRNAMT>-178.06</TRNAMT>
+            <FITID>20251216001</FITID>
+            <MEMO>VascoGi*VASCOGIGANTE (Parcela 03 de 12)</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260110000000.000[-3:-03]</DTPOSTED>
+            <TRNAMT>-407.41</TRNAMT>
+            <FITID>20260110001</FITID>
+            <MEMO>TROCAFONESA (Parcela 02 de 12)</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260113000000.000[-3:-03]</DTPOSTED>
+            <TRNAMT>-53.52</TRNAMT>
+            <FITID>20260113001</FITID>
+            <MEMO>ASA*ODISSEIA JOGOS REC (Parcela 02 de 06)</MEMO>
+          </STMTTRN>
+        </BANKTRANLIST>
+        <LEDGERBAL>
+          <BALAMT>0</BALAMT>
+          <DTASOF>20260202000000.000[-3:-03]</DTASOF>
+        </LEDGERBAL>
+      </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>

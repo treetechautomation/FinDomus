@@ -1,0 +1,155 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { X, PlusCircle, Download, Upload } from "lucide-react";
+import { NewAccountDialog } from "@/components/contas/new-account-dialog";
+
+export default function ConfiguracoesPage() {
+  const categories = ['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Educação', 'Salário', 'Investimentos'];
+  const accounts = [
+    { name: 'Conta Corrente Pessoal', bank: 'Banco Principal', type: 'Pessoal' },
+    { name: 'Conta PJ', bank: 'Banco Empresarial', type: 'Empresa' },
+  ];
+  const companies = ['Minha Empresa LTDA'];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Configurações</h1>
+      </div>
+
+      <Tabs defaultValue="perfil" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+          <TabsTrigger value="perfil">Perfil</TabsTrigger>
+          <TabsTrigger value="empresas">Empresas</TabsTrigger>
+          <TabsTrigger value="contas">Contas</TabsTrigger>
+          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="backup">Backup</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="perfil" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Perfil e Família</CardTitle>
+              <CardDescription>Gerencie suas informações pessoais e da sua família.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="userName">Seu Nome</Label>
+                  <Input id="userName" defaultValue="Usuário Principal" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="familyName">Nome da Família</Label>
+                  <Input id="familyName" defaultValue="Família Silva" />
+                </div>
+              </div>
+              <Button>Salvar Alterações</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="empresas" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Empresas (PJ)</CardTitle>
+              <CardDescription>Cadastre e gerencie suas empresas.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {companies.map((company, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                    <span className="font-medium">{company}</span>
+                    <Button variant="ghost" size="icon">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-4">
+                  <Input placeholder="Nova empresa"/>
+                  <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Adicionar Empresa
+                  </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="contas" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contas Bancárias</CardTitle>
+              <CardDescription>Gerencie suas contas pessoais e empresariais.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {accounts.map((account, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                    <div>
+                      <p className="font-medium">{account.name}</p>
+                      <p className="text-sm text-muted-foreground">{account.bank}</p>
+                    </div>
+                    <Badge variant={account.type === 'Pessoal' ? 'default' : 'outline'}>{account.type}</Badge>
+                  </div>
+                ))}
+              </div>
+              <NewAccountDialog />
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Conta
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="categorias" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Categorias</CardTitle>
+              <CardDescription>Crie e gerencie suas categorias de despesas e receitas.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {categories.map(cat => (
+                  <Badge key={cat} variant="secondary" className="text-sm font-normal py-1 pl-3 pr-2">
+                    {cat}
+                    <Button variant="ghost" size="icon" className="h-5 w-5 ml-1">
+                      <X className="h-3 w-3"/>
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                  <Input placeholder="Nova categoria"/>
+                  <Button>Adicionar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="backup" className="mt-6">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Backup e Restauração</CardTitle>
+                  <CardDescription>Exporte seus dados para um arquivo ou importe um backup existente.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col sm:flex-row gap-4">
+                  <Button variant="outline">
+                      <Download className="mr-2 h-4 w-4"/>
+                      Exportar Dados
+                  </Button>
+                  <Button variant="outline">
+                      <Upload className="mr-2 h-4 w-4"/>
+                      Importar Backup
+                  </Button>
+              </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

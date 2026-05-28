@@ -1,0 +1,118 @@
+'use client';
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartConfig,
+} from '@/components/ui/chart';
+
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PieChart, Pie, Cell } from 'recharts';
+import { useState } from 'react';
+
+type Props = {
+  data: { name: string; value: number }[];
+};
+
+const COLORS = [
+  '#00D0E6',
+  '#22C55E',
+  '#6366F1',
+  '#F59E0B',
+  '#EF4444',
+  '#8B5CF6',
+];
+
+export function CategorySpendingChart({ data }: Props) {
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+
+  const enriched = data.map((item, index) => ({
+    ...item,
+    percent: total > 0 ? (item.value / total) * 100 : 0,
+    fill: COLORS[index % COLORS.length],
+  }));
+
+  const chartConfig: ChartConfig = {
+    value: { label: 'Gasto' },
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Gastos por Categoria</CardTitle>
+        <CardDescription>
+          Distribuição percentual dos gastos
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="flex flex-col items-center gap-4">
+        <ChartContainer
+          config={chartConfig}
+          className="w-full max-w-[300px]"
+        >
+          <PieChart>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value: any) =>
+                    Number(value).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })
+                  }
+                />
+              }
+            />
+
+            <Pie
+              data={enriched}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={60}
+              strokeWidth={4}
+              onClick={(entry: any) =>
+                setActiveCategory(entry.name === activeCategory ? null : entry.name)
+              }
+            >
+              {enriched.map((entry) => (
+                <Cell
+                  key={entry.name}
+                  fill={entry.fill}
+                  opacity={
+                    activeCategory && activeCategory !== entry.name ? 0.3 : 1
+                  }
+                />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+
+        {/* LEGENDA PREMIUM */}
+        <div className="flex flex-wrap gap-3 justify-center">
+          {enriched.map((item) => (
+            <div
+              key={item.name}
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() =>
+                setActiveCategory(
+                  item.name === activeCategory ? null : item.name
+                )
+              }
+            >
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: item.fill }}
+              />
+              <span className="text-sm">
+                {item.name} ({item.percent.toFixed(1)}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

@@ -1,0 +1,114 @@
+import * as XLSX from 'xlsx';
+
+import { classifyTransaction, type ParsedTransaction } from './transaction-classifier';
+
+function normalizeKey(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function parseAmount(value: unknown) {
+  if (typeof value === 'number') return value;
+
+  const clean = String(value || '')
+    .replace(/[R$\s]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^\d.-]/g, '');
+
+  return Number(clean || 0);
+}
+
+function normalizeDate(value: unknown) {
+  if (value instanceof Date) {
+    return value.toLocaleDateString('pt-BR');
+  }
+
+  if (typeof value === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      return `${String(parsed.d).padStart(2, '0')}/${String(parsed.m).padStart(2, '0')}/${parsed.y}`;
+    }
+  }
+
+  return String(value || '').trim();
+}
+
+function findValue(row: any, keys: string[]) {
+  const rowKeys = Object.keys(row || {});
+  const found = rowKeys.find((key) =>
+    keys.some((target) => normalizeKey(key).includes(normalizeKey(target)))
+  );
+
+  return found ? row[found] : '';
+}
+
+function parseRows(rows: any[]): ParsedTransaction[] {
+  return rows
+    .map((row: any) => {
+      const date = normalizeDate(findValue(row, ['data', 'date', 'dt', 'compra', 'movimento', 'movimentacao']));
+      const description = String(
+        findValue(row, [
+          'descrição',
+          'descricao',
+          'histórico',
+          'historico',
+          'lançamento',
+          'lancamento',
+          'estabelecimento',
+          'nome',
+          'title',
+          'memo',
+        ]) || ''
+      ).trim();
+
+      const rawAmount = findValue(row, ['valor', 'amount', 'total', 'debito', 'débito', 'credito', 'crédito']);
+      const amount = parseAmount(rawAmount);
+
+      if (!description || Number.isNaN(amount) || amount === 0) return null;
+
+      return {
+        ...classifyTransaction(description, amount),
+        date,
+      };
+    })
+    .filter(Boolean) as ParsedTransaction[];
+}
+
+export function parseExcelFile(buffer: ArrayBuffer): ParsedTransaction[] {
+  const workbook = XLSX.read(buffer, {
+    type: 'array',
+    cellDates: true,
+  });
+
+  const debug: string[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+
+    for (let range = 0; range <= 12; range++) {
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        defval: '',
+        range,
+      });
+
+      const parsed = parseRows(rows);
+
+      const headers = Object.keys(rows[0] || {});
+      debug.push(
+        `Aba "${sheetName}" range ${range}: ${rows.length} linhas | colunas: ${headers.join(' | ')}`
+      );
+
+      if (parsed.length) {
+        return parsed;
+      }
+    }
+  }
+
+  throw new Error(
+    `Este arquivo parece ser uma fatura/resumo, não um extrato estruturado. Exporte como CSV ou OFX para importar automaticamente. Debug técnico: ${debug.slice(0, 20).join(' || ')}`
+  );
+}

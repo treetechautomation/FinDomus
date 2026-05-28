@@ -1,0 +1,85 @@
+export type ParsedTransaction = {
+  date: string;
+  description: string;
+  merchant: string;
+  category: string;
+  amount: number;
+  type: 'income' | 'expense';
+};
+
+// ===== NORMALIZE =====
+function normalize(text: string) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+// ===== DETECT MERCHANT =====
+function detectMerchant(text: string) {
+  const clean = normalize(text);
+
+  if (clean.includes('guanabara')) return 'Guanabara';
+  if (clean.includes('uber')) return 'Uber';
+  if (clean.includes('99')) return '99';
+  if (clean.includes('ifood')) return 'Ifood';
+  if (clean.includes('posto')) return 'Posto';
+  if (clean.includes('ampla')) return 'Ampla';
+  if (clean.includes('bradesco')) return 'Bradesco';
+  if (clean.includes('nubank')) return 'Nubank';
+
+  return text;
+}
+
+// ===== DETECT CATEGORY =====
+function detectCategory(text: string) {
+  const clean = normalize(text);
+
+  if (clean.includes('supermercado') || clean.includes('ifood')) return 'Alimentação';
+  if (clean.includes('uber') || clean.includes('99') || clean.includes('posto')) return 'Transporte';
+  if (clean.includes('energia') || clean.includes('ampla')) return 'Moradia';
+  if (clean.includes('internet') || clean.includes('fibra')) return 'Moradia';
+  if (clean.includes('hospital') || clean.includes('saude')) return 'Saúde';
+  if (clean.includes('igreja') || clean.includes('dizimo')) return 'Doações';
+
+  return 'Outros';
+}
+
+// ===== DETECT DESCRIPTION =====
+function detectDescription(text: string) {
+  const clean = normalize(text);
+
+  if (clean.includes('supermercado')) return 'Supermercado';
+  if (clean.includes('posto')) return 'Gasolina';
+  if (clean.includes('uber') || clean.includes('99')) return 'Transporte';
+  if (clean.includes('ifood')) return 'Restaurante';
+  if (clean.includes('energia')) return 'Energia';
+  if (clean.includes('internet') || clean.includes('fibra')) return 'Internet';
+
+  return text;
+}
+
+// ===== PARSER CSV (NUBANK) =====
+export function parseNubankCSV(csv: string): ParsedTransaction[] {
+  const lines = csv.split('\n').slice(1);
+
+  return lines
+    .map((line) => {
+      const [date, title, amountStr] = line.split(',');
+
+      if (!date || !title || !amountStr) return null;
+
+      const amount = Number(amountStr);
+
+      return {
+        date,
+        description: detectDescription(title),
+        merchant: detectMerchant(title),
+        category: detectCategory(title),
+        amount: Math.abs(amount),
+        type: amount < 0 ? 'income' : 'expense',
+      };
+    })
+    .filter(Boolean) as ParsedTransaction[];
+}

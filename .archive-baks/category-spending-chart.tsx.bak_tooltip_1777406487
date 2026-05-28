@@ -1,0 +1,173 @@
+'use client';
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartConfig,
+} from '@/components/ui/chart';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+
+import { PieChart, Pie, Cell } from 'recharts';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+type Props = {
+  data: { name: string; value: number }[];
+  selectedCategory?: string;
+  month: number;
+  mode: string;
+};
+
+const DEFAULT_COLORS = [
+  '#00D0E6', // cyan TreeTech
+  '#22C55E', // green
+  '#3B82F6', // blue
+  '#A855F7', // purple
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#14B8A6', // teal
+  '#8B5CF6', // violet
+  '#06B6D4', // sky/cyan
+  '#84CC16', // lime
+  '#F97316', // orange
+  '#EC4899', // pink
+  '#10B981', // emerald
+  '#6366F1', // indigo
+  '#EAB308', // yellow
+  '#F43F5E', // rose
+  '#0EA5E9', // sky
+  '#9333EA', // purple dark
+  '#65A30D', // green dark
+  '#D946EF', // fuchsia
+  '#0284C7', // blue dark
+  '#CA8A04', // gold
+  '#DC2626', // red dark
+  '#059669', // emerald dark
+];
+
+export function CategorySpendingChart({ data, selectedCategory = '', month, mode }: Props) {
+  const router = useRouter();
+
+  const activeCategory = selectedCategory || null;
+
+  const [colorMap, setColorMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem('categoryColors');
+    if (saved) setColorMap(JSON.parse(saved));
+  }, []);
+
+  function updateColor(name: string, color: string) {
+    const next = { ...colorMap, [name]: color };
+    setColorMap(next);
+    localStorage.setItem('categoryColors', JSON.stringify(next));
+  }
+
+  function toggleCategory(category: string) {
+    const nextCategory = category === activeCategory ? '' : category;
+    const url = nextCategory
+      ? `/pessoal?month=${month}&mode=${mode}&page=1&category=${encodeURIComponent(nextCategory)}`
+      : `/pessoal?month=${month}&mode=${mode}&page=1`;
+
+    router.push(url);
+  }
+
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+
+  const enriched = data.map((item, index) => ({
+    ...item,
+    percent: total > 0 ? (item.value / total) * 100 : 0,
+    fill: colorMap[item.name] || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+  }));
+
+  const chartConfig: ChartConfig = {
+    value: { label: 'Gasto' },
+  };
+
+  return (
+    <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Gastos por Categoria</CardTitle>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                Editar cores
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Editar cores das categorias</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-3 sm:grid-cols-2 max-h-[60vh] overflow-y-auto pr-2">
+                {enriched.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <input
+                      type="color"
+                      value={colorMap[item.name] || item.fill}
+                      onChange={(e) => updateColor(item.name, e.target.value)}
+                      className="h-9 w-12 cursor-pointer rounded border bg-transparent"
+                    />
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+
+      <CardContent className="flex flex-col items-center gap-4">
+        <ChartContainer
+          config={chartConfig}
+            className="h-[380px] w-full max-w-[560px]"
+        >
+          <PieChart>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value: any) =>
+                    Number(value).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })
+                  }
+                />
+              }
+            />
+
+            <Pie
+              data={enriched}
+              dataKey="value"
+              nameKey="name"
+                innerRadius={105}
+                outerRadius={175}
+              strokeWidth={4}
+              onClick={(entry: any) =>
+                toggleCategory(entry.name)
+              }
+            >
+              {enriched.map((entry) => (
+                <Cell
+                  key={entry.name}
+                  fill={entry.fill}
+                  opacity={
+                    activeCategory && activeCategory !== entry.name ? 0.3 : 1
+                  }
+                />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+</CardContent>
+    </Card>
+  );
+}

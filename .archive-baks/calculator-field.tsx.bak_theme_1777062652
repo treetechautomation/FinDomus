@@ -1,0 +1,28 @@
+'use client';
+
+type Props = {
+  label: string;
+  prefix?: string;
+  suffix?: string;
+  value: string | number;
+  onChange?: (v: string) => void;
+  disabled?: boolean;
+};
+
+export function CalculatorField({ label, prefix, suffix, value, onChange, disabled }: Props) {
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-semibold text-primary">{label}</label>
+      <div className={`flex h-11 items-center rounded-md border ${disabled ? 'bg-muted/40' : 'bg-background'}`}>
+        {prefix && <span className="px-3 text-sm text-muted-foreground">{prefix}</span>}
+        <input
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange?.(e.target.value)}
+          className="w-full bg-transparent px-2 outline-none"
+        />
+        {suffix && <span className="px-3 text-sm text-muted-foreground">{suffix}</span>}
+      </div>
+    </div>
+  );
+}

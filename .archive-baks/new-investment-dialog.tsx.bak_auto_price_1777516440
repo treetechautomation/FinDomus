@@ -1,0 +1,198 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { PlusCircle } from 'lucide-react';
+
+import { addInvestment, getInvestmentAssets, type InvestmentAsset } from '@/services/firestore';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const investmentTypes = [
+  'Ações Nacionais',
+  'Ações Internacionais',
+  'FIIs',
+  'Cripto',
+  'Renda Fixa',
+];
+
+export function NewInvestmentDialog() {
+  const router = useRouter();
+
+  const [open, setOpen] = useState(false);
+  const [assets, setAssets] = useState<InvestmentAsset[]>([]);
+  const [type, setType] = useState('Ações Nacionais');
+  const [assetId, setAssetId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [averagePrice, setAveragePrice] = useState('');
+  const [currentPrice, setCurrentPrice] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    getInvestmentAssets()
+      .then(setAssets)
+      .catch((error) => {
+        console.error('Erro ao carregar ativos:', error);
+      });
+  }, [open]);
+
+  const filteredAssets = useMemo(
+    () => assets.filter((asset) => asset.active !== false && asset.type === type),
+    [assets, type]
+  );
+
+  const selectedAsset = assets.find((asset) => asset.id === assetId);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedAsset) return;
+
+    const qty = Number(String(quantity).replace(',', '.')) || 0;
+    const avg = Number(String(averagePrice).replace(',', '.')) || 0;
+    const current = Number(String(currentPrice || averagePrice).replace(',', '.')) || avg;
+
+    setSaving(true);
+
+    try {
+      await addInvestment({
+        type: selectedAsset.type,
+        institution: selectedAsset.exchange || selectedAsset.name,
+        ticker: selectedAsset.ticker,
+        quantity: qty,
+        averagePrice: avg,
+        currentPrice: current,
+        currentValue: qty * current,
+        contributions: qty * avg,
+        objective: selectedAsset.name,
+        liquidity: selectedAsset.currency || 'BRL',
+      });
+
+      setOpen(false);
+      setAssetId('');
+      setQuantity('');
+      setAveragePrice('');
+      setCurrentPrice('');
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Adicionar ativo
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adicionar ativo à carteira</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Tipo</Label>
+            <Select
+              value={type}
+              onValueChange={(value) => {
+                setType(value);
+                setAssetId('');
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {investmentTypes.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Ativo</Label>
+            <Select value={assetId} onValueChange={setAssetId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o ticker" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredAssets.map((asset) => (
+                  <SelectItem key={asset.id} value={asset.id || asset.ticker}>
+                    {asset.ticker} — {asset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedAsset && (
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+              <div><strong>{selectedAsset.ticker}</strong> — {selectedAsset.name}</div>
+              <div>{selectedAsset.exchange} • {selectedAsset.currency}</div>
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Quantidade</Label>
+              <Input
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder="10"
+                inputMode="decimal"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Preço médio</Label>
+              <Input
+                value={averagePrice}
+                onChange={(e) => setAveragePrice(e.target.value)}
+                placeholder="9,85"
+                inputMode="decimal"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Preço atual</Label>
+              <Input
+                value={currentPrice}
+                onChange={(e) => setCurrentPrice(e.target.value)}
+                placeholder="opcional"
+                inputMode="decimal"
+              />
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" disabled={!selectedAsset || saving}>
+            {saving ? 'Salvando...' : 'Salvar ativo'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,0 +1,106 @@
+import { ArrowDown, ArrowUp, Banknote, Landmark, ShieldAlert, TrendingUp, Users, Building2 } from 'lucide-react';
+import { StatCard } from '@/components/overview/stat-card';
+import { ConsolidatedBalance } from '@/components/overview/consolidated-balance';
+import { MonthlyFlow } from '@/components/overview/monthly-flow';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Bell } from 'lucide-react';
+
+export default function DashboardPage() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Visão Geral</h1>
+            <p className="text-muted-foreground">Dashboard consolidado da sua vida financeira.</p>
+        </div>
+        <div className='flex items-center gap-2'>
+            <Button variant="outline" size="icon">
+                <Bell className="h-4 w-4" />
+            </Button>
+            <Button>Novo Lançamento</Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Patrimônio Líquido"
+          value="R$ 1.250.000,00"
+          icon={Landmark}
+          description="Ativos - Passivos"
+        />
+        <StatCard
+          title="Total de Ativos"
+          value="R$ 1.500.000,00"
+          icon={TrendingUp}
+          variant="positive"
+          description="Soma de todos os bens e investimentos"
+        />
+        <StatCard
+          title="Total de Passivos"
+          value="R$ 250.000,00"
+          icon={ShieldAlert}
+          variant="negative"
+          description="Soma de todas as dívidas e obrigações"
+        />
+        <StatCard
+          title="Balanço Mensal"
+          value="R$ 8.350,00"
+          icon={Banknote}
+          description="Receitas - Despesas no mês atual"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ConsolidatedBalance />
+        <MonthlyFlow />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Users/> Resumo Pessoal</CardTitle>
+            </CardHeader>
+            <CardContent className='grid grid-cols-2 gap-4'>
+                 <StatCard
+                    title="Receitas Pessoais"
+                    value="R$ 12.800,00"
+                    icon={ArrowUp}
+                    variant="positive"
+                    size="sm"
+                />
+                 <StatCard
+                    title="Despesas Pessoais"
+                    value="R$ 7.250,50"
+                    icon={ArrowDown}
+                    variant="negative"
+                    size="sm"
+                />
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Building2/> Resumo Empresarial</CardTitle>
+            </CardHeader>
+            <CardContent className='grid grid-cols-2 gap-4'>
+                 <StatCard
+                    title="Receitas PJ"
+                    value="R$ 45.000,00"
+                    icon={ArrowUp}
+                    variant="positive"
+                    size="sm"
+                />
+                 <StatCard
+                    title="Despesas PJ"
+                    value="R$ 22.200,00"
+                    icon={ArrowDown}
+                    variant="negative"
+                    size="sm"
+                />
+            </CardContent>
+        </Card>
+      </div>
+
+    </div>
+  );
+}

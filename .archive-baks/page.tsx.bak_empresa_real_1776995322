@@ -1,0 +1,156 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Building2, ArrowUp, ArrowDown, Banknote, FileText } from "lucide-react";
+import { StatCard } from "@/components/overview/stat-card";
+import { companyTransactions, payables, receivables } from "@/lib/data";
+import { getCompanies } from "@/services/firestore";
+import { NewCompanyDialog } from "@/components/empresas/new-company-dialog";
+
+export default async function EmpresasPage() {
+  const companies = await getCompanies();
+  const selectedCompanyId = companies[0]?.id ?? "";
+
+  const transactions = companyTransactions.filter((t) => t.companyId === selectedCompanyId);
+  const payableList = payables.filter((p) => p.companyId === selectedCompanyId);
+  const receivableList = receivables.filter((r) => r.companyId === selectedCompanyId);
+
+  const revenue = transactions
+    .filter((t) => t.type === 'income')
+    .reduce((sum, t: any) => sum + t.amount, 0);
+
+  const expenses = transactions
+    .filter((t) => t.type === 'expense')
+    .reduce((sum, t: any) => sum + Math.abs(t.amount), 0);
+
+  const profit = revenue - expenses;
+  const balance = profit;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
+            <Building2 className="w-8 h-8 text-primary" />
+            Módulo Empresas
+          </h1>
+          <p className="text-muted-foreground mt-1">Gestão financeira e contábil das suas empresas.</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Select defaultValue={selectedCompanyId || undefined}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Selecionar Empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              {companies.map((c: any) => (
+                <SelectItem key={c.id} value={c.id!}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <NewCompanyDialog />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Saldo em Conta"
+          value={balance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          icon={Banknote}
+        />
+        <StatCard
+          title="Receita do Mês"
+          value={revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          icon={ArrowUp}
+          variant="positive"
+        />
+        <StatCard
+          title="Despesas do Mês"
+          value={expenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          icon={ArrowDown}
+          variant="negative"
+        />
+        <StatCard
+          title="Resultado do Mês"
+          value={profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          icon={FileText}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Contas a Pagar</CardTitle>
+            <CardDescription>Próximas obrigações financeiras.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payableList.map((item: any) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell>{new Date(item.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell className="text-right">
+                      {item.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {payableList.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      Nenhuma conta a pagar para a empresa selecionada.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Contas a Receber</CardTitle>
+            <CardDescription>Valores a receber.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {receivableList.map((item: any) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell>{new Date(item.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell className="text-right">
+                      {item.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {receivableList.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      Nenhuma conta a receber para a empresa selecionada.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

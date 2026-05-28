@@ -1,0 +1,81 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+type MarketTickerItem = {
+  symbol: string;
+  name?: string;
+  price: number;
+  change: number;
+};
+
+function money(value: number) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+export function MarketTicker() {
+  const [items, setItems] = useState<MarketTickerItem[]>([]);
+
+  useEffect(() => {
+    fetch('/api/market/tickers')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.ok && Array.isArray(json.data)) {
+          setItems(json.data);
+        }
+      })
+      .catch(() => setItems([]));
+  }, []);
+
+  const marqueeItems = useMemo(() => {
+    const fallback = [
+      { symbol: 'IBOV', price: 0, change: 0 },
+      { symbol: 'PETR4', price: 0, change: 0 },
+      { symbol: 'VALE3', price: 0, change: 0 },
+      { symbol: 'ITUB4', price: 0, change: 0 },
+      { symbol: 'BTC', price: 0, change: 0 },
+    ];
+
+    const base = items.length ? items : fallback;
+    return [...base, ...base];
+  }, [items]);
+
+  return (
+    <div className="border-y border-border/70 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/55">
+      <div className="flex h-11 items-center overflow-hidden">
+
+        {/* label FIXO */}
+        <div className="shrink-0 px-4 text-sm font-semibold text-yellow-400 border-r border-border/70">
+          Mercado hoje
+        </div>
+
+        {/* área rolável */}
+        <div className="overflow-hidden flex-1">
+          <div className="market-ticker-track flex min-w-max items-center">
+          {marqueeItems.map((item, index) => {
+            const positive = Number(item.change || 0) >= 0;
+
+            return (
+              <div
+                key={`${item.symbol}-${index}`}
+                className="flex items-center gap-2 border-l border-border/70 px-5 text-sm"
+              >
+                <span className="font-bold text-foreground">{item.symbol}</span>
+                <span className="text-muted-foreground">
+                  {item.price ? money(item.price) : 'Atualizando'}
+                </span>
+                <span className={positive ? 'text-emerald-400' : 'text-red-400'}>
+                  {positive ? '▲' : '▼'} {Math.abs(Number(item.change || 0)).toFixed(2)}%
+                </span>
+              </div>
+            );
+          })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

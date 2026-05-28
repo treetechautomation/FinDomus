@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Funcoes auxiliares
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isOwnerOrAdmin(userId) {
+      return isAuthenticated() && (request.auth.uid == userId || request.auth.token.admin == true);
+    }
+
+    // --- REGRAS POR COLECÃO ---
+
+    // 1. Catalogo Global (Read-only para logados)
+    match /investmentAssets/{assetId} {
+      allow read: if isAuthenticated();
+      allow write: if false; 
+    }
+
+    // 2. Configuracoes Especificas (ID contem o UID ou campo userId)
+    match /settings/{settingId} {
+      allow read, write: if isAuthenticated() && 
+        (settingId == 'investment_goals_' + request.auth.uid || (resource != null && resource.data.userId == request.auth.uid));
+    }
+
+    // 3. Colecoes Multi-Tenant (Isolamento por campo userId)
+    // Para read/update/delete: verifica userId no documento existente
+    // Para create: verifica userId nos dados sendo criados
+    match /{collectionName}/{docId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // 4. Colecoes sem userId (owner-based)
+    match /transactions/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /accounts/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /investments/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /companies/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /liabilities/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /budgets/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /monthly_closures/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /month_openings/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /investment_price_history/{docId} {
+      allow read, write: if isAuthenticated() && resource.data.investmentId != null;
+      allow create: if isAuthenticated();
+    }
+
+    match /categories/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.isGlobal == true);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.isGlobal == true);
+    }
+
+    match /payables/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /receivables/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /cards/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    match /parcels/{docId} {
+      allow read, write: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+    }
+
+    // 5. Catalogo de Obrigacoes Fiscais (sem userId — acesso autenticado global)
+    // getTaxObligations() busca todos os documentos sem filtro de userId
+    match /tax_obligations/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.companyId != null;
+      allow update, delete: if isAuthenticated() && resource.data.companyId != null;
+    }
+
+    // 6. Sumarios Mensais (sem userId — acesso autenticado global para geracao)
+    match /monthly_summaries/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Bloqueio padrao para seguranca
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,120 @@
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  updateDoc,
+  doc,
+} from 'firebase/firestore';
+
+import { db } from '@/lib/firebase';
+
+export function normalizeLearningText(text: string) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+export function buildLearningFingerprint(text: string) {
+  return normalizeLearningText(text)
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export async function learnTransactionCategory(params: {
+  description: string;
+  category: string;
+  subcategory?: string;
+  type?: string;
+}) {
+  const fingerprint = buildLearningFingerprint(
+    params.description
+  );
+
+  if (!fingerprint || !params.category) {
+    return null;
+  }
+
+  const q = query(
+    collection(db, 'category_learning'),
+    where('fingerprint', '==', fingerprint)
+  );
+
+  const snap = await getDocs(q);
+
+  if (!snap.empty) {
+    const existing = snap.docs[0];
+
+    const data = existing.data() as any;
+
+    await updateDoc(
+      doc(db, 'category_learning', existing.id),
+      {
+        category: params.category,
+        subcategory: params.subcategory || null,
+        type: params.type || null,
+
+        learnCount: Number(data.learnCount || 0) + 1,
+
+        updatedAt: new Date().toISOString(),
+      }
+    );
+
+    return existing.id;
+  }
+
+  const created = await addDoc(
+    collection(db, 'category_learning'),
+    {
+      fingerprint,
+
+      originalDescription: params.description,
+
+      category: params.category,
+      subcategory: params.subcategory || null,
+      type: params.type || null,
+
+      confidence: 1,
+
+      learnCount: 1,
+
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+  );
+
+  return created.id;
+}
+
+export async function getLearnedCategory(
+  description: string
+) {
+  const fingerprint = buildLearningFingerprint(
+    description
+  );
+
+  const q = query(
+    collection(db, 'category_learning'),
+    where('fingerprint', '==', fingerprint)
+  );
+
+  const snap = await getDocs(q);
+
+  if (snap.empty) {
+    return null;
+  }
+
+  const data = snap.docs[0].data() as any;
+
+  return {
+    category: data.category,
+    subcategory: data.subcategory,
+    type: data.type,
+    confidence: data.confidence || 0,
+    learnCount: data.learnCount || 0,
+  };
+}

@@ -1,0 +1,31 @@
+export type WealthCategory = {
+  id: string;
+  name: string;
+  percentage: number;
+  color: string;
+};
+
+export const defaultWealthCategories: WealthCategory[] = [
+  { id: 'essenciais', name: 'Essenciais', percentage: 30, color: '#38bdf8' },
+  { id: 'qualidade', name: 'Qualidade de vida', percentage: 10, color: '#34d399' },
+  { id: 'patrimonio', name: 'Construção de patrimônio', percentage: 20, color: '#facc15' },
+  { id: 'estilo', name: 'Estilo de vida', percentage: 10, color: '#e879f9' },
+  { id: 'independencia', name: 'Independência financeira', percentage: 25, color: '#60a5fa' },
+  { id: 'intelectual', name: 'Capital intelectual', percentage: 5, color: '#fb923c' },
+];
+
+export function getDistributionTotal(categories: WealthCategory[]) {
+  return categories.reduce((sum, item) => sum + Number(item.percentage || 0), 0);
+}
+
+export function getWealthInsight(categories: WealthCategory[]) {
+  const total = getDistributionTotal(categories);
+  const patrimonio = categories.find((c) => c.id.includes('patrimonio'))?.percentage || 0;
+  const independencia = categories.find((c) => c.id.includes('independencia'))?.percentage || 0;
+  const essenciais = categories.find((c) => c.id.includes('essenciais'))?.percentage || 0;
+
+  if (total !== 100) return 'A distribuição precisa fechar exatamente 100% para salvar a estratégia.';
+  if (patrimonio + independencia < 30) return 'Baixa prioridade para construção de patrimônio. Considere aumentar a alocação de crescimento.';
+  if (essenciais > 60) return 'Essenciais muito altos podem limitar sua capacidade de investir e formar patrimônio.';
+  return 'Estratégia equilibrada entre proteção, qualidade de vida e crescimento patrimonial.';
+}

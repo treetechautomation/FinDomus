@@ -1,0 +1,341 @@
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:UTF-8
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+<OFX>
+<SIGNONMSGSRSV1>
+<SONRS>
+<STATUS>
+<CODE>0</CODE>
+<SEVERITY>INFO</SEVERITY>
+</STATUS>
+<DTSERVER>20260508143437[-3:BRT]</DTSERVER>
+<LANGUAGE>POR</LANGUAGE>
+<FI>
+<ORG>Banco Pactual</ORG>
+<FID>208</FID>
+</FI>
+</SONRS>
+</SIGNONMSGSRSV1>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<TRNUID>1</TRNUID>
+<STATUS>
+<CODE>0</CODE>
+<SEVERITY>INFO</SEVERITY>
+</STATUS>
+<STMTRS>
+<CURDEF>BRL</CURDEF>
+<BANKACCTFROM>
+<BANKID>208</BANKID>
+<BRANCHID>1</BRANCHID>
+<ACCTID>243579-0</ACCTID>
+<ACCTTYPE>CHECKING</ACCTTYPE>
+</BANKACCTFROM>
+<BANKTRANLIST>
+<DTSTART>20260401120000[-03:BRT]</DTSTART>
+<DTEND>20260430120000[-03:BRT]</DTEND>
+
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260401100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-30.00</TRNAMT>
+                <FITID>202604016520249</FITID>
+                <CHECKNUM>83810669</CHECKNUM>
+                <MEMO>Outra Categoria Pix enviado Skibunda Beberibe O Chiquinho</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260401100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>4983.12</TRNAMT>
+                <FITID>202604013064204</FITID>
+                <CHECKNUM>17335422</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260402100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-1788.65</TRNAMT>
+                <FITID>202604020669828</FITID>
+                <CHECKNUM>61684406</CHECKNUM>
+                <MEMO>Contas Pagamento de boleto Rodrigues Assessoria E C E Me</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260402100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-1336.40</TRNAMT>
+                <FITID>202604029472209</FITID>
+                <CHECKNUM>16999333</CHECKNUM>
+                <MEMO>Crédito e Financiamento Pagamento de boleto Banco Xp Sa</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260402100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-1084.83</TRNAMT>
+                <FITID>202604026119437</FITID>
+                <CHECKNUM>63759965</CHECKNUM>
+                <MEMO>Outra Categoria Pagamento de boleto Banco Inter</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260402100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>773.25</TRNAMT>
+                <FITID>202604026192390</FITID>
+                <CHECKNUM>09805498</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260403100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-100.00</TRNAMT>
+                <FITID>202604032282501</FITID>
+                <CHECKNUM>37968061</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Marina De Souza Burgos</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260403100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-250.00</TRNAMT>
+                <FITID>202604039140186</FITID>
+                <CHECKNUM>64676318</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Nayara Ferreira De Souza</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260403100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>423.25</TRNAMT>
+                <FITID>202604033762347</FITID>
+                <CHECKNUM>84643229</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260404100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-50.00</TRNAMT>
+                <FITID>202604048725640</FITID>
+                <CHECKNUM>30758307</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Cristiano José Ribeiro Da Silva Chaves</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260404100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-60.00</TRNAMT>
+                <FITID>202604046346687</FITID>
+                <CHECKNUM>23872674</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Ana Claudia Pereira Duarte</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260404100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>313.25</TRNAMT>
+                <FITID>202604042264104</FITID>
+                <CHECKNUM>47854520</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260408100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-29.10</TRNAMT>
+                <FITID>202604084156516</FITID>
+                <CHECKNUM>32217448</CHECKNUM>
+                <MEMO>Outra Categoria Pix enviado Mercado Pago Instituicao De Pagamento</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260408100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>800.00</TRNAMT>
+                <FITID>202604086878722</FITID>
+                <CHECKNUM>72623239</CHECKNUM>
+                <MEMO>TransferênciaPix recebido Leandro Ferreira Maranhao Da Silva</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260408100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>1084.15</TRNAMT>
+                <FITID>202604082237179</FITID>
+                <CHECKNUM>03497328</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260415100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-69.63</TRNAMT>
+                <FITID>202604156828329</FITID>
+                <CHECKNUM>16296374</CHECKNUM>
+                <MEMO>Contas Pagamento de boleto Supergasbras Energia</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260415100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>1014.54</TRNAMT>
+                <FITID>202604153118218</FITID>
+                <CHECKNUM>57704534</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260416100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-84.99</TRNAMT>
+                <FITID>202604163813142</FITID>
+                <CHECKNUM>29481933</CHECKNUM>
+                <MEMO>Contas Pix enviado Tim</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260416100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-9.55</TRNAMT>
+                <FITID>202604167059732</FITID>
+                <CHECKNUM>51280359</CHECKNUM>
+                <MEMO>Doações Pix enviado Maria Do Monte Carmelo</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260416100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>920.00</TRNAMT>
+                <FITID>202604168170524</FITID>
+                <CHECKNUM>27805715</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260417100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-5.54</TRNAMT>
+                <FITID>202604179422876</FITID>
+                <CHECKNUM>64366061</CHECKNUM>
+                <MEMO>Transporte Pix enviado Uber</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260417100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-10.34</TRNAMT>
+                <FITID>202604173755535</FITID>
+                <CHECKNUM>97296156</CHECKNUM>
+                <MEMO>Transporte Pix enviado Uber</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260417100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>904.13</TRNAMT>
+                <FITID>202604173145749</FITID>
+                <CHECKNUM>57506207</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260427100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-30.00</TRNAMT>
+                <FITID>202604278290478</FITID>
+                <CHECKNUM>71463702</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Samuel Ribeiro Da Silveira</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260427100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-10.72</TRNAMT>
+                <FITID>202604278163315</FITID>
+                <CHECKNUM>04733226</CHECKNUM>
+                <MEMO>Outra Categoria Pix enviado Mercado Pago Instituicao De Pagamento</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260427100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-300.00</TRNAMT>
+                <FITID>202604273417852</FITID>
+                <CHECKNUM>20228180</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Maria Das Dores Da Silva Tartuci Cavalcante</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260427100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-9.00</TRNAMT>
+                <FITID>202604273887720</FITID>
+                <CHECKNUM>22716766</CHECKNUM>
+                <MEMO>TransferênciaPix enviado Leilson Maranhao Ferreira Silva</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260427100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>554.47</TRNAMT>
+                <FITID>202604277662272</FITID>
+                <CHECKNUM>88237184</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>DEBIT</TRNTYPE>
+                <DTPOSTED>20260428100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>-6.92</TRNAMT>
+                <FITID>202604281032953</FITID>
+                <CHECKNUM>17066322</CHECKNUM>
+                <MEMO>Transporte Pix enviado Uber</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260428100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>547.56</TRNAMT>
+                <FITID>202604281770379</FITID>
+                <CHECKNUM>41065060</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260430100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>800.00</TRNAMT>
+                <FITID>202604300458595</FITID>
+                <CHECKNUM>42932147</CHECKNUM>
+                <MEMO>TransferênciaPix recebido Denise Pereira Dos Santos</MEMO>
+            </STMTTRN>
+            
+            <STMTTRN>
+                <TRNTYPE>CREDIT</TRNTYPE>
+                <DTPOSTED>20260430100000[-03:BRT]</DTPOSTED>
+                <TRNAMT>1347.57</TRNAMT>
+                <FITID>202604302948966</FITID>
+                <CHECKNUM>49447208</CHECKNUM>
+                <MEMO>Saldo Diário</MEMO>
+            </STMTTRN>
+            
+</BANKTRANLIST>
+<LEDGERBAL>
+<BALAMT>1347.57</BALAMT>
+<DTASOF>20260430120000[-03:BRT]</DTASOF>
+</LEDGERBAL>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>
+        

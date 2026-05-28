@@ -1,0 +1,101 @@
+'use client';
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartConfig,
+} from '@/components/ui/chart';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { PieChart, Pie, Cell } from 'recharts';
+import { assetAllocation } from '@/lib/data';
+
+const chartConfig = {
+  value: {
+    label: 'Valor',
+  },
+  'Renda Fixa': {
+    label: 'Renda Fixa',
+    color: 'hsl(var(--chart-1))',
+  },
+  'Renda Variável': {
+    label: 'Renda Variável',
+    color: 'hsl(var(--chart-2))',
+  },
+  'Imóveis': {
+    label: 'Imóveis',
+    color: 'hsl(var(--chart-3))',
+  },
+  'Contas': {
+    label: 'Contas',
+    color: 'hsl(var(--chart-4))',
+  },
+} satisfies ChartConfig;
+
+export function ConsolidatedBalance() {
+  return (
+    <Card className="flex flex-col">
+      <CardHeader>
+        <CardTitle>Balanço de Ativos</CardTitle>
+        <CardDescription>
+          Distribuição do seu patrimônio por classe de ativo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex-1 flex items-center justify-center pb-0">
+        <ChartContainer
+          config={chartConfig}
+          className="mx-auto aspect-square w-full max-w-[300px]"
+        >
+          <PieChart>
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent hideLabel />}
+            />
+            <Pie
+              data={assetAllocation}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={60}
+              strokeWidth={5}
+              labelLine={false}
+              label={({ percent, name }) => (
+                <text
+                    x={0}
+                    y={0}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="hsl(var(--foreground))"
+                    fontSize={12}
+                    fontWeight={500}
+                >
+                    {`${name}: ${(percent * 100).toFixed(0)}%`}
+                </text>
+              )}
+            >
+              {assetAllocation.map((entry) => (
+                <Cell key={entry.name} fill={entry.fill} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+      </CardContent>
+      <div className="flex items-center justify-center p-4 text-sm text-muted-foreground gap-4 flex-wrap">
+        {assetAllocation.map((entry) => (
+          <div key={entry.name} className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: entry.fill }}
+            />
+            {entry.name}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}

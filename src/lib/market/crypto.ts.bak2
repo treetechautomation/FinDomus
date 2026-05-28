@@ -1,0 +1,109 @@
+export type CryptoTicker = {
+  symbol: string;
+  name: string;
+  price: number | null;
+  changePercent: number | null;
+  source: 'BINANCE' | 'COINGECKO' | 'FALLBACK';
+  status: 'live' | 'closed' | 'fallback';
+};
+
+const BINANCE_BASE = 'https://api.binance.com/api/v3';
+const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+
+type BinanceTicker = {
+  symbol: string;
+  lastPrice: string;
+  priceChangePercent: string;
+};
+
+async function fetchBinance(symbol: string): Promise<{ price: number; changePercent: number } | null> {
+  try {
+    const res = await fetch(`${BINANCE_BASE}/ticker/24hr?symbol=${symbol}`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    const data: BinanceTicker = await res.json();
+    const price = Number(data.lastPrice);
+    const changePercent = Number(data.priceChangePercent);
+    if (!price || isNaN(price)) return null;
+    return { price, changePercent: isNaN(changePercent) ? 0 : changePercent };
+  } catch {
+    return null;
+  }
+}
+
+const CRYPTO_LIST: { pair: string; symbol: string; name: string }[] = [
+  { pair: 'BTCBRL', symbol: 'BTC', name: 'Bitcoin' },
+  { pair: 'ETHBRL', symbol: 'ETH', name: 'Ethereum' },
+  { pair: 'SOLBRL', symbol: 'SOL', name: 'Solana' },
+];
+
+export async function getCryptoPrices(): Promise<CryptoTicker[]> {
+  const binancePromises = CRYPTO_LIST.map(async (c) => {
+    const data = await fetchBinance(c.pair);
+    if (!data) return null as CryptoTicker | null;
+    return {
+      symbol: c.symbol,
+      name: c.name,
+      price: data.price,
+      changePercent: data.changePercent,
+      source: 'BINANCE' as const,
+      status: 'live' as const,
+    } as CryptoTicker;
+  });
+
+  const binanceResults = await Promise.allSettled(binancePromises);
+  const binanceItems: CryptoTicker[] = [];
+  for (const r of binanceResults) {
+    if (r.status === 'fulfilled' && r.value !== null) binanceItems.push(r.value);
+  }
+
+  if (binanceItems.length >= 2) return binanceItems;
+
+  const coingeckoItems = await getCryptoFromCoinGecko();
+  if (coingeckoItems.length >= 2) return coingeckoItems;
+
+  return CRYPTO_LIST.map((c) => ({
+    symbol: c.symbol,
+    name: c.name,
+    price: null,
+    changePercent: null,
+    source: 'FALLBACK' as const,
+    status: 'fallback' as const,
+  }));
+}
+
+async function getCryptoFromCoinGecko(): Promise<CryptoTicker[]> {
+  try {
+    const ids = 'bitcoin,ethereum,solana';
+    const res = await fetch(
+      `${COINGECKO_BASE}/simple/price?ids=${ids}&vs_currencies=brl&include_24hr_change=true`,
+      { next: { revalidate: 120 } }
+    );
+    if (!res.ok) return [];
+    const data: Record<string, { brl: number; brl_24h_change: number }> = await res.json();
+
+    const map: Record<string, { symbol: string; name: string }> = {
+      bitcoin: { symbol: 'BTC', name: 'Bitcoin' },
+      ethereum: { symbol: 'ETH', name: 'Ethereum' },
+      solana: { symbol: 'SOL', name: 'Solana' },
+    };
+
+    const items: CryptoTicker[] = [];
+    for (const [id, info] of Object.entries(map)) {
+      const coin = data[id];
+      if (!coin?.brl) continue;
+      items.push({
+        symbol: info.symbol,
+        name: info.name,
+        price: coin.brl,
+        changePercent: coin.brl_24h_change ?? 0,
+        source: 'COINGECKO',
+        status: 'fallback',
+      });
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}

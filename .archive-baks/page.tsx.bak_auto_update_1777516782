@@ -1,0 +1,12 @@
+import { getInvestments } from '@/services/firestore';
+import { InvestmentWallet } from '@/components/investimentos/investment-wallet';
+
+export default async function InvestimentosPage() {
+  const investments = await getInvestments();
+
+  return (
+    <div className="space-y-6">
+      <InvestmentWallet investments={investments} />
+    </div>
+  );
+}

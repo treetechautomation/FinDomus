@@ -1,0 +1,169 @@
+{
+  "highConfidence": [
+    {
+      "sourceId": "GBUVvX1mRhXkVzUQUuVh",
+      "targetId": "aCj4Gt9sTEZE18uIDbVu",
+      "amount": 7000,
+      "dateSource": "04/03/2026",
+      "dateTarget": "04/03/2026",
+      "descriptionSource": "Pix enviado: \"Cp :33264668-Anderson Maranhao da Silva\"",
+      "descriptionTarget": "Pix recebido de Anderson Maranhao da Silva",
+      "score": 80,
+      "confidence": "high",
+      "reason": "Reconciliação sugerida pelo heurístico com score 80"
+    }
+  ],
+  "mediumConfidence": [
+    {
+      "sourceId": "0OKPd2Lq60WbPvuNDv1Y",
+      "targetId": "toGoBCgIFXcCAJrUFWZI",
+      "amount": 360.85,
+      "dateSource": "17/04/2026",
+      "dateTarget": "17/04/2026",
+      "descriptionSource": "RESGATE CONTA REMUNERADA",
+      "descriptionTarget": "CRÉDITO NA CONTA CORRENTE",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    },
+    {
+      "sourceId": "0POVVSt2oBqTVyCkX3gX",
+      "targetId": "7jl3tZXL6ifdolLtSwZi",
+      "amount": 12328.76,
+      "dateSource": "02/04/2026",
+      "dateTarget": "02/04/2026",
+      "descriptionSource": "Transferência enviada",
+      "descriptionTarget": "02/04 10:43 MARINA DE SOUZA BURGOS",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    },
+    {
+      "sourceId": "0kfCnlVGduCeZLzjaV5x",
+      "targetId": "Bx5iAwAlxlQmKOklLCAx",
+      "amount": 8347.29,
+      "dateSource": "02/04/2026",
+      "dateTarget": "02/04/2026",
+      "descriptionSource": "NU PAGAMENTOS SA",
+      "descriptionTarget": "Pagamento recebido",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    },
+    {
+      "sourceId": "I08QrESpPWldUYmrl9WJ",
+      "targetId": "pqIH7tXCg1U8ayF2xyei",
+      "amount": 9883.56,
+      "dateSource": "03/03/2026",
+      "dateTarget": "03/03/2026",
+      "descriptionSource": "Transferência enviada",
+      "descriptionTarget": "03/03 20:52 MARINA DE SOUZA BURGOS",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    },
+    {
+      "sourceId": "LoyMSCqYhAEKelZ40YRn",
+      "targetId": "vUKQ1yY1JgJnLUk52Iaf",
+      "amount": 183.23,
+      "dateSource": "27/04/2026",
+      "dateTarget": "27/04/2026",
+      "descriptionSource": "CRÉDITO NA CONTA CORRENTE",
+      "descriptionTarget": "RESGATE CONTA REMUNERADA",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    },
+    {
+      "sourceId": "Nn5TevYM15esp1x2Y82j",
+      "targetId": "wVPJCG4bgTeI07wwMOqO",
+      "amount": 472.48,
+      "dateSource": "01/04/2026",
+      "dateTarget": "01/04/2026",
+      "descriptionSource": "CRÉDITO NA CONTA CORRENTE",
+      "descriptionTarget": "RESGATE CONTA REMUNERADA",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    },
+    {
+      "sourceId": "WIRmqWa3L4TLEnQXa67F",
+      "targetId": "mWPHq4phG9DJTZeYQdcB",
+      "amount": 969.93,
+      "dateSource": "04/03/2026",
+      "dateTarget": "05/03/2026",
+      "descriptionSource": "Pagamento efetuado: \"Pagamento fatura cartao Inter\"",
+      "descriptionTarget": "Pagamento para BANCO INTER",
+      "score": 40,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 40"
+    },
+    {
+      "sourceId": "giqvQZaBPos73UTscgWd",
+      "targetId": "h7EhHLkXTfgFGTdv4ryq",
+      "amount": 300,
+      "dateSource": "03/03/2026",
+      "dateTarget": "03/03/2026",
+      "descriptionSource": "Pix recebido: \"Cp :00000000-ANDERSON MARANHAO DA SILV\"",
+      "descriptionTarget": "03/03 21:15 ANDERSON MARANHAO DA SILV",
+      "score": 60,
+      "confidence": "medium",
+      "reason": "Reconciliação sugerida pelo heurístico com score 60"
+    }
+  ],
+  "lowConfidence": [],
+  "conflicts": [
+    {
+      "reason": "Múltiplas transações com o mesmo valor no mesmo dia. Risco de falso positivo.",
+      "items": [
+        {
+          "id": "0Imd7GVM58WrvFcpJhrx",
+          "amount": 5000,
+          "date": "03/03/2026",
+          "description": "RESGATE CONTA REMUNERADA",
+          "owner": "PJ"
+        },
+        {
+          "id": "44FqKZaevY16RELgqfhC",
+          "amount": 5000,
+          "date": "03/03/2026",
+          "description": "CRÉDITO NA CONTA CORRENTE",
+          "owner": "PJ"
+        },
+        {
+          "id": "6hwM1t5qda6zMdgm5Npw",
+          "amount": 5000,
+          "date": "03/03/2026",
+          "description": "PIX ENVIADO PARA ANDERSON MARANHAO DA SILVA",
+          "owner": "PJ"
+        }
+      ]
+    },
+    {
+      "reason": "Múltiplas transações com o mesmo valor no mesmo dia. Risco de falso positivo.",
+      "items": [
+        {
+          "id": "K0fUk7014KgAnEAo6hVf",
+          "amount": 5000,
+          "date": "30/03/2026",
+          "description": "PIX ENVIADO PARA ANDERSON MARANHAO DA SILVA",
+          "owner": "PJ"
+        },
+        {
+          "id": "aU5XJ1U0zVizBP8K6ved",
+          "amount": 5000,
+          "date": "30/03/2026",
+          "description": "CRÉDITO NA CONTA CORRENTE",
+          "owner": "PJ"
+        },
+        {
+          "id": "gRH8ReQWwwOVmkXgInav",
+          "amount": 5000,
+          "date": "30/03/2026",
+          "description": "RESGATE CONTA REMUNERADA",
+          "owner": "PJ"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Este diretório contém scripts de migração ad-hoc do FinDomus.
+# Não importar estes arquivos na aplicação.
+# Executar manualmente com: node scripts/migrations/<arquivo>.js

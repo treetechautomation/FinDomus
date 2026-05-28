@@ -1,0 +1,64 @@
+import { transactions } from '@/lib/data';
+import type { Transaction } from '@/lib/types';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+
+function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const isIncome = transaction.type === 'income';
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="font-medium">{transaction.description}</div>
+        <div className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString('pt-BR')}</div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">{transaction.category}</TableCell>
+      <TableCell className="text-right">
+        <span className={cn('font-medium', isIncome ? 'text-green-600' : 'text-red-600')}>
+          {isIncome ? '+' : '-'} {Math.abs(transaction.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        </span>
+      </TableCell>
+      <TableCell className="hidden sm:table-cell">
+        <Badge variant={isIncome ? 'secondary' : 'outline'}>{transaction.account}</Badge>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export function RecentTransactions() {
+  const recent = transactions.slice(0, 5);
+
+  return (
+    <Card>
+        <CardHeader>
+            <CardTitle>Lançamentos Recentes</CardTitle>
+            <CardDescription>Veja suas últimas transações de receita e despesa.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="hidden md:table-cell">Categoria</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="hidden sm:table-cell">Conta</TableHead>
+                </TableRow>
+                </TableHeader>
+                <TableBody>
+                {recent.map((transaction) => (
+                    <TransactionRow key={transaction.id} transaction={transaction} />
+                ))}
+                </TableBody>
+            </Table>
+        </CardContent>
+    </Card>
+  );
+}

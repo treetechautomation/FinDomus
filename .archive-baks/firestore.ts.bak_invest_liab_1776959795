@@ -1,0 +1,73 @@
+import { addDoc, collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+// =============================
+// ACCOUNTS
+// =============================
+export async function getAccounts() {
+  const snapshot = await getDocs(collection(db, 'accounts'));
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function addAccount(data: {
+  name: string;
+  type: string;
+  owner: 'PF' | 'PJ';
+  balance: number;
+  createdAt?: string;
+}) {
+  const docRef = await addDoc(collection(db, 'accounts'), {
+    ...data,
+    createdAt: data.createdAt ?? new Date().toISOString(),
+  });
+  return docRef.id;
+}
+
+// =============================
+// TRANSACTIONS
+// =============================
+export async function getTransactions() {
+  const snapshot = await getDocs(collection(db, 'transactions'));
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getPersonalTransactions() {
+  const data = await getTransactions();
+  return data.filter((item: any) => item.owner === 'PF');
+}
+
+export async function addTransaction(data: {
+  accountId?: string;
+  type: 'income' | 'expense' | 'transfer';
+  amount: number;
+  category?: string;
+  description: string;
+  date?: string;
+  owner: 'PF' | 'PJ';
+}) {
+  const docRef = await addDoc(collection(db, 'transactions'), {
+    ...data,
+    date: data.date ?? new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  });
+  return docRef.id;
+}
+
+// =============================
+// COMPANIES
+// =============================
+export async function getCompanies() {
+  const snapshot = await getDocs(collection(db, 'companies'));
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function addCompany(data: {
+  name: string;
+  createdAt?: string;
+}) {
+  const docRef = await addDoc(collection(db, 'companies'), {
+    ...data,
+    createdAt: data.createdAt ?? new Date().toISOString(),
+  });
+  return docRef.id;
+}

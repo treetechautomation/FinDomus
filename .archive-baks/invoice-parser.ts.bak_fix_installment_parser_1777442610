@@ -1,0 +1,71 @@
+import { classifyTransaction, type ParsedTransaction } from './transaction-classifier';
+
+function parseAmountBR(value: string) {
+  const clean = String(value || '')
+    .replace(/[R$\s]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  return Number(clean || 0);
+}
+
+export function parseNubankCSV(csv: string): ParsedTransaction[] {
+  const lines = csv.split(/\r?\n/).filter(Boolean);
+  const dataLines = lines[0]?.toLowerCase().includes('date') ? lines.slice(1) : lines;
+
+  return dataLines
+    .map((line) => {
+      const parts = line.split(',');
+      if (parts.length < 3) return null;
+
+      const date = parts[0]?.trim();
+      const title = parts.slice(1, -1).join(',').trim();
+      const amount = Number(parts[parts.length - 1]);
+
+      if (!date || !title || Number.isNaN(amount)) return null;
+
+      return {
+  isInstallment: installmentCurrent !== null,
+  installmentCurrent,
+  installmentTotal,
+  installmentKey: installmentCurrent ? clean.replace(/\d{1,2}\/\d{1,2}/, '').trim() : null,
+        ...classifyTransaction(title, amount > 0 ? -Math.abs(amount) : amount),
+        date,
+      };
+    })
+    .filter(Boolean) as ParsedTransaction[];
+}
+
+export function parseBankStatementText(text: string): ParsedTransaction[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const result: ParsedTransaction[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (/saldo do dia|saldo anterior|s a l d o|informações adicionais|aplicações financeiras/i.test(line)) continue;
+
+    const dateMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})/);
+    if (!dateMatch) continue;
+
+    const amountMatch = line.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*\(([+-])\)/);
+    if (!amountMatch) continue;
+
+    const date = dateMatch[1];
+    const amount = parseAmountBR(amountMatch[1]) * (amountMatch[2] === '-' ? -1 : 1);
+
+    const next1 = lines[i + 1] || '';
+    const next2 = lines[i + 2] || '';
+    const rawText = `${line} ${next1} ${next2}`
+      .replace(date, '')
+      .replace(amountMatch[0], '')
+      .trim();
+
+    result.push({
+      ...classifyTransaction(rawText, amount),
+      date,
+    });
+  }
+
+  return result;
+}

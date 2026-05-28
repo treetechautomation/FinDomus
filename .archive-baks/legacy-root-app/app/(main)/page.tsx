@@ -1,0 +1,161 @@
+"use client";
+import { useEffect, useState } from 'react';
+import { AlertTriangle, ArrowDown, ArrowUp, Banknote, Building2, Landmark, TrendingUp, Users } from 'lucide-react';
+import { StatCard } from '@/components/overview/stat-card';
+import { ConsolidatedBalance } from '@/components/overview/consolidated-balance';
+import { MonthlyFlow } from '@/components/overview/monthly-flow';
+import { CashflowChart } from '@/components/overview/cashflow-chart';
+import { CashflowScenarioSwitcher } from '@/components/overview/cashflow-scenario-switcher';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatCurrency } from '@/core/finance/formatters';
+import { getDashboardReal } from '@/core/finance/dashboard-real';
+
+function DreRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div className={strong ? "flex justify-between border-t pt-2 font-bold" : "flex justify-between"}>
+      <span>{label}</span>
+      <span>{value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const [dashboard, setDashboard] = useState<any>(null);
+
+  useEffect(() => {
+    getDashboardReal().then(setDashboard).catch(console.error);
+  }, []);
+
+  if (!dashboard) {
+    return <div className="p-6 text-muted-foreground">Carregando dashboard...</div>;
+  }
+
+  const monthly = dashboard.monthly;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Visão Geral</h1>
+          <p className="text-muted-foreground">Dashboard consolidado da sua vida financeira.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Saldo Consolidado"
+          value={formatCurrency(dashboard.total)}
+          icon={Landmark}
+          description="Total PF + PJ"
+        />
+        <StatCard
+          title="Saldo Pessoal"
+          value={formatCurrency(dashboard.totalPF)}
+          icon={Users}
+          variant="positive"
+          description="Contas pessoais/familiares"
+        />
+        <StatCard
+          title="Saldo Empresarial"
+          value={formatCurrency(dashboard.totalPJ)}
+          icon={Building2}
+          description="Contas empresariais"
+        />
+        <StatCard
+          title="Balanço Mensal"
+          value={formatCurrency(monthly.balance)}
+          icon={Banknote}
+          variant={monthly.balance >= 0 ? 'positive' : 'negative'}
+          description="Receitas - Despesas no mês atual"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ConsolidatedBalance data={dashboard.allocation} />
+        <MonthlyFlow data={dashboard.monthlyFlow} />
+      </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+              Previsão de Caixa PJ
+            </CardTitle>
+            <CardDescription>Projeção dos próximos {dashboard.cashflow.days} dias.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-4">
+            <StatCard title="Saldo Atual PJ" value={formatCurrency(dashboard.cashflow.currentBalance)} icon={Banknote} size="sm" />
+            <StatCard title="Saídas Previstas" value={formatCurrency(dashboard.cashflow.totalOutflow)} icon={ArrowDown} variant="negative" size="sm" />
+            <StatCard title="Menor Saldo" value={formatCurrency(dashboard.cashflow.lowestBalance)} icon={TrendingUp} variant={dashboard.cashflow.lowestBalance >= 0 ? "positive" : "negative"} size="sm" />
+            <StatCard title="Saldo Projetado" value={formatCurrency(dashboard.cashflow.projectedBalance)} icon={Landmark} variant={dashboard.cashflow.projectedBalance >= 0 ? "positive" : "negative"} size="sm" />
+          </CardContent>
+        <CashflowScenarioSwitcher scenarios={dashboard.cashflowScenarios} />
+        </Card>
+
+        <Card>
+        <CardHeader>
+          <CardTitle>DRE Empresarial</CardTitle>
+          <CardDescription>Resultado automático das empresas com base nos lançamentos PJ.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <DreRow label="Receita Bruta" value={dashboard.dre.receitaBruta} />
+          <DreRow label="(-) Impostos" value={dashboard.dre.impostos} />
+          <DreRow label="Receita Líquida" value={dashboard.dre.receitaLiquida} strong />
+          <DreRow label="(-) Despesas Operacionais" value={dashboard.dre.despesas} />
+          <DreRow label="Lucro Bruto" value={dashboard.dre.lucroBruto} strong />
+          <DreRow label="(-) Pessoas" value={dashboard.dre.pessoas} />
+          <DreRow label="Lucro Operacional" value={dashboard.dre.lucroOperacional} strong />
+          <DreRow label="(-) Pró-labore" value={dashboard.dre.proLabore} />
+          <DreRow label="(-) Outros" value={dashboard.dre.outros} />
+          <DreRow label="Lucro Líquido" value={dashboard.dre.lucroLiquido} strong />
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Users /> Resumo Pessoal</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <StatCard
+              title="Saldo PF"
+              value={formatCurrency(dashboard.totalPF)}
+              icon={TrendingUp}
+              variant="positive"
+              size="sm"
+            />
+            <StatCard
+              title="Receitas do Mês"
+              value={formatCurrency(monthly.income)}
+              icon={ArrowUp}
+              variant="positive"
+              size="sm"
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Building2 /> Resumo Empresarial</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <StatCard
+              title="Saldo PJ"
+              value={formatCurrency(dashboard.totalPJ)}
+              icon={TrendingUp}
+              variant="positive"
+              size="sm"
+            />
+            <StatCard
+              title="Despesas do Mês"
+              value={formatCurrency(monthly.expenses)}
+              icon={ArrowDown}
+              variant="negative"
+              size="sm"
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
