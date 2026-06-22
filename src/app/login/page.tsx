@@ -132,7 +132,7 @@ export default function LoginPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
               <Landmark className="h-5 w-5 text-amber-500" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-white uppercase tracking-widest">FinDomus</span>
+            <span className="text-xl font-bold tracking-tight text-white uppercase tracking-widest">tree<span className="text-amber-500">Domus</span></span>
           </div>
         </div>
 
@@ -151,17 +151,22 @@ export default function LoginPage() {
               </p>
 
               {/* Discrete Plans Promo Card */}
-              <div className="mt-8 inline-flex items-center gap-4 rounded-2xl border border-amber-500/10 bg-amber-500/5 p-4 max-w-[420px] shadow-[0_0_30px_rgba(245,158,11,0.02)]">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                  <BrainCircuit className="h-5 w-5" />
+              <div className="mt-8 inline-flex items-center gap-5 rounded-3xl border border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-yellow-600/5 to-transparent p-5 max-w-[460px] shadow-[0_0_40px_rgba(245,158,11,0.06)] border-l-4 border-l-amber-500">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                  <BrainCircuit className="h-6 w-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">25% a 30% OFF vitalício</span>
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                    <span className="text-[11px] font-extrabold text-amber-400 uppercase tracking-wider">25% a 30% OFF vitalício</span>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
                   </div>
-                  <h4 className="text-sm font-bold text-white mt-0.5">Planos a partir de R$ 29,90/mês</h4>
-                  <p className="text-xs text-zinc-400 mt-0.5 font-light">Escolha o plano ideal para você ou sua família.</p>
+                  <h4 className="text-base font-extrabold text-white mt-1">Planos a partir de R$ 29,90/mês</h4>
+                  <p className="text-xs text-zinc-300 mt-1 font-light leading-relaxed">
+                    Escolha o plano ideal para você ou sua família.
+                  </p>
                 </div>
               </div>
             </div>
@@ -193,41 +198,41 @@ export default function LoginPage() {
 
           {/* Bottom Feature Cards Grid */}
           <div className="mt-auto pb-16 grid grid-cols-2 gap-x-12 gap-y-10">
-            <div className="space-y-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/5 text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-transform hover:scale-105">
-                <ShieldCheck className="h-6 w-6" />
+            <div className="space-y-3 group/feat">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-blue-500/30 bg-blue-950/10 text-blue-400 shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-all duration-300 group-hover/feat:scale-110 group-hover/feat:border-blue-500/60 group-hover/feat:shadow-[0_0_40px_rgba(59,130,246,0.3)]">
+                <ShieldCheck className="h-7 w-7" />
               </div>
-              <h3 className="font-bold text-white text-lg tracking-tight">Segurança</h3>
+              <h3 className="font-bold text-white text-lg tracking-tight transition-colors group-hover/feat:text-blue-400">Segurança</h3>
               <p className="text-sm text-zinc-500 leading-snug font-light">
                 Isolamento e criptografia <br /> de ponta a ponta.
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)] transition-transform hover:scale-105">
-                <LineChart className="h-6 w-6" />
+            <div className="space-y-3 group/feat">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-emerald-500/30 bg-emerald-950/10 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300 group-hover/feat:scale-110 group-hover/feat:border-emerald-500/60 group-hover/feat:shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                <LineChart className="h-7 w-7" />
               </div>
-              <h3 className="font-bold text-white text-lg tracking-tight">Controle financeiro</h3>
+              <h3 className="font-bold text-white text-lg tracking-tight transition-colors group-hover/feat:text-emerald-400">Controle financeiro</h3>
               <p className="text-sm text-zinc-500 leading-snug font-light">
                 Fluxo de caixa preditivo e <br /> DRE em tempo real.
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/5 text-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.1)] transition-transform hover:scale-105">
-                <PieChart className="h-6 w-6" />
+            <div className="space-y-3 group/feat">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-purple-500/30 bg-purple-950/10 text-purple-400 shadow-[0_0_30px_rgba(168,85,247,0.15)] transition-all duration-300 group-hover/feat:scale-110 group-hover/feat:border-purple-500/60 group-hover/feat:shadow-[0_0_40px_rgba(168,85,247,0.3)]">
+                <PieChart className="h-7 w-7" />
               </div>
-              <h3 className="font-bold text-white text-lg tracking-tight">Investimentos</h3>
+              <h3 className="font-bold text-white text-lg tracking-tight transition-colors group-hover/feat:text-purple-400">Investimentos</h3>
               <p className="text-sm text-zinc-500 leading-snug font-light">
                 Sincronização global de <br /> carteiras e métricas.
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.1)] transition-transform hover:scale-105">
-                <BrainCircuit className="h-6 w-6" />
+            <div className="space-y-3 group/feat">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-amber-500/30 bg-amber-950/10 text-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.15)] transition-all duration-300 group-hover/feat:scale-110 group-hover/feat:border-amber-500/60 group-hover/feat:shadow-[0_0_40px_rgba(245,158,11,0.3)]">
+                <BrainCircuit className="h-7 w-7" />
               </div>
-              <h3 className="font-bold text-white text-lg tracking-tight">IA Financeira</h3>
+              <h3 className="font-bold text-white text-lg tracking-tight transition-colors group-hover/feat:text-amber-400">IA Financeira</h3>
               <p className="text-sm text-zinc-500 leading-snug font-light">
                 Automação de extratos e <br /> categorização inteligente.
               </p>
@@ -249,7 +254,7 @@ export default function LoginPage() {
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
               <Landmark className="h-8 w-8 text-amber-400" />
             </div>
-            <span className="text-3xl font-bold tracking-tight text-white uppercase tracking-widest mt-2">FinDomus</span>
+            <span className="text-3xl font-bold tracking-tight text-white uppercase tracking-widest mt-2">tree<span className="text-amber-500">Domus</span></span>
           </div>
 
           {/* Login Block Wrapper with Premium Glow */}
@@ -307,21 +312,28 @@ export default function LoginPage() {
               </form>
 
               {/* Bloco de CTA de Planos */}
-              <div className="mt-6 border-t border-zinc-900/60 pt-6 text-center space-y-3">
+              <div className="mt-6 border-t border-zinc-900/60 pt-6 text-center space-y-4">
                 <div className="space-y-1">
                   <p className="text-zinc-300 text-xs font-semibold uppercase tracking-wider">Ainda não possui acesso?</p>
                   <p className="text-zinc-500 text-xs font-light">Conheça os planos e garanta benefícios exclusivos.</p>
                 </div>
-                <Button 
-                  asChild
-                  variant="outline"
-                  className="w-full h-11 border-zinc-800 hover:border-zinc-700 bg-zinc-950/40 text-zinc-300 hover:text-white font-bold rounded-xl transition-all"
-                >
-                  <a href="/planos">
-                    CONHECER PLANOS
-                  </a>
-                </Button>
-                <p className="text-[10px] text-amber-500/80 font-light">
+                
+                {/* Orbital animated border wrap for the Button */}
+                <div className="relative group/btn overflow-hidden rounded-xl p-[1.5px] focus-visible:outline-none max-w-sm mx-auto shadow-[0_0_20px_rgba(245,158,11,0.08)]">
+                  {/* Glowing orbital border effect */}
+                  <span className="absolute inset-[-1000%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#f59e0b_0%,#d97706_25%,transparent_50%,#f59e0b_75%,#d97706_100%)] opacity-70" />
+                  
+                  <Button 
+                    asChild
+                    className="relative w-full h-11 bg-zinc-950 hover:bg-zinc-900/90 text-amber-400 hover:text-amber-300 font-extrabold rounded-xl border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-all duration-300 animate-[pulse_3s_ease-in-out_infinite]"
+                  >
+                    <a href="/planos">
+                      CONHECER PLANOS
+                    </a>
+                  </Button>
+                </div>
+                
+                <p className="text-[10px] text-amber-500/80 font-light mt-2">
                   Oferta de lançamento para os 100 primeiros assinantes.
                 </p>
               </div>
