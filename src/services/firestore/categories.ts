@@ -23,7 +23,7 @@ export type Category = {
   userId?: string | null;
 };
 
-export async function getCategories(): Promise<Category[]> {
+export async function getCategories(userId?: string): Promise<Category[]> {
   const q = query(collection(db, "categories"), orderBy("name", "asc"));
   const snap = await getDocs(q);
 
