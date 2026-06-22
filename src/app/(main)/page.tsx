@@ -62,26 +62,28 @@ export default function DashboardPage() {
           title="Saldo Consolidado"
           value={formatCurrency(dashboard.total)}
           icon={Landmark}
+          glowColor="blue"
           description="Total PF + PJ"
         />
         <StatCard
           title="Saldo Pessoal"
           value={formatCurrency(dashboard.totalPF)}
           icon={Users}
-          variant="positive"
+          glowColor="green"
           description="Contas pessoais/familiares"
         />
         <StatCard
           title="Saldo Empresarial"
           value={formatCurrency(dashboard.totalPJ)}
           icon={Building2}
+          glowColor="orange"
           description="Contas empresariais"
         />
         <StatCard
           title="Balanço Mensal"
           value={formatCurrency(monthly.balance)}
           icon={Banknote}
-          variant={monthly.balance >= 0 ? 'positive' : 'negative'}
+          glowColor="purple"
           description="Receitas - Despesas no mês atual"
         />
       </div>
@@ -91,29 +93,29 @@ export default function DashboardPage() {
         <MonthlyFlow data={dashboard.monthlyFlow} />
       </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-muted-foreground" />
-              Previsão de Caixa PJ
-            </CardTitle>
-            <CardDescription>Projeção dos próximos {dashboard.cashflow.days} dias.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-4">
-            <StatCard title="Saldo Atual PJ" value={formatCurrency(dashboard.cashflow.currentBalance)} icon={Banknote} size="sm" />
-            <StatCard title="Saídas Previstas" value={formatCurrency(dashboard.cashflow.totalOutflow)} icon={ArrowDown} variant="negative" size="sm" />
-            <StatCard title="Menor Saldo" value={formatCurrency(dashboard.cashflow.lowestBalance)} icon={TrendingUp} variant={dashboard.cashflow.lowestBalance >= 0 ? "positive" : "negative"} size="sm" />
-            <StatCard title="Saldo Projetado" value={formatCurrency(dashboard.cashflow.projectedBalance)} icon={Landmark} variant={dashboard.cashflow.projectedBalance >= 0 ? "positive" : "negative"} size="sm" />
-          </CardContent>
-        <CashflowScenarioSwitcher scenarios={dashboard.cashflowScenarios} />
-        </Card>
-
-        <Card>
+      <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300">
         <CardHeader>
-          <CardTitle>DRE Empresarial</CardTitle>
-          <CardDescription>Resultado automático das empresas com base nos lançamentos PJ.</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <AlertTriangle className="h-5 w-5 text-zinc-400" />
+            Previsão de Caixa PJ
+          </CardTitle>
+          <CardDescription className="text-zinc-500">Projeção dos próximos {dashboard.cashflow.days} dias.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+        <CardContent className="grid gap-4 md:grid-cols-4">
+          <StatCard title="Saldo Atual PJ" value={formatCurrency(dashboard.cashflow.currentBalance)} icon={Banknote} size="sm" />
+          <StatCard title="Saídas Previstas" value={formatCurrency(dashboard.cashflow.totalOutflow)} icon={ArrowDown} variant="negative" size="sm" />
+          <StatCard title="Menor Saldo" value={formatCurrency(dashboard.cashflow.lowestBalance)} icon={TrendingUp} variant={dashboard.cashflow.lowestBalance >= 0 ? "positive" : "negative"} size="sm" />
+          <StatCard title="Saldo Projetado" value={formatCurrency(dashboard.cashflow.projectedBalance)} icon={Landmark} variant={dashboard.cashflow.projectedBalance >= 0 ? "positive" : "negative"} size="sm" />
+        </CardContent>
+        <CashflowScenarioSwitcher scenarios={dashboard.cashflowScenarios} />
+      </Card>
+
+      <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(245,158,11,0.02)] transition-all duration-300">
+        <CardHeader>
+          <CardTitle className="text-white">DRE Empresarial</CardTitle>
+          <CardDescription className="text-zinc-500">Resultado automático das empresas com base nos lançamentos PJ.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-zinc-300">
           <DreRow label="Receita Bruta" value={dashboard.dre.receitaBruta} />
           <DreRow label="(-) Impostos" value={dashboard.dre.impostos} />
           <DreRow label="Receita Líquida" value={dashboard.dre.receitaLiquida} strong />
@@ -128,9 +130,9 @@ export default function DashboardPage() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+        <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(16,185,129,0.02)] transition-all duration-300">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Users /> Resumo Pessoal</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-white"><Users /> Resumo Pessoal</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
             <StatCard
@@ -150,9 +152,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(245,158,11,0.02)] transition-all duration-300">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Building2 /> Resumo Empresarial</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-white"><Building2 /> Resumo Empresarial</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
             <StatCard

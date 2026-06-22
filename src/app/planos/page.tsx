@@ -1,12 +1,23 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { getPublicLaunchOffer } from '@/lib/public/launch-offer-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, Landmark, Users, Shield, ArrowLeft, BrainCircuit } from 'lucide-react';
 
 export default function PlanosPage() {
   const whatsappBaseUrl = 'https://wa.me/5521995643718';
+  const [remainingSlots, setRemainingSlots] = useState<number | null>(null);
+
+  useEffect(() => {
+    getPublicLaunchOffer().then((data) => {
+      if (data.active) {
+        setRemainingSlots(data.remainingSlots);
+      }
+    });
+  }, []);
 
   const getWhatsappLink = (plano: string) => {
     const text = `Olá, quero assinar o FinDomus no plano ${plano}.`;
@@ -23,11 +34,11 @@ export default function PlanosPage() {
 
       {/* Header Bar */}
       <header className="relative z-10 w-full max-w-[1400px] mx-auto px-6 py-6 md:py-8 flex items-center justify-between border-b border-zinc-900/60">
-        <a href="/login" className="flex items-center gap-3 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.08)]">
-            <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-cover" />
+        <a href="/login" className="flex items-center gap-4 group">
+          <div className="relative w-12 h-12 sm:w-16 sm:h-16">
+            <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-contain" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-white uppercase tracking-widest">tree<span className="text-amber-500">Domus</span></span>
+          <span className="text-2xl font-extrabold tracking-widest text-white uppercase">tree<span className="text-[#f59e0b]">Domus</span></span>
         </a>
         <a 
           href="/login" 
@@ -47,7 +58,7 @@ export default function PlanosPage() {
             Escolha o plano perfeito para a sua <span className="text-amber-400">independência financeira.</span>
           </h1>
           <p className="mt-5 text-zinc-400 text-base md:text-lg font-light leading-relaxed">
-            Campanha promocional válida por tempo limitado para os <strong className="text-white font-medium">100 primeiros assinantes</strong>. Garanta seu desconto vitalício hoje mesmo.
+            Oferta de lançamento: Restam <strong className="text-amber-400 font-bold">{remainingSlots ?? 100}</strong> vagas com até 30% OFF vitalício.
           </p>
         </div>
 

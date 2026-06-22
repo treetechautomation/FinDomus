@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Landmark, ShieldCheck, LineChart, BrainCircuit, PieChart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getPublicLaunchOffer } from '@/lib/public/launch-offer-client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,6 +20,15 @@ export default function LoginPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { toast } = useToast();
+  const [remainingSlots, setRemainingSlots] = useState<number | null>(null);
+
+  useEffect(() => {
+    getPublicLaunchOffer().then((data) => {
+      if (data.active) {
+        setRemainingSlots(data.remainingSlots);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     // Se já estiver logado, manda para home silenciosamente
@@ -128,11 +138,11 @@ export default function LoginPage() {
 
         {/* Logo Section */}
         <div className="relative z-10 p-12 lg:p-14">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-              <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-cover" />
+          <div className="flex items-center gap-4">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24">
+              <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-contain" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-white uppercase tracking-widest">tree<span className="text-amber-500">Domus</span></span>
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-widest text-white uppercase">tree<span className="text-[#f59e0b]">Domus</span></span>
           </div>
         </div>
 
@@ -251,10 +261,10 @@ export default function LoginPage() {
           
           {/* Mobile Header (Visível apenas em telas menores) */}
           <div className="mb-10 flex flex-col items-center gap-3 lg:hidden">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-amber-500/30 overflow-hidden shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-              <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-cover" />
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24">
+              <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-contain" />
             </div>
-            <span className="text-3xl font-bold tracking-tight text-white uppercase tracking-widest mt-2">tree<span className="text-amber-500">Domus</span></span>
+            <span className="text-3xl font-extrabold tracking-widest text-white uppercase mt-2">tree<span className="text-[#f59e0b]">Domus</span></span>
           </div>
 
           {/* Login Block Wrapper with Premium Glow */}
@@ -333,8 +343,8 @@ export default function LoginPage() {
                   </Button>
                 </div>
                 
-                <p className="text-[10px] text-amber-500/80 font-light mt-2">
-                  Oferta de lançamento para os 100 primeiros assinantes.
+                <p className="text-[10px] text-amber-500/90 font-semibold mt-2 animate-pulse">
+                  🔥 Restam {remainingSlots ?? 100} de 100 vagas com desconto vitalício
                 </p>
               </div>
 
