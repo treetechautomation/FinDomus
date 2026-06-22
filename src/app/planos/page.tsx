@@ -24,10 +24,10 @@ export default function PlanosPage() {
       {/* Header Bar */}
       <header className="relative z-10 w-full max-w-[1400px] mx-auto px-6 py-6 md:py-8 flex items-center justify-between border-b border-zinc-900/60">
         <a href="/login" className="flex items-center gap-3 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 shadow-[0_0_15px_rgba(245,158,11,0.08)]">
-            <Landmark className="h-4.5 w-4.5 text-amber-500" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.08)]">
+            <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-cover" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-white uppercase tracking-widest">FinDomus</span>
+          <span className="text-lg font-bold tracking-tight text-white uppercase tracking-widest">tree<span className="text-amber-500">Domus</span></span>
         </a>
         <a 
           href="/login" 
@@ -241,7 +241,7 @@ export default function PlanosPage() {
 
       {/* Footer */}
       <footer className="relative z-10 w-full py-8 text-center text-xs text-zinc-600 uppercase tracking-widest border-t border-zinc-950">
-        © {new Date().getFullYear()} FinDomus • Desenvolvido com segurança absoluta
+        © {new Date().getFullYear()} treeDomus • Desenvolvido com segurança absoluta
       </footer>
 
     </div>

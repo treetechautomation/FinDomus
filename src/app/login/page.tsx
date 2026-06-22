@@ -129,8 +129,8 @@ export default function LoginPage() {
         {/* Logo Section */}
         <div className="relative z-10 p-12 lg:p-14">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-              <Landmark className="h-5 w-5 text-amber-500" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-zinc-900/50 overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+              <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-cover" />
             </div>
             <span className="text-xl font-bold tracking-tight text-white uppercase tracking-widest">tree<span className="text-amber-500">Domus</span></span>
           </div>
@@ -251,8 +251,8 @@ export default function LoginPage() {
           
           {/* Mobile Header (Visível apenas em telas menores) */}
           <div className="mb-10 flex flex-col items-center gap-3 lg:hidden">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-              <Landmark className="h-8 w-8 text-amber-400" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-amber-500/30 overflow-hidden shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+              <img src="/logo.png" alt="treeDomus Logo" className="h-full w-full object-cover" />
             </div>
             <span className="text-3xl font-bold tracking-tight text-white uppercase tracking-widest mt-2">tree<span className="text-amber-500">Domus</span></span>
           </div>
