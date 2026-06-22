@@ -122,7 +122,7 @@ export async function parseNubankCSV(csv: string): Promise<ParsedTransaction[]> 
   return parsed.filter(Boolean) as ParsedTransaction[];
 }
 
-export async function parseBankStatementText(text: string): Promise<ParsedTransaction[]> {
+export async function parseBankStatementText(text: string, userId?: string): Promise<ParsedTransaction[]> {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const result: ParsedTransaction[] = [];
 

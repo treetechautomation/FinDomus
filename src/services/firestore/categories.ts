@@ -11,12 +11,16 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { DEFAULT_CATEGORY_CATALOG } from "@/core/finance/default-category-catalog";
 
 export type Category = {
   id?: string;
   name: string;
   keywords?: string[];
   createdAt: string;
+  updatedAt?: string;
+  isDefault?: boolean;
+  userId?: string | null;
 };
 
 export async function getCategories(): Promise<Category[]> {
@@ -147,4 +151,62 @@ export async function cleanDuplicateCategories() {
     migratedTransactions,
     deletedCategories,
   };
+}
+
+export async function seedDefaultCategoriesForUser(userId?: string) {
+  const existingCategories = await getCategories();
+  
+  // Normalizar os nomes existentes para verificar duplicidade
+  const normalizedExisting = new Map<string, Category>();
+  for (const cat of existingCategories) {
+    const norm = normalizeCategoryKey(cat.name);
+    if (norm) {
+      normalizedExisting.set(norm, cat);
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  for (const item of DEFAULT_CATEGORY_CATALOG) {
+    const normName = normalizeCategoryKey(item.name);
+    const existing = normalizedExisting.get(normName);
+
+    if (!existing) {
+      // Cria a categoria
+      await addDoc(collection(db, "categories"), {
+        name: item.name.trim(),
+        keywords: item.keywords || [],
+        createdAt: now,
+        updatedAt: now,
+        isDefault: true,
+        userId: userId || null,
+      });
+    } else {
+      // Categoria já existe. Mesclar palavras-chave.
+      const currentKeywords = existing.keywords || [];
+      const mergedSet = new Set<string>();
+      
+      // Adiciona as atuais normalizadas
+      for (const kw of currentKeywords) {
+        const clean = normalizeCategoryKey(kw);
+        if (clean) mergedSet.add(clean);
+      }
+      
+      // Adiciona as novas do catálogo normalizadas
+      for (const kw of item.keywords) {
+        const clean = normalizeCategoryKey(kw);
+        if (clean) mergedSet.add(clean);
+      }
+
+      const mergedArray = Array.from(mergedSet);
+
+      if (existing.id) {
+        const ref = doc(db, "categories", existing.id);
+        await updateDoc(ref, {
+          keywords: mergedArray,
+          updatedAt: now,
+        });
+      }
+    }
+  }
 }

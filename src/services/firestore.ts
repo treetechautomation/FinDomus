@@ -25,17 +25,19 @@ function getMonthKey(date?: string) {
   return d.toISOString().slice(0, 7);
 }
 
-export async function generateMonthlySummary(owner: "PF" | "PJ", month: string) {
+export async function generateMonthlySummary(userId: string, owner: "PF" | "PJ", month: string) {
+  if (!userId) throw new Error("userId required");
+
   const snap = await getDocs(
     query(
       collection(db, "transactions"),
-      where("owner", "==", owner)
+      where("userId", "==", userId)
     )
   );
 
   const transactions = snap.docs
     .map(doc => doc.data())
-    .filter((t: any) => t.monthKey === month);
+    .filter((t: any) => t.owner === owner && (t.competenceMonthKey || t.monthKey) === month);
 
   let income = 0;
   let expenses = 0;
@@ -53,9 +55,11 @@ export async function generateMonthlySummary(owner: "PF" | "PJ", month: string) 
 
   const balance = income - expenses;
 
-  const docId = `${owner}_${month}`;
+  const docId = `${userId}_${owner}_${month}`;
 
-  await updateDoc(doc(db, "monthly_summaries", docId), {
+  await setDoc(doc(db, "monthly_summaries", docId), {
+    id: docId,
+    userId,
     owner,
     month,
     income,
@@ -64,19 +68,7 @@ export async function generateMonthlySummary(owner: "PF" | "PJ", month: string) 
     transactionsCount: transactions.length,
     categories,
     updatedAt: new Date().toISOString(),
-  }).catch(async () => {
-    await addDoc(collection(db, "monthly_summaries"), {
-      id: docId,
-      owner,
-      month,
-      income,
-      expenses,
-      balance,
-      transactionsCount: transactions.length,
-      categories,
-      updatedAt: new Date().toISOString(),
-    });
-  });
+  }, { merge: true });
 
   return {
     owner,
@@ -90,8 +82,15 @@ export async function generateMonthlySummary(owner: "PF" | "PJ", month: string) 
 
 
 
-export async function getMonthlySummary(owner: "PF" | "PJ", month: string) {
-  const id = `${owner}_${month}`;
+export async function getMonthlySummary(userId: string, owner: "PF" | "PJ", month: string) {
+  if (!userId) return null;
+  const id = `${userId}_${owner}_${month}`;
+
+  const docRef = doc(db, "monthly_summaries", id);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data();
+  }
 
   const snap = await getDocs(
     query(collection(db, "monthly_summaries"), where("id", "==", id))
@@ -106,7 +105,7 @@ export async function getMonthlySummary(owner: "PF" | "PJ", month: string) {
 
 
 
-export async function getLastSixMonthsSummaryFlow(owner: "PF" | "PJ") {
+export async function getLastSixMonthsSummaryFlow(userId: string, owner: "PF" | "PJ") {
   const now = new Date();
 
   const months = Array.from({ length: 6 }).map((_, index) => {
@@ -122,7 +121,7 @@ export async function getLastSixMonthsSummaryFlow(owner: "PF" | "PJ") {
   const result = [];
 
   for (const m of months) {
-    const summary = await getMonthlySummary(owner, m.key);
+    const summary = await getMonthlySummary(userId, owner, m.key);
 
     if (summary) {
       result.push({

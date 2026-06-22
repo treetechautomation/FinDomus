@@ -1,61 +1,73 @@
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import PDFParser from 'pdf2json';
 
 export async function extractTextFromPDF(
   buffer: Buffer,
   password?: string
 ): Promise<string> {
-  try {
-    const loadingTask = getDocument({
-      data: new Uint8Array(buffer),
-      password,
-      worker: null,
-      disableWorker: true,
-      useWorkerFetch: false,
-      disableFontFace: true,
-      isEvalSupported: false,
-      useSystemFonts: false,
-    } as any);
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PDFParser(null, true, password);
 
-    const pdf = await loadingTask.promise;
+    pdfParser.on('pdfParser_dataError', (errData: any) => {
+      const rawError = errData instanceof Error ? errData : (errData.parserError || new Error(String(errData)));
+      const message = rawError.message || String(rawError);
 
-    const pagesText: string[] = [];
-
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-      const page = await pdf.getPage(pageNumber);
-
-      const content = await page.getTextContent();
-
-      const text = content.items
-        .map((item: any) => item.str || '')
-        .join(' ')
-        .trim();
-
-      if (text) {
-        pagesText.push(text);
+      if (
+        message.toLowerCase().includes('password') ||
+        message.toLowerCase().includes('encrypted') ||
+        message.toLowerCase().includes('invalid password') ||
+        message.toLowerCase().includes('incorrect password') ||
+        message.toLowerCase().includes('no password') ||
+        rawError.name === 'PasswordException'
+      ) {
+        reject(new Error('PDF_PROTEGIDO_OU_SENHA_INVALIDA'));
+      } else {
+        reject(rawError);
       }
-    }
+    });
 
-    await loadingTask.destroy();
+    pdfParser.on('pdfParser_dataReady', (pdfData) => {
+      try {
+        const pagesText: string[] = [];
 
-    const finalText = pagesText.join('\n');
+        if (pdfData && pdfData.Pages) {
+          for (const page of pdfData.Pages) {
+            const pageTexts: string[] = [];
+            if (page.Texts) {
+              for (const textObj of page.Texts) {
+                if (textObj.R) {
+                  const runText = textObj.R.map(run => {
+                    try {
+                      return decodeURIComponent(run.T || '');
+                    } catch {
+                      return run.T || '';
+                    }
+                  }).join('');
+                  if (runText) {
+                    pageTexts.push(runText);
+                  }
+                }
+              }
+            }
+            const pageCombined = pageTexts.join(' ').trim();
+            if (pageCombined) {
+              pagesText.push(pageCombined);
+            }
+          }
+        }
 
-    if (!finalText.trim()) {
-      throw new Error('PDF_SEM_TEXTO_EXTRAIVEL');
-    }
+        const finalText = pagesText.join('\n');
 
-    return finalText;
-  } catch (error: any) {
-    const message = String(error?.message || error || '');
+        if (!finalText.trim()) {
+          reject(new Error('PDF_SEM_TEXTO_EXTRAIVEL'));
+          return;
+        }
 
-    if (
-      message.toLowerCase().includes('password') ||
-      message.toLowerCase().includes('incorrect password') ||
-      message.toLowerCase().includes('no password') ||
-      error?.name === 'PasswordException'
-    ) {
-      throw new Error('PDF_PROTEGIDO_OU_SENHA_INVALIDA');
-    }
+        resolve(finalText);
+      } catch (err) {
+        reject(err);
+      }
+    });
 
-    throw error;
-  }
+    pdfParser.parseBuffer(buffer);
+  });
 }

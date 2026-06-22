@@ -27,7 +27,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { auth } from '@/lib/firebase';
 
 import { parseOFX } from "@/core/finance/ofx-parser";
-import { parseBankStatementText, parseNubankCSV } from '@/core/finance/invoice-parser';
+import { parseNubankCSV } from '@/core/finance/invoice-parser';
 import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
 import { buildImportPreview } from '@/core/imports/build-import-preview';
@@ -175,6 +175,7 @@ export function Importer() {
       if (file.type === 'application/pdf') {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('userId', user?.uid || '');
         if (pdfPassword) formData.append('password', pdfPassword);
 
         const response = await fetch('/api/import/pdf', {
@@ -199,7 +200,7 @@ export function Importer() {
         }
 
         const data = await response.json();
-        extractedTransactions = await parseBankStatementText(data.text);
+        extractedTransactions = Array.isArray(data.transactions) ? data.transactions : [];
 
         if (extractedTransactions.length === 0) {
           const reader = new FileReader();

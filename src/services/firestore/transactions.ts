@@ -263,7 +263,7 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
     const [owner, month] = target.split('|') as ['PF' | 'PJ', string];
 
     if (month) {
-      await generateMonthlySummary(owner, month);
+      await generateMonthlySummary(userId, owner, month);
     }
   }
 

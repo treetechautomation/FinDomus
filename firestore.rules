@@ -15,6 +15,11 @@ service cloud.firestore {
       return isAuthenticated() && (request.auth.uid == userId || request.auth.token.admin == true);
     }
 
+    function isMemberOfHousehold(householdId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/household_members/$(householdId + '_' + request.auth.uid));
+    }
+
     // --- REGRAS POR COLECÃO ---
 
     // 1. Catalogo Global (Read-only para logados)
@@ -29,13 +34,90 @@ service cloud.firestore {
         (settingId == 'investment_goals_' + request.auth.uid || (resource != null && resource.data.userId == request.auth.uid));
     }
 
+    // 2.5. Coleções relacionadas a Família / Planos
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /households/{householdId} {
+      allow read: if isMemberOfHousehold(householdId);
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    match /household_members/{memberId} {
+      allow read: if isMemberOfHousehold(resource.data.householdId);
+      allow create: if isAuthenticated() && (
+        (request.resource.data.role == 'owner' && 
+         request.resource.data.userId == request.auth.uid &&
+         get(/databases/$(database)/documents/households/$(request.resource.data.householdId)).data.ownerId == request.auth.uid) ||
+        (request.resource.data.userId == request.auth.uid &&
+         request.resource.data.inviteToken != null &&
+         get(/databases/$(database)/documents/household_invites/$(request.resource.data.inviteToken)).data.status == 'accepted' &&
+         get(/databases/$(database)/documents/household_invites/$(request.resource.data.inviteToken)).data.invitedEmail == request.resource.data.email &&
+         get(/databases/$(database)/documents/household_invites/$(request.resource.data.inviteToken)).data.householdId == request.resource.data.householdId)
+      );
+      allow update: if isAuthenticated() && (
+        get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid ||
+        (resource.data.userId == request.auth.uid && request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid
+      );
+    }
+
+    match /household_invites/{inviteId} {
+      allow create: if isAuthenticated() && get(/databases/$(database)/documents/households/$(request.resource.data.householdId)).data.ownerId == request.auth.uid;
+      allow read: if isAuthenticated() && (
+        isMemberOfHousehold(resource.data.householdId) || 
+        (resource.data.invitedEmail == request.auth.token.email)
+      );
+      allow update: if isAuthenticated() && (
+        get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid ||
+        (resource.data.invitedEmail == request.auth.token.email && request.resource.data.status == 'accepted' && request.resource.data.householdId == resource.data.householdId)
+      );
+      allow delete: if isAuthenticated() && get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid;
+    }
+
+    match /plans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /subscriptions/{subId} {
+      allow read: if isAuthenticated() && isMemberOfHousehold(resource.data.householdId);
+      allow write: if false;
+    }
+
     // 3. Colecoes Multi-Tenant (Isolamento por campo userId)
     // Para read/update/delete: verifica userId no documento existente
     // Para create: verifica userId nos dados sendo criados
     match /{collectionName}/{docId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && 
+        collectionName != 'users' && 
+        collectionName != 'households' && 
+        collectionName != 'household_members' && 
+        collectionName != 'household_invites' && 
+        collectionName != 'plans' && 
+        collectionName != 'subscriptions' && 
+        resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && 
+        collectionName != 'users' && 
+        collectionName != 'households' && 
+        collectionName != 'household_members' && 
+        collectionName != 'household_invites' && 
+        collectionName != 'plans' && 
+        collectionName != 'subscriptions' && 
+        resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        collectionName != 'users' && 
+        collectionName != 'households' && 
+        collectionName != 'household_members' && 
+        collectionName != 'household_invites' && 
+        collectionName != 'plans' && 
+        collectionName != 'subscriptions' && 
+        request.resource.data.userId == request.auth.uid;
     }
 
     // 4. Colecoes sem userId (owner-based)

@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const password = formData.get('password') as string | null;
+    const userId = String(formData.get('userId') || '');
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -72,7 +73,18 @@ export async function POST(req: NextRequest) {
     
     try {
       const text = await extractTextFromPDF(decryptedBuffer);
-      return NextResponse.json({ text });
+      const { parseBankStatementText } = await import('@/core/finance/invoice-parser');
+
+      if (!userId) {
+        return NextResponse.json(
+          { code: 'USER_ID_REQUIRED', error: 'Usuário não identificado para classificar PDF.' },
+          { status: 401 }
+        );
+      }
+
+      const transactions = await parseBankStatementText(text, userId);
+
+      return NextResponse.json({ text, transactions });
     } catch (error: any) {
       if (error.message === 'PDF_PROTEGIDO_OU_SENHA_INVALIDA') {
         return NextResponse.json(
