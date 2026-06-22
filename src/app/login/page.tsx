@@ -149,6 +149,21 @@ export default function LoginPage() {
                 automatizar conciliações e escalar seus investimentos com <br />
                 precisão institucional.
               </p>
+
+              {/* Discrete Plans Promo Card */}
+              <div className="mt-8 inline-flex items-center gap-4 rounded-2xl border border-amber-500/10 bg-amber-500/5 p-4 max-w-[420px] shadow-[0_0_30px_rgba(245,158,11,0.02)]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                  <BrainCircuit className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">25% a 30% OFF vitalício</span>
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                  </div>
+                  <h4 className="text-sm font-bold text-white mt-0.5">Planos a partir de R$ 29,90/mês</h4>
+                  <p className="text-xs text-zinc-400 mt-0.5 font-light">Escolha o plano ideal para você ou sua família.</p>
+                </div>
+              </div>
             </div>
 
             {/* Golden Candles Visual */}
@@ -290,6 +305,26 @@ export default function LoginPage() {
                   ENTRAR NA PLATAFORMA
                 </Button>
               </form>
+
+              {/* Bloco de CTA de Planos */}
+              <div className="mt-6 border-t border-zinc-900/60 pt-6 text-center space-y-3">
+                <div className="space-y-1">
+                  <p className="text-zinc-300 text-xs font-semibold uppercase tracking-wider">Ainda não possui acesso?</p>
+                  <p className="text-zinc-500 text-xs font-light">Conheça os planos e garanta benefícios exclusivos.</p>
+                </div>
+                <Button 
+                  asChild
+                  variant="outline"
+                  className="w-full h-11 border-zinc-800 hover:border-zinc-700 bg-zinc-950/40 text-zinc-300 hover:text-white font-bold rounded-xl transition-all"
+                >
+                  <a href="/planos">
+                    CONHECER PLANOS
+                  </a>
+                </Button>
+                <p className="text-[10px] text-amber-500/80 font-light">
+                  Oferta de lançamento para os 100 primeiros assinantes.
+                </p>
+              </div>
 
               <div className="relative my-8">
                 <div className="absolute inset-0 flex items-center">
