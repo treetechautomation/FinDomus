@@ -153,6 +153,22 @@ export async function addTransaction(userId: string, data: TransactionDTO) {
 
   const docRef = await addDoc(collection(db, 'transactions'), normalized);
 
+  if (
+    normalized.isInstallment === true &&
+    normalized.installmentCurrent !== null && normalized.installmentCurrent !== undefined &&
+    normalized.installmentTotal !== null && normalized.installmentTotal !== undefined &&
+    normalized.installmentKey
+  ) {
+    try {
+      await upsertLiabilityFromInstallmentTransaction(userId, {
+        ...normalized,
+        id: docRef.id,
+      });
+    } catch (err) {
+      console.error("[addTransaction] Falha ao atualizar passivo automático do lançamento:", err);
+    }
+  }
+
   return docRef.id;
 }
 
@@ -264,6 +280,22 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
 
     if (month) {
       await generateMonthlySummary(userId, owner, month);
+    }
+  }
+
+  const installmentItems = toInsert.filter(
+    (item) =>
+      item.isInstallment === true &&
+      item.installmentCurrent !== null && item.installmentCurrent !== undefined &&
+      item.installmentTotal !== null && item.installmentTotal !== undefined &&
+      item.installmentKey
+  );
+
+  for (const item of installmentItems) {
+    try {
+      await upsertLiabilityFromInstallmentTransaction(userId, item);
+    } catch (err) {
+      console.error("[addTransactionsBatch] Falha ao atualizar passivo automático do lançamento:", err);
     }
   }
 
