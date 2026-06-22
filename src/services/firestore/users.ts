@@ -10,6 +10,10 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
+  acceptedTerms?: boolean;
+  acceptedTermsVersion?: string;
+  acceptedTermsAt?: string;
+  acceptedTermsUserAgent?: string;
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
