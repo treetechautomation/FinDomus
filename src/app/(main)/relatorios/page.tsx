@@ -1,9 +1,14 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, useMemo } from "react";
+import { useAuth } from "@/providers/auth-provider";
+import { getPersonalTransactions } from "@/services/firestore/transactions";
+import { buildPFDRE } from "@/core/finance/dre-engine";
+import { getCurrentMonthKey, getLastMonths, formatMonthLabel, isTransactionInMonth } from "@/core/finance/financial-period-engine";
+import { PfDreCard } from "@/components/relatorios/pf-dre-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart3, Filter } from "lucide-react";
+import { BarChart3, Loader2 } from "lucide-react";
 import dynamic from 'next/dynamic';
 
 const MonthlyFlow = dynamic(
@@ -17,6 +22,33 @@ const ConsolidatedBalance = dynamic(
 );
 
 export default function RelatoriosPage() {
+  const { user } = useAuth();
+  const [reportType, setReportType] = useState("pessoal-dre");
+  const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonthKey());
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const monthOptions = useMemo(() => getLastMonths(12, getCurrentMonthKey()), []);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    setLoading(true);
+    getPersonalTransactions(user.uid)
+      .then((txs) => {
+        setTransactions(txs || []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [user?.uid]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => isTransactionInMonth(t, selectedMonth));
+  }, [transactions, selectedMonth]);
+
+  const drePF = useMemo(() => {
+    return buildPFDRE(filteredTransactions);
+  }, [filteredTransactions]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -33,38 +65,53 @@ export default function RelatoriosPage() {
           <CardDescription>Selecione os filtros para gerar os relatórios.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Tipo de Relatório" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="geral">Consolidado Geral</SelectItem>
-                <SelectItem value="pessoal">Pessoal</SelectItem>
-                <SelectItem value="empresa-1">Empresa 1</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30d">Últimos 30 dias</SelectItem>
-                <SelectItem value="mes-atual">Este Mês</SelectItem>
-                <SelectItem value="ano-atual">Este Ano</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button className="w-full lg:col-start-4">
-              <Filter className="mr-2 h-4 w-4" /> Aplicar Filtros
-            </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Tipo de Relatório</span>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger className="rounded-xl border-zinc-800 bg-zinc-950 text-white">
+                  <SelectValue placeholder="Tipo de Relatório" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+                  <SelectItem value="pessoal-dre">DRE Pessoal PF</SelectItem>
+                  <SelectItem value="geral">Consolidado Geral</SelectItem>
+                  <SelectItem value="pessoal">Gráficos de Caixa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Período</span>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="rounded-xl border-zinc-800 bg-zinc-950 text-white">
+                  <SelectValue placeholder="Selecione o mês" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {formatMonthLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
       
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ConsolidatedBalance />
-        <MonthlyFlow data={[]} />
-      </div>
+      {loading ? (
+        <div className="flex h-40 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : reportType === "pessoal-dre" ? (
+        <div className="grid gap-6">
+          <PfDreCard dre={drePF} />
+        </div>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ConsolidatedBalance />
+          <MonthlyFlow data={[]} />
+        </div>
+      )}
     </div>
   );
 }
