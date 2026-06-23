@@ -48,7 +48,7 @@ function accountTypeLabel(type: string) {
 }
 
 export function ConfiguracoesClient() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [aiData, setAIData] = useState<any>(null);
 
   const [household, setHousehold] = useState<any>(null);
@@ -71,8 +71,15 @@ export function ConfiguracoesClient() {
   const filteredMembers = members.filter(
     (m) => m.userId && m.email && !m.legacy && !m.archived
   );
-  const currentUserMember = filteredMembers.find(m => m.userId === user?.uid);
-  const currentUserRole = currentUserMember?.role || 'member';
+  const currentUserMember = filteredMembers.find(
+    (m) =>
+      m.userId === user?.uid ||
+      (m.email && m.email === user?.email)
+  );
+  const currentUserRole =
+    currentUserMember?.role ||
+    profile?.defaultRole ||
+    'member';
   const activeMembersCount = filteredMembers.length;
   const pendingInvitesCount = invites.filter(i => i.status === 'pending').length;
   const totalOccupiedSlots = activeMembersCount + pendingInvitesCount;
