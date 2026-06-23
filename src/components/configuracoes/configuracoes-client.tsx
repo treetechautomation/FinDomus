@@ -14,6 +14,10 @@ import {
   getHouseholdInvites,
   createHouseholdInvite,
   revokeHouseholdInvite,
+  removeHouseholdMember,
+  updateHouseholdMemberRole,
+  transferHouseholdOwnership,
+  leaveHousehold,
 } from "@/services/firestore/households";
 import { getAccountsWithBalance, getCompanies } from "@/services/firestore/accounts";
 import { getCategories } from "@/services/firestore/categories";
@@ -67,6 +71,8 @@ export function ConfiguracoesClient() {
   const filteredMembers = members.filter(
     (m) => m.userId && m.email && !m.legacy && !m.archived
   );
+  const currentUserMember = filteredMembers.find(m => m.userId === user?.uid);
+  const currentUserRole = currentUserMember?.role || 'member';
   const activeMembersCount = filteredMembers.length;
   const pendingInvitesCount = invites.filter(i => i.status === 'pending').length;
   const totalOccupiedSlots = activeMembersCount + pendingInvitesCount;
@@ -91,6 +97,77 @@ export function ConfiguracoesClient() {
     }
     loadFamilyData();
   }, [user?.uid]);
+
+  const handleRemoveMember = async (memberUserId: string, memberName: string) => {
+    if (!household) return;
+    const confirm = window.confirm(`Tem certeza de que deseja remover ${memberName} da família?`);
+    if (!confirm) return;
+    try {
+      setErrorMsg("");
+      setSuccessMsg("");
+      await removeHouseholdMember(household.id, memberUserId);
+      setSuccessMsg("Membro removido com sucesso!");
+      const mList = await getHouseholdMembers(household.id);
+      setMembers(mList);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Falha ao remover membro.");
+    }
+  };
+
+  const handleUpdateRole = async (memberUserId: string, newRole: 'admin' | 'member') => {
+    if (!household) return;
+    try {
+      setErrorMsg("");
+      setSuccessMsg("");
+      await updateHouseholdMemberRole(household.id, memberUserId, newRole);
+      setSuccessMsg("Papel atualizado com sucesso!");
+      const mList = await getHouseholdMembers(household.id);
+      setMembers(mList);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Falha ao alterar papel.");
+    }
+  };
+
+  const handleTransferOwnership = async (newOwnerId: string, memberName: string) => {
+    if (!household || !user?.uid) return;
+    const confirm = window.confirm(
+      `ATENÇÃO: Você está prestes a transferir a propriedade da família para ${memberName}.\n\nVocê se tornará um Administrador. Deseja continuar?`
+    );
+    if (!confirm) return;
+    try {
+      setErrorMsg("");
+      setSuccessMsg("");
+      await transferHouseholdOwnership(household.id, user.uid, newOwnerId);
+      setSuccessMsg("Propriedade transferida com sucesso!");
+      const [hh, mList] = await Promise.all([
+        getActiveHouseholdForUser(user.uid),
+        getHouseholdMembers(household.id),
+      ]);
+      if (hh) setHousehold(hh);
+      setMembers(mList);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Falha ao transferir propriedade.");
+    }
+  };
+
+  const handleLeaveHousehold = async () => {
+    if (!household || !user?.uid) return;
+    const confirm = window.confirm("Tem certeza de que deseja sair desta família?");
+    if (!confirm) return;
+    try {
+      setErrorMsg("");
+      setSuccessMsg("");
+      await leaveHousehold(household.id, user.uid);
+      setSuccessMsg("Você saiu da família com sucesso.");
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Falha ao sair da família.");
+    }
+  };
 
   const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -374,6 +451,52 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
                         <Badge variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'secondary' : 'outline'}>
                           {member.role === 'owner' ? 'Proprietário' : member.role === 'admin' ? 'Administrador' : 'Membro'}
                         </Badge>
+
+                        {/* Ações do Owner nos outros membros */}
+                        {currentUserRole === 'owner' && member.userId !== user?.uid && (
+                          <div className="flex items-center gap-2 ml-2">
+                            <select
+                              value={member.role}
+                              onChange={(e) => handleUpdateRole(member.userId, e.target.value as 'admin' | 'member')}
+                              className="h-8 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                            >
+                              <option value="member">Membro</option>
+                              <option value="admin">Administrador</option>
+                            </select>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleTransferOwnership(member.userId, member.displayName || member.email)}
+                              className="h-8 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 flex items-center gap-1"
+                              title="Transferir Propriedade"
+                            >
+                              <Shield className="h-3 w-3" /> Transferir
+                            </Button>
+
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRemoveMember(member.userId, member.displayName || member.email)}
+                              className="h-8 px-2"
+                              title="Remover Membro"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Botão de sair para membros/admins não-proprietários */}
+                        {member.userId === user?.uid && currentUserRole !== 'owner' && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleLeaveHousehold}
+                            className="h-8 text-xs ml-2"
+                          >
+                            Sair da Família
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -431,71 +554,73 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
               </CardContent>
             </Card>
 
-            <Card className="h-fit">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <UserPlus className="h-5 w-5 text-[#f59e0b]" />
-                  Convidar Membro
-                </CardTitle>
-                <CardDescription>
-                  Envie um convite de acesso para um membro da sua família.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCreateInvite} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="inviteEmail">E-mail do Convidado</Label>
-                    <Input
-                      id="inviteEmail"
-                      type="email"
-                      placeholder="exemplo@email.com"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="inviteRole">Papel de Acesso</Label>
-                    <select
-                      id="inviteRole"
-                      value={inviteRole}
-                      onChange={(e: any) => setInviteRole(e.target.value)}
-                      className="w-full h-10 rounded-md border border-zinc-800 bg-background px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-ring"
+            {(currentUserRole === 'owner' || currentUserRole === 'admin') && (
+              <Card className="h-fit">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <UserPlus className="h-5 w-5 text-[#f59e0b]" />
+                    Convidar Membro
+                  </CardTitle>
+                  <CardDescription>
+                    Envie um convite de acesso para um membro da sua família.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateInvite} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="inviteEmail">E-mail do Convidado</Label>
+                      <Input
+                        id="inviteEmail"
+                        type="email"
+                        placeholder="exemplo@email.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="inviteRole">Papel de Acesso</Label>
+                      <select
+                        id="inviteRole"
+                        value={inviteRole}
+                        onChange={(e: any) => setInviteRole(e.target.value)}
+                        className="w-full h-10 rounded-md border border-zinc-800 bg-background px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="member">Membro (Somente leitura/lançamentos)</option>
+                        <option value="admin">Administrador (Pode reconciliar/configurar)</option>
+                      </select>
+                    </div>
+
+                    {errorMsg && (
+                      <div className="p-3 text-xs text-red-400 bg-red-950/20 border border-red-500/20 rounded-lg">
+                        {errorMsg}
+                      </div>
+                    )}
+
+                    {successMsg && (
+                      <div className="p-3 text-xs text-emerald-400 bg-emerald-950/20 border border-emerald-500/20 rounded-lg">
+                        {successMsg}
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      className="w-full flex items-center justify-center gap-2"
+                      disabled={generatingInvite || totalOccupiedSlots >= planInfo.max}
                     >
-                      <option value="member">Membro (Somente leitura/lançamentos)</option>
-                      <option value="admin">Administrador (Pode reconciliar/configurar)</option>
-                    </select>
-                  </div>
+                      {generatingInvite ? "Gerando..." : "Gerar Convite"}
+                    </Button>
 
-                  {errorMsg && (
-                    <div className="p-3 text-xs text-red-400 bg-red-950/20 border border-red-500/20 rounded-lg">
-                      {errorMsg}
-                    </div>
-                  )}
-
-                  {successMsg && (
-                    <div className="p-3 text-xs text-emerald-400 bg-emerald-950/20 border border-emerald-500/20 rounded-lg">
-                      {successMsg}
-                    </div>
-                  )}
-
-                  <Button
-                    type="submit"
-                    className="w-full flex items-center justify-center gap-2"
-                    disabled={generatingInvite || totalOccupiedSlots >= planInfo.max}
-                  >
-                    {generatingInvite ? "Gerando..." : "Gerar Convite"}
-                  </Button>
-
-                  {totalOccupiedSlots >= planInfo.max && (
-                    <p className="text-xs text-amber-500/90 leading-relaxed text-center mt-2 font-medium">
-                      ⚠️ Limite atingido para o plano {planInfo.name}.
-                    </p>
-                  )}
-                </form>
-              </CardContent>
-            </Card>
+                    {totalOccupiedSlots >= planInfo.max && (
+                      <p className="text-xs text-amber-500/90 leading-relaxed text-center mt-2 font-medium">
+                        ⚠️ Limite atingido para o plano {planInfo.name}.
+                      </p>
+                    )}
+                  </form>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 

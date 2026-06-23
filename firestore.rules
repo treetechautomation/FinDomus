@@ -20,6 +20,12 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/household_members/$(householdId + '_' + request.auth.uid));
     }
 
+    function isHouseholdOwnerOrAdmin(householdId) {
+      return isMemberOfHousehold(householdId) && 
+        (get(/databases/$(database)/documents/household_members/$(householdId + '_' + request.auth.uid)).data.role == 'owner' ||
+         get(/databases/$(database)/documents/household_members/$(householdId + '_' + request.auth.uid)).data.role == 'admin');
+    }
+
     // --- REGRAS POR COLECÃO ---
 
     // 1. Catalogo Global (Read-only para logados)
@@ -42,11 +48,13 @@ service cloud.firestore {
     match /households/{householdId} {
       allow read: if isMemberOfHousehold(householdId);
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
     }
 
     match /household_members/{memberId} {
-      allow read: if isMemberOfHousehold(resource.data.householdId);
+      allow get: if isMemberOfHousehold(resource.data.householdId);
+      allow list: if isAuthenticated() && isMemberOfHousehold(resource.data.householdId);
       allow create: if isAuthenticated() && (
         (request.resource.data.role == 'owner' && 
          request.resource.data.userId == request.auth.uid &&
@@ -62,22 +70,23 @@ service cloud.firestore {
         (resource.data.userId == request.auth.uid && request.resource.data.role == resource.data.role)
       );
       allow delete: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid
+        (resource.data.userId == request.auth.uid && resource.data.role != 'owner') || 
+        (get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid && resource.data.userId != request.auth.uid)
       );
     }
 
     match /household_invites/{inviteId} {
-      allow create: if isAuthenticated() && get(/databases/$(database)/documents/households/$(request.resource.data.householdId)).data.ownerId == request.auth.uid;
-      allow read: if isAuthenticated() && (
+      allow create: if isAuthenticated() && isHouseholdOwnerOrAdmin(request.resource.data.householdId);
+      allow get: if true;
+      allow list: if isAuthenticated() && (
         isMemberOfHousehold(resource.data.householdId) || 
         (resource.data.invitedEmail == request.auth.token.email)
       );
       allow update: if isAuthenticated() && (
-        get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid ||
+        isHouseholdOwnerOrAdmin(resource.data.householdId) ||
         (resource.data.invitedEmail == request.auth.token.email && request.resource.data.status == 'accepted' && request.resource.data.householdId == resource.data.householdId)
       );
-      allow delete: if isAuthenticated() && get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && isHouseholdOwnerOrAdmin(resource.data.householdId);
     }
 
     match /plans/{planId} {

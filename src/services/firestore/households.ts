@@ -7,6 +7,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -262,4 +263,87 @@ export async function revokeHouseholdInvite(token: string): Promise<void> {
     status: 'revoked',
     updatedAt: new Date().toISOString(),
   });
+}
+
+export async function removeHouseholdMember(householdId: string, memberUserId: string): Promise<void> {
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+
+  // 1. Delete member document
+  const memberId = `${householdId}_${memberUserId}`;
+  batch.delete(doc(db, 'household_members', memberId));
+
+  // 2. Clear user family associations
+  batch.update(doc(db, 'users', memberUserId), {
+    activeHouseholdId: null,
+    defaultRole: null,
+    updatedAt: now,
+  });
+
+  await batch.commit();
+}
+
+export async function updateHouseholdMemberRole(
+  householdId: string,
+  memberUserId: string,
+  role: 'admin' | 'member'
+): Promise<void> {
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+
+  const memberId = `${householdId}_${memberUserId}`;
+  batch.update(doc(db, 'household_members', memberId), {
+    role,
+    updatedAt: now,
+  });
+
+  batch.update(doc(db, 'users', memberUserId), {
+    defaultRole: role,
+    updatedAt: now,
+  });
+
+  await batch.commit();
+}
+
+export async function transferHouseholdOwnership(
+  householdId: string,
+  currentOwnerId: string,
+  newOwnerId: string
+): Promise<void> {
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+
+  // 1. Update household owner
+  batch.update(doc(db, 'households', householdId), {
+    ownerId: newOwnerId,
+    updatedAt: now,
+  });
+
+  // 2. Former owner becomes admin
+  const currentOwnerMemberId = `${householdId}_${currentOwnerId}`;
+  batch.update(doc(db, 'household_members', currentOwnerMemberId), {
+    role: 'admin',
+    updatedAt: now,
+  });
+  batch.update(doc(db, 'users', currentOwnerId), {
+    defaultRole: 'admin',
+    updatedAt: now,
+  });
+
+  // 3. New owner becomes owner
+  const newOwnerMemberId = `${householdId}_${newOwnerId}`;
+  batch.update(doc(db, 'household_members', newOwnerMemberId), {
+    role: 'owner',
+    updatedAt: now,
+  });
+  batch.update(doc(db, 'users', newOwnerId), {
+    defaultRole: 'owner',
+    updatedAt: now,
+  });
+
+  await batch.commit();
+}
+
+export async function leaveHousehold(householdId: string, userId: string): Promise<void> {
+  await removeHouseholdMember(householdId, userId);
 }
