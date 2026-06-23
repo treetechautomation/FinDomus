@@ -64,7 +64,10 @@ export function ConfiguracoesClient() {
   };
 
   const planInfo = PLAN_LIMITS[household?.planId || 'individual'] || PLAN_LIMITS.individual;
-  const activeMembersCount = members.length;
+  const filteredMembers = members.filter(
+    (m) => m.userId && m.email && !m.legacy && !m.archived
+  );
+  const activeMembersCount = filteredMembers.length;
   const pendingInvitesCount = invites.filter(i => i.status === 'pending').length;
   const totalOccupiedSlots = activeMembersCount + pendingInvitesCount;
 
@@ -361,7 +364,7 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  {members.map((member) => (
+                  {filteredMembers.map((member) => (
                     <div key={member.id} className="flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900/40">
                       <div>
                         <p className="font-semibold text-white">{member.displayName || member.email}</p>
