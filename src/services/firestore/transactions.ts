@@ -1,7 +1,9 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   limit,
@@ -14,11 +16,13 @@ import { db } from '@/lib/firebase';
 import { generateMonthlySummary } from '@/services/firestore';
 import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date';
 import { assertMonthOpen } from "@/services/firestore/month-guard";
-import { upsertLiabilityFromInstallmentTransaction } from "@/services/firestore/liabilities";
+import { upsertLiabilityFromInstallmentTransaction, reverseLiabilityPaymentByTransactionId } from "@/services/firestore/liabilities";
+import { resolveUserHouseholdId } from './users';
 
 export type TransactionDTO = {
   id?: string;
   userId?: string;
+  householdId?: string | null;
   accountId?: string;
   companyId?: string | null;
   type: 'income' | 'expense' | 'transfer';
@@ -127,12 +131,14 @@ export async function getPersonalTransactions(userId: string) {
 export async function addTransaction(userId: string, data: TransactionDTO) {
   if (!userId) throw new Error("userId required");
   const now = new Date().toISOString();
+  const householdId = await resolveUserHouseholdId(userId);
 
   const normalizedDate = normalizeTransactionDate(data.date ?? now);
 
   const normalized: TransactionDTO = {
     ...data,
     userId,
+    householdId,
     ...normalizedDate,
     competenceMonthKey: data.competenceMonthKey ?? normalizedDate.monthKey,
     companyId: data.companyId ?? null,
@@ -176,6 +182,7 @@ export async function addTransaction(userId: string, data: TransactionDTO) {
 export async function addTransactionsBatch(userId: string, items: TransactionDTO[]) {
   if (!userId) throw new Error("userId required");
   const now = new Date().toISOString();
+  const householdId = await resolveUserHouseholdId(userId);
 
   const validItems = items
     .map((item) => {
@@ -184,6 +191,7 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
       return {
         ...item,
         userId,
+        householdId,
         ...normalizedDate,
         competenceMonthKey: item.competenceMonthKey ?? normalizedDate.monthKey,
         owner: item.owner ?? 'PF',
@@ -262,7 +270,9 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
 
   for (const item of toInsert) {
     const ref = doc(collection(db, 'transactions'));
-    batch.set(ref, item);
+    item.id = ref.id;
+    const { id, ...data } = item;
+    batch.set(ref, data);
   }
 
   if (toInsert.length) {
@@ -430,4 +440,32 @@ export async function getRecentTransactions(
       competenceMonthKey: data.competenceMonthKey || data.monthKey,
     } as TransactionDTO;
   });
+}
+
+export async function deleteTransaction(userId: string, transactionId: string) {
+  if (!userId) throw new Error("userId required");
+  const ref = doc(db, "transactions", transactionId);
+  const snap = await getDoc(ref);
+
+  if (snap.exists()) {
+    const data = snap.data() as any;
+    await assertMonthOpen(userId, data.owner, data.competenceMonthKey || data.monthKey);
+
+    // Primeiro estorna o passivo se for parcelado
+    if (data.isInstallment && data.installmentKey) {
+      try {
+        await reverseLiabilityPaymentByTransactionId(userId, transactionId);
+      } catch (err) {
+        console.error("[deleteTransaction] Falha ao reverter passivo automático:", err);
+      }
+    }
+
+    await deleteDoc(ref);
+
+    // Regenera o sumário mensal
+    const month = data.competenceMonthKey || data.monthKey;
+    if (month) {
+      await generateMonthlySummary(userId, data.owner, month);
+    }
+  }
 }

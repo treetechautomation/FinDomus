@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { resolveUserHouseholdId } from "./users";
 
 import type {
   Account,
@@ -27,9 +28,11 @@ export async function addCompany(userId: string, data: {
   createdAt?: string;
 }) {
   if (!userId) throw new Error("userId required");
+  const householdId = await resolveUserHouseholdId(userId);
   const docRef = await addDoc(collection(db, "companies"), {
     ...data,
     userId,
+    householdId,
     createdAt: data.createdAt ?? new Date().toISOString(),
   });
 
@@ -68,9 +71,12 @@ export async function addAccount(userId: string, data: {
 }) {
   if (!userId) throw new Error("userId required");
 
+  const householdId = await resolveUserHouseholdId(userId);
+
   const docRef = await addDoc(collection(db, "accounts"), {
     ...data,
     userId,
+    householdId,
     companyId: data.companyId ?? null,
     createdAt: data.createdAt ?? new Date().toISOString(),
   });

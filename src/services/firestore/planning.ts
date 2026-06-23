@@ -10,10 +10,12 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { resolveUserHouseholdId } from "./users";
 
 export type Budget = {
   id?: string;
   userId?: string;
+  householdId?: string | null;
   category: string;
   planned: number;
   month: string;
@@ -32,6 +34,7 @@ export type WealthProfileCategory = {
 export type WealthProfile = {
   id?: string;
   userId: string;
+  householdId?: string | null;
   categories: WealthProfileCategory[];
   updatedAt: string;
   createdAt?: string;
@@ -40,6 +43,7 @@ export type WealthProfile = {
 export type RecurringExpense = {
   id?: string;
   userId?: string;
+  householdId?: string | null;
   name: string;
   amount: number;
   category?: string;
@@ -72,9 +76,11 @@ export async function upsertBudget(userId: string, data: {
   month: string;
 }) {
   if (!userId) throw new Error("userId required");
+  const householdId = await resolveUserHouseholdId(userId);
   return addDoc(collection(db, "budgets"), {
     ...data,
     userId,
+    householdId,
     owner: "PF",
     createdAt: new Date().toISOString(),
   });
@@ -98,11 +104,13 @@ export async function saveWealthProfile(
   categories: WealthProfileCategory[]
 ) {
   const existing = await getWealthProfile(userId);
+  const householdId = await resolveUserHouseholdId(userId);
 
   if (existing?.id) {
     const ref = doc(db, "wealth_profiles", existing.id);
     await updateDoc(ref, {
       categories,
+      householdId,
       updatedAt: new Date().toISOString(),
     });
     return existing.id;
@@ -110,6 +118,7 @@ export async function saveWealthProfile(
 
   const docRef = await addDoc(collection(db, "wealth_profiles"), {
     userId,
+    householdId,
     categories,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -131,9 +140,11 @@ export async function getRecurringExpenses(userId: string): Promise<RecurringExp
 
 export async function addRecurringExpense(userId: string, data: RecurringExpense) {
   if (!userId) throw new Error("userId required");
+  const householdId = await resolveUserHouseholdId(userId);
   return addDoc(collection(db, "recurring_expenses"), {
     ...data,
     userId,
+    householdId,
   });
 }
 

@@ -46,3 +46,9 @@ export async function updateUserProfile(
     { merge: true }
   );
 }
+
+export async function resolveUserHouseholdId(userId: string): Promise<string | null> {
+  if (!userId) return null;
+  const profile = await getUserProfile(userId);
+  return profile?.activeHouseholdId || null;
+}

@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { resolveUserHouseholdId } from './users';
 
 import { buildDRE } from "@/core/finance/dre-engine";
 import { buildMonthSnapshot } from "@/core/finance/month-closure-engine";
@@ -102,6 +103,7 @@ export async function createMonthlyClosure(
 ) {
   if (!userId) throw new Error("userId required");
   const now = new Date().toISOString();
+  const householdId = await resolveUserHouseholdId(userId);
 
   const existing = await getMonthlyClosure(
     userId,
@@ -118,7 +120,8 @@ export async function createMonthlyClosure(
     {
       ...data,
       userId,
-      status: data.status || 'OPEN',
+      householdId,
+      status: 'OPEN',
       createdAt: now,
       updatedAt: now,
     }

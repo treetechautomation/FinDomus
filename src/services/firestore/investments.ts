@@ -2,6 +2,7 @@ import { addDoc, collection, doc, getDocs, updateDoc, query, where } from "fireb
 
 import { db } from "@/lib/firebase";
 import type { Investment } from "@/services/firestore/types";
+import { resolveUserHouseholdId } from "./users";
 export type { Investment } from '@/services/firestore/types';
 
 export async function getInvestments(userId: string): Promise<Investment[]> {
@@ -26,6 +27,7 @@ export async function addInvestment(userId: string, data: {
 }) {
   if (!userId) throw new Error("userId required");
   const ticker = String(data.ticker || "").trim().toUpperCase();
+  const householdId = await resolveUserHouseholdId(userId);
 
   if (ticker) {
     const q = query(collection(db, "investments"), where("userId", "==", userId));
@@ -52,6 +54,7 @@ export async function addInvestment(userId: string, data: {
       await updateDoc(existing.ref, {
         ...data,
         ticker,
+        householdId,
         quantity: totalQty,
         averagePrice: weightedAvg,
         currentPrice,
@@ -67,6 +70,7 @@ export async function addInvestment(userId: string, data: {
   const docRef = await addDoc(collection(db, "investments"), {
     ...data,
     userId,
+    householdId,
     ticker,
     createdAt: new Date().toISOString(),
   });
