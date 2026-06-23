@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { X, Download, Upload } from "lucide-react";
+import { X, Download, Upload, Copy, Share2, Users, Shield, UserPlus } from "lucide-react";
+import {
+  getActiveHouseholdForUser,
+  getHouseholdMembers,
+  getHouseholdInvites,
+  createHouseholdInvite,
+  revokeHouseholdInvite,
+} from "@/services/firestore/households";
 import { getAccountsWithBalance, getCompanies } from "@/services/firestore/accounts";
 import { getCategories } from "@/services/firestore/categories";
 import { NewAccountDialog } from "@/components/contas/new-account-dialog";
@@ -39,6 +46,121 @@ function accountTypeLabel(type: string) {
 export function ConfiguracoesClient() {
   const { user } = useAuth();
   const [aiData, setAIData] = useState<any>(null);
+
+  const [household, setHousehold] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [generatedInvite, setGeneratedInvite] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const PLAN_LIMITS: Record<string, { name: string; max: number }> = {
+    individual: { name: 'Individual', max: 1 },
+    family: { name: 'Família', max: 3 },
+    family_premium: { name: 'Família Premium', max: 10 },
+  };
+
+  const planInfo = PLAN_LIMITS[household?.planId || 'individual'] || PLAN_LIMITS.individual;
+  const activeMembersCount = members.length;
+  const pendingInvitesCount = invites.filter(i => i.status === 'pending').length;
+  const totalOccupiedSlots = activeMembersCount + pendingInvitesCount;
+
+  useEffect(() => {
+    async function loadFamilyData() {
+      if (!user?.uid) return;
+      try {
+        const hh = await getActiveHouseholdForUser(user.uid);
+        if (hh) {
+          setHousehold(hh);
+          const [mList, iList] = await Promise.all([
+            getHouseholdMembers(hh.id),
+            getHouseholdInvites(hh.id),
+          ]);
+          setMembers(mList);
+          setInvites(iList);
+        }
+      } catch (err) {
+        console.error('Failed to load family data:', err);
+      }
+    }
+    loadFamilyData();
+  }, [user?.uid]);
+
+  const handleCreateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!household || !user?.uid || !inviteEmail) return;
+    setErrorMsg("");
+    setSuccessMsg("");
+    setGeneratedInvite(null);
+
+    if (!/\S+@\S+\.\S+/.test(inviteEmail)) {
+      setErrorMsg("E-mail inválido.");
+      return;
+    }
+
+    if (totalOccupiedSlots >= planInfo.max) {
+      setErrorMsg(`Seu plano (${planInfo.name}) permite no máximo ${planInfo.max} membros (incluindo convites pendentes).`);
+      return;
+    }
+
+    try {
+      setGeneratingInvite(true);
+      const invite = await createHouseholdInvite(
+        household.id,
+        inviteEmail.trim().toLowerCase(),
+        inviteRole,
+        user.email || user.displayName || 'Administrador'
+      );
+      setGeneratedInvite(invite);
+      setInviteEmail("");
+      setSuccessMsg("Convite gerado com sucesso!");
+      
+      const iList = await getHouseholdInvites(household.id);
+      setInvites(iList);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Falha ao gerar convite.");
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const handleRevokeInvite = async (token: string) => {
+    if (!household) return;
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      await revokeHouseholdInvite(token);
+      setSuccessMsg("Convite revogado com sucesso.");
+      const iList = await getHouseholdInvites(household.id);
+      setInvites(iList);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Falha ao revogar convite.");
+    }
+  };
+
+  const getInviteUrl = (token: string) => {
+    if (typeof window === "undefined") return `/convite/${token}`;
+    return `${window.location.origin}/convite/${token}`;
+  };
+
+  const getWhatsAppLink = (token: string) => {
+    const url = getInviteUrl(token);
+    const text = encodeURIComponent(
+      `Olá! Estou te convidando para fazer parte da minha família no treeDomus, o nosso sistema de controle financeiro. Para aceitar e acessar, use o link: ${url}`
+    );
+    return `https://wa.me/?text=${text}`;
+  };
+
+  const handleCopyLink = (token: string) => {
+    const url = getInviteUrl(token);
+    navigator.clipboard.writeText(url);
+    alert("Link do convite copiado para a área de transferência!");
+  };
 
   useEffect(() => {
     async function loadAI() {
@@ -164,65 +286,214 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
       </div>
 
       <Tabs defaultValue="perfil" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
+          <TabsTrigger value="familia">Família</TabsTrigger>
           <TabsTrigger value="empresas">Empresas</TabsTrigger>
           <TabsTrigger value="contas">Contas</TabsTrigger>
           <TabsTrigger value="categorias">Categorias</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
-            <TabsTrigger value="ia">IA</TabsTrigger>
+          <TabsTrigger value="ia">IA</TabsTrigger>
         </TabsList>
 
         <TabsContent value="perfil" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Perfil e Família</CardTitle>
-              <CardDescription>Gerencie suas informações pessoais e da sua família.</CardDescription>
+              <CardTitle>Seu Perfil</CardTitle>
+              <CardDescription>Gerencie suas informações pessoais.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="userName">Seu Nome</Label>
-                  <Input id="userName" defaultValue="Usuário Principal" />
+                  <Input id="userName" defaultValue={user?.displayName || "Usuário Principal"} disabled />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="familyName">Nome da Família</Label>
-                  <Input id="familyName" defaultValue="Família Silva" />
+                  <Label htmlFor="userEmail">Seu E-mail</Label>
+                  <Input id="userEmail" defaultValue={user?.email || ""} disabled />
                 </div>
               </div>
-                <div className="rounded-xl border p-4 space-y-3">
-                  <div>
-                    <h3 className="font-semibold text-lg">Pessoas vinculadas</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Identidades financeiras usadas para detectar transferências automaticamente.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    {accountIdentities.map((identity: any) => (
-                      <div
-                        key={identity.id}
-                        className="flex items-start justify-between rounded-lg border bg-secondary/40 p-3"
-                      >
-                        <div className="space-y-1">
-                          <div className="font-medium">{identity.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {(identity.aliases || []).join(", ")}
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Badge variant="outline">{identity.ruleType}</Badge>
-                          <Badge>transferência</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              
+              <div className="rounded-xl border p-4 space-y-3">
+                <div>
+                  <h3 className="font-semibold text-lg">Pessoas vinculadas</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Identidades financeiras usadas para detectar transferências automaticamente.
+                  </p>
                 </div>
 
-              <Button>Salvar Alterações</Button>
+                <div className="space-y-3">
+                  {accountIdentities.map((identity: any) => (
+                    <div
+                      key={identity.id}
+                      className="flex items-start justify-between rounded-lg border bg-secondary/40 p-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-medium">{identity.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {(identity.aliases || []).join(", ")}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Badge variant="outline">{identity.ruleType}</Badge>
+                        <Badge>transferência</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="familia" className="mt-6">
+          <div className="grid gap-6 md:grid-cols-3">
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Users className="h-6 w-6 text-primary" />
+                  Membros da Família ({activeMembersCount} de {planInfo.max})
+                </CardTitle>
+                <CardDescription>
+                  Seu plano atual é <strong>{planInfo.name}</strong> (Limite: {planInfo.max} membro{planInfo.max > 1 ? 's' : ''}).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  {members.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900/40">
+                      <div>
+                        <p className="font-semibold text-white">{member.displayName || member.email}</p>
+                        <p className="text-xs text-zinc-400">{member.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'secondary' : 'outline'}>
+                          {member.role === 'owner' ? 'Proprietário' : member.role === 'admin' ? 'Administrador' : 'Membro'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {invites.length > 0 && (
+                  <div className="pt-6 border-t border-zinc-800/80">
+                    <h3 className="text-sm font-semibold text-zinc-300 mb-3">Convites Enviados</h3>
+                    <div className="space-y-3">
+                      {invites.map((invite) => (
+                        <div key={invite.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border border-zinc-800/80 bg-zinc-900/10 gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-white">{invite.invitedEmail}</p>
+                            <p className="text-xs text-zinc-500">
+                              Papel: {invite.role === 'admin' ? 'Administrador' : 'Membro'} | Status: {invite.status === 'pending' ? 'Pendente' : invite.status === 'accepted' ? 'Aceito' : invite.status === 'revoked' ? 'Revogado' : invite.status}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {invite.status === 'pending' && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCopyLink(invite.id)}
+                                  className="h-8 text-xs flex items-center gap-1.5"
+                                >
+                                  <Copy className="h-3 w-3" /> Copiar Link
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  asChild
+                                  className="h-8 text-xs flex items-center gap-1.5 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400"
+                                >
+                                  <a href={getWhatsAppLink(invite.id)} target="_blank" rel="noopener noreferrer">
+                                    <Share2 className="h-3 w-3" /> WhatsApp
+                                  </a>
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleRevokeInvite(invite.id)}
+                                  className="h-8 text-xs"
+                                >
+                                  Revogar
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="h-fit">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <UserPlus className="h-5 w-5 text-[#f59e0b]" />
+                  Convidar Membro
+                </CardTitle>
+                <CardDescription>
+                  Envie um convite de acesso para um membro da sua família.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateInvite} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="inviteEmail">E-mail do Convidado</Label>
+                    <Input
+                      id="inviteEmail"
+                      type="email"
+                      placeholder="exemplo@email.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="inviteRole">Papel de Acesso</Label>
+                    <select
+                      id="inviteRole"
+                      value={inviteRole}
+                      onChange={(e: any) => setInviteRole(e.target.value)}
+                      className="w-full h-10 rounded-md border border-zinc-800 bg-background px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="member">Membro (Somente leitura/lançamentos)</option>
+                      <option value="admin">Administrador (Pode reconciliar/configurar)</option>
+                    </select>
+                  </div>
+
+                  {errorMsg && (
+                    <div className="p-3 text-xs text-red-400 bg-red-950/20 border border-red-500/20 rounded-lg">
+                      {errorMsg}
+                    </div>
+                  )}
+
+                  {successMsg && (
+                    <div className="p-3 text-xs text-emerald-400 bg-emerald-950/20 border border-emerald-500/20 rounded-lg">
+                      {successMsg}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full flex items-center justify-center gap-2"
+                    disabled={generatingInvite || totalOccupiedSlots >= planInfo.max}
+                  >
+                    {generatingInvite ? "Gerando..." : "Gerar Convite"}
+                  </Button>
+
+                  {totalOccupiedSlots >= planInfo.max && (
+                    <p className="text-xs text-amber-500/90 leading-relaxed text-center mt-2 font-medium">
+                      ⚠️ Limite atingido para o plano {planInfo.name}.
+                    </p>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="empresas" className="mt-6">

@@ -249,3 +249,17 @@ export async function getSubscriptionByHousehold(householdId: string): Promise<S
   }
   return { id: snap.docs[0].id, ...snap.docs[0].data() } as Subscription;
 }
+
+export async function getHouseholdInvites(householdId: string): Promise<HouseholdInvite[]> {
+  const q = query(collection(db, 'household_invites'), where('householdId', '==', householdId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as HouseholdInvite);
+}
+
+export async function revokeHouseholdInvite(token: string): Promise<void> {
+  const inviteRef = doc(db, 'household_invites', token);
+  await updateDoc(inviteRef, {
+    status: 'revoked',
+    updatedAt: new Date().toISOString(),
+  });
+}
