@@ -6,6 +6,7 @@ import {
   where,
   updateDoc,
   doc,
+  writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
@@ -253,25 +254,85 @@ export async function closeMonthlyCompetence(
 
   if (!existing) {
     await createMonthlyClosure(userId, closurePayload);
-
-    return getMonthlyClosure(userId, owner, month);
+  } else {
+    await updateDoc(
+      doc(db, 'monthly_closures', existing.id!),
+      {
+        income,
+        expenses,
+        balance,
+        cashflow,
+        snapshot,
+        ...(dre ? { dre } : {}),
+        transactionsCount: monthTransactions.length,
+        status: 'CLOSED',
+        frozenAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    );
   }
 
-  await updateDoc(
-    doc(db, 'monthly_closures', existing.id!),
-    {
-      income,
-      expenses,
-      balance,
-      cashflow,
-      snapshot,
-      ...(dre ? { dre } : {}),
-      transactionsCount: monthTransactions.length,
-      status: 'CLOSED',
-      frozenAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-  );
+  // Sincroniza e propaga saldos para meses posteriores fechados
+  await propagateClosingBalance(userId, owner, month, closingBalance);
 
   return getMonthlyClosure(userId, owner, month);
+}
+
+export async function propagateClosingBalance(
+  userId: string,
+  owner: 'PF' | 'PJ',
+  startMonth: string,
+  newClosingBalance: number
+) {
+  console.log(`[propagateClosingBalance] Iniciando propagação para ${owner} a partir de ${startMonth} com saldo inicial ${newClosingBalance}`);
+  const closures = await getMonthlyClosures(userId, owner);
+
+  const batch = writeBatch(db);
+  let currentMonth = startMonth;
+  let currentClosing = newClosingBalance;
+  let hasUpdates = false;
+
+  while (true) {
+    const nextMonthKey = addMonthsToKey(currentMonth, 1);
+    const nextClosure = closures.find((c) => c.month === nextMonthKey);
+
+    if (!nextClosure) {
+      console.log(`[propagateClosingBalance] Ausência de fechamento posterior cadastrado para ${nextMonthKey}. Parando propagação.`);
+      break;
+    }
+
+    if (nextClosure.status !== 'CLOSED') {
+      console.log(`[propagateClosingBalance] Fechamento posterior ${nextMonthKey} está com status "${nextClosure.status}". Parando propagação.`);
+      break;
+    }
+
+    if (!nextClosure.id) {
+      console.log(`[propagateClosingBalance] Fechamento ${nextMonthKey} não possui ID válido. Parando propagação.`);
+      break;
+    }
+
+    const openingBalance = Number(currentClosing.toFixed(2));
+    const result = Number(nextClosure.cashflow?.result ?? nextClosure.balance ?? 0);
+    const closingBalance = Number((openingBalance + result).toFixed(2));
+
+    console.log(`[propagateClosingBalance] Atualizando ${nextMonthKey}: openingBalance=${openingBalance}, result=${result}, closingBalance=${closingBalance}`);
+
+    const ref = doc(db, 'monthly_closures', nextClosure.id);
+    batch.update(ref, {
+      "cashflow.openingBalance": openingBalance,
+      "cashflow.closingBalance": closingBalance,
+      updatedAt: new Date().toISOString()
+    });
+
+    currentMonth = nextMonthKey;
+    currentClosing = closingBalance;
+    hasUpdates = true;
+  }
+
+  if (hasUpdates) {
+    await batch.commit();
+    console.log(`[propagateClosingBalance] Propagação em lote executada com sucesso.`);
+  } else {
+    console.log(`[propagateClosingBalance] Nenhuma atualização necessária.`);
+  }
 }
