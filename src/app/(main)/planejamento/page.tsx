@@ -122,11 +122,12 @@ export default function PlanejamentoPage() {
   useEffect(() => {
     async function load() {
       if (!user?.uid) return;
-      const [profile, txs, liabs, recurring] = await Promise.all([
+      const [profile, txs, liabs, recurring, cats] = await Promise.all([
         getWealthProfile(user.uid),
         getPersonalTransactions(user.uid),
         getLiabilities(user.uid),
         getRecurringExpenses(user.uid),
+        getCategories(user.uid),
       ]);
 
       if (profile?.categories?.length) {
@@ -136,6 +137,7 @@ export default function PlanejamentoPage() {
       setTransactions(txs || []);
       setLiabilities(liabs || []);
       setRecurringExpenses(recurring || []);
+      setAvailableCategories((cats || []).map((c) => c.name));
     }
 
     load();
