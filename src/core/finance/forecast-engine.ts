@@ -45,7 +45,7 @@ export function buildForecast({
 
     const recurring = recurringExpenses
       .filter((r: any) => {
-        if (!r.active) return false;
+        if (!r.isActive) return false;
 
         const start =
           r.startMonthKey ||
@@ -70,9 +70,11 @@ export function buildForecast({
           l.remainingInstallments || 0
         );
 
+        if (remaining <= 0) return false;
+
         const monthsCovered = getMonthRange(
           start,
-          addMonths(start, remaining)
+          addMonths(start, remaining - 1)
         );
 
         return monthsCovered.includes(monthKey);
