@@ -18,30 +18,57 @@ export function buildForecast({
     addMonths(baseMonth, months - 1)
   );
 
-  return monthKeys.map((monthKey) => {
-    const income = transactions
-      .filter(
-        (t: any) =>
-          t.type === 'income' &&
-          isTransactionInMonth(t, monthKey)
-      )
-      .reduce(
-        (sum: number, t: any) =>
-          sum + Number(t.amount || 0),
-        0
-      );
+  const historicalMonthKeys = [
+    addMonths(baseMonth, -3),
+    addMonths(baseMonth, -2),
+    addMonths(baseMonth, -1),
+  ];
 
-    const expenses = transactions
-      .filter(
-        (t: any) =>
-          t.type === 'expense' &&
-          isTransactionInMonth(t, monthKey)
-      )
-      .reduce(
-        (sum: number, t: any) =>
-          sum + Math.abs(Number(t.amount || 0)),
-        0
-      );
+  const historicalIncomes = historicalMonthKeys.map((histMonth) => {
+    return transactions
+      .filter((t: any) => t.type === 'income' && isTransactionInMonth(t, histMonth))
+      .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+  });
+
+  const historicalExpenses = historicalMonthKeys.map((histMonth) => {
+    return transactions
+      .filter((t: any) => t.type === 'expense' && !t.isInstallment && !t.installmentKey && isTransactionInMonth(t, histMonth))
+      .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
+  });
+
+  const averageIncome = historicalIncomes.reduce((a, b) => a + b, 0) / historicalIncomes.length;
+  const averageVariableExpenses = historicalExpenses.reduce((a, b) => a + b, 0) / historicalExpenses.length;
+
+  return monthKeys.map((monthKey) => {
+    const isFuture = monthKey > baseMonth;
+
+    const income = isFuture
+      ? averageIncome
+      : transactions
+          .filter(
+            (t: any) =>
+              t.type === 'income' &&
+              isTransactionInMonth(t, monthKey)
+          )
+          .reduce(
+            (sum: number, t: any) =>
+              sum + Number(t.amount || 0),
+            0
+          );
+
+    const expenses = isFuture
+      ? averageVariableExpenses
+      : transactions
+          .filter(
+            (t: any) =>
+              t.type === 'expense' &&
+              isTransactionInMonth(t, monthKey)
+          )
+          .reduce(
+            (sum: number, t: any) =>
+              sum + Math.abs(Number(t.amount || 0)),
+            0
+          );
 
     const recurring = recurringExpenses
       .filter((r: any) => {
