@@ -188,13 +188,16 @@ export function ImportReviewTable({
                       }`}
                     >
                       {tx.type === 'income' ? '+' : '-'}{' '}
-                      {Math.abs(tx.amount).toLocaleString(
-                        'pt-BR',
-                        {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }
-                      )}
+                      {(() => {
+                        const safeAmount = Number.isFinite(Number(tx.amount)) ? Number(tx.amount) : 0;
+                        return Math.abs(safeAmount).toLocaleString(
+                          'pt-BR',
+                          {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 );

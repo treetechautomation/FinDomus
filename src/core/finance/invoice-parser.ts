@@ -10,7 +10,8 @@ function parseAmountBR(value: string) {
     .replace(/\./g, '')
     .replace(',', '.');
 
-  return Number(clean || 0);
+  const n = Number(clean || 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function enrichInstallment(transaction: ParsedTransaction, rawText: string): ParsedTransaction {
@@ -106,7 +107,7 @@ export async function parseNubankCSV(csv: string): Promise<ParsedTransaction[]> 
     // Layout antigo: date,title,amount
     const date = parts[0];
     const title = parts.slice(1, -1).join(delimiter).trim();
-    const amount = Number(parts[parts.length - 1]);
+    const amount = parseAmountBR(parts[parts.length - 1]);
 
     if (!date || !title || Number.isNaN(amount)) return null;
 

@@ -159,6 +159,27 @@ function extractInstallmentData(description: string) {
   };
 }
 
+function parseImportAmount(value: string | number | null | undefined): number {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+
+  const normalized = raw
+    .replace(/[R$\s]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isUsefulDescription(value?: string | null): boolean {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (/^\d+$/.test(text)) return false;
+  if (/^[\d\s.\-_/]+$/.test(text)) return false;
+  return true;
+}
+
 export async function parseOFX(text: string): Promise<ParsedTransaction[]> {
   const categories = (await getCategories()) as Array<{ name: string; keywords?: string[] }>;
 
@@ -166,333 +187,62 @@ export async function parseOFX(text: string): Promise<ParsedTransaction[]> {
     .split('<STMTTRN>')
     .slice(1)
     .map((block) => {
-      const memo =
-        getTag(block, 'MEMO') ||
-        getTag(block, 'NAME') ||
-        'Lançamento';
+      const rawAmount = getTag(block, "TRNAMT");
+      const amount = parseImportAmount(rawAmount);
 
-      const rawAmount = getTag(block, 'TRNAMT');
-      const amount = Number(rawAmount);
+      const rawName = getTag(block, "NAME");
+      const rawMemo = getTag(block, "MEMO");
+      const fitId = getTag(block, "FITID");
+
+      const memo =
+        isUsefulDescription(rawName) ? rawName :
+        isUsefulDescription(rawMemo) ? rawMemo :
+        fitId ||
+        "Lançamento OFX";
 
       const date = formatOfxDate(getTag(block, 'DTPOSTED'));
+      const descLower = normalizeText(memo);
 
-        const trnType = getTag(block, 'TRNTYPE').toUpperCase();
-        const fitId = getTag(block, 'FITID');
-        const descLower = normalizeText(memo);
+      // IGNORAR LINHAS DE SALDO BB
+      if (
+        descLower.includes('saldo do dia') ||
+        descLower.includes('saldo anterior') ||
+        descLower.includes('saldo final')
+      ) {
+        return null;
+      }
 
-        // IGNORAR LINHAS DE SALDO BB
-        if (
-          descLower.includes('saldo do dia') ||
-          descLower.includes('saldo anterior') ||
-          descLower.includes('saldo final')
-        ) {
-          return null;
+      const type: 'income' | 'expense' = amount >= 0 ? "income" : "expense";
+      let category = inferCategoryFromMemo(descLower) || "Outros";
+
+      if (category === "Outros") {
+        for (const cat of categories) {
+          if (!cat.keywords) continue;
+
+          if (cat.keywords.some((k: string) => normalizeText(memo).includes(normalizeText(k)))) {
+            category = cat.name;
+            break;
+          }
         }
+      }
 
-let type: 'expense' | 'income' | 'transfer' = 'expense';
+      const installment = extractInstallmentData(memo);
 
-// base inicial
-if (trnType === 'CREDIT') {
-
-  // 🧠 CLASSIFICAÇÃO INTELIGENTE DE RECEITA
-
-  const onlyNumbers = memo.replace(/\D/g, '');
-
-  // CPF (11 dígitos) → pessoa física
-  if (onlyNumbers.length === 11) {
-    return {
-      date,
-      description: memo,
-      merchant: memo,
-      amount: Math.abs(amount),
-      category: 'Recebimentos',
-      type: 'income',
-    };
-  }
-
-  // CNPJ (14 dígitos) → empresa
-  if (onlyNumbers.length === 14) {
-    return {
-      date,
-      description: memo,
-      merchant: memo,
-      amount: Math.abs(amount),
-      category: 'Serviços prestados',
-      type: 'income',
-    };
-  }
-
-    // pagamento de fatura/cartão
-    if (isCreditCardPayment(descLower)) {
       return {
         date,
         description: memo,
         merchant: memo,
         externalId: fitId || undefined,
         amount: Math.abs(amount),
-        category: 'Pagamento de fatura',
-        type: 'transfer',
-      };
-    }
-
-    // salário real
-    if (descLower.includes('salario')) {
-      return {
-        date,
-        description: memo,
-        merchant: memo,
-        externalId: fitId || undefined,
-        amount: Math.abs(amount),
-        category: 'Salário',
-        type: 'income',
-      };
-    }
-      // rendimentos
-      if (descLower.includes('remunera')) {
-        return {
-          date,
-          description: memo,
-          merchant: memo,
-          externalId: fitId || undefined,
-          amount: Math.abs(amount),
-          category: 'Rendimentos financeiros',
-          type: 'income',
-        };
-      }
-
-      // TED/PIX recebidos = receita operacional PJ
-      if (
-        descLower.includes('ted recebida') ||
-        descLower.includes('pix recebido')
-      ) {
-        return {
-          date,
-          description: memo,
-          merchant: memo,
-          externalId: fitId || undefined,
-          amount: Math.abs(amount),
-          category: 'Serviços prestados',
-          type: 'income',
-        };
-      }
-
-      // movimentações internas bancárias em crédito
-      if (
-        descLower.includes('resgate') ||
-        descLower.includes('aplicacao') ||
-        descLower.includes('aplicação') ||
-        descLower.includes('credito conta corrente') ||
-        descLower.includes('crédito conta corrente') ||
-        descLower.includes('credito na conta corrente') ||
-        descLower.includes('crédito na conta corrente')
-      ) {
-        return {
-          date,
-          description: memo,
-          merchant: memo,
-          externalId: fitId || undefined,
-          amount: Math.abs(amount),
-          category: 'Transferência',
-          type: 'transfer',
-        };
-      }
-
-          // cashback / estorno real
-          if (
-            descLower.includes('estorno') ||
-            descLower.includes('cashback')
-          ) {
-            return {
-              date,
-              description: memo,
-              merchant: memo,
-              externalId: fitId || undefined,
-              amount: Math.abs(amount),
-              category: 'Estorno',
-              type: 'income',
-            };
-          }
-
-            if (
-              descLower.includes('aplicacao conta remunerada') ||
-              descLower.includes('aplicação conta remunerada') ||
-              descLower.includes('credito na conta corrente') ||
-              descLower.includes('crédito na conta corrente')
-            ) {
-              return {
-                date,
-                description: memo,
-                merchant: memo,
-                externalId: fitId || undefined,
-                amount: Math.abs(amount),
-                category: 'Transferência',
-                type: 'transfer',
-              };
-            }
-
-          // Extrato bancário comum: CREDIT positivo é entrada real
-          if (amount > 0) {
-            return {
-              date,
-              description: memo,
-              merchant: memo,
-              externalId: fitId || undefined,
-              amount: Math.abs(amount),
-              category: inferCategoryFromMemo(descLower) || 'Recebimentos',
-              type: 'income',
-            };
-          }
-
-          // OFX de cartão BTG: compras aparecem como CREDIT positivo
-
-          let btgCategory = inferCategoryFromMemo(descLower) || 'Outros';
-
-          if (btgCategory === 'Outros') {
-            for (const cat of categories) {
-              if (!cat.keywords) continue;
-
-              if (
-                cat.keywords.some((k: string) =>
-                  descLower.includes(normalizeText(k))
-                )
-              ) {
-                btgCategory = cat.name;
-                break;
-              }
-            }
-          }
-
-          const installment = extractInstallmentData(memo);
-
-          return {
-            date,
-            description: memo,
-            merchant: memo,
-            externalId: fitId || undefined,
-            amount: Math.abs(amount),
-
-            ...installment,
-
-            category: btgCategory,
-            type: 'expense',
-          };
-      }
-    if (amount < 0) type = "expense";
-    if (amount > 0) type = "income";
-
-  // inteligência PJ
-  // impostos
-    if (
-      type !== "income" &&
-      (
-    descLower.includes('inss') ||
-    descLower.includes('das') ||
-    descLower.includes('imposto') ||
-    descLower.includes('prefeitura')
-      )
-    ) {
-    type = 'expense';
-  }
-
-  // transferências internas em débito
-  if (
-      descLower.includes('transferencia enviada') ||
-      descLower.includes('transferência enviada') ||
-    descLower.includes('resgate') ||
-    descLower.includes('aplicacao') ||
-    descLower.includes('aplicação') ||
-    descLower.includes('debito conta corrente') ||
-    descLower.includes('débito conta corrente') ||
-    descLower.includes('debito na conta corrente') ||
-    descLower.includes('débito na conta corrente') ||
-    descLower.includes('credito conta corrente') ||
-    descLower.includes('crédito conta corrente') ||
-    descLower.includes('credito na conta corrente') ||
-    descLower.includes('crédito na conta corrente')
-  ) {
-    type = 'transfer';
-  }
-
-
-        const clean = normalizeText(memo);
-
-        // �� IGNORAR SALDO DO DIA
-        if (clean.includes("saldo do dia")) {
-          return null;
-        }
-
-        let category = inferCategoryFromMemo(descLower) || "Outros";
-
-
-          // Regras específicas para extratos Inter / XP
-          if (descLower.includes('rendimento automatico') || descLower.includes('rendimento automático')) {
-            category = 'Rendimentos financeiros';
-            type = 'income';
-          }
-            if (
-              descLower.includes('aplicacao conta remunerada') ||
-              descLower.includes('aplicação conta remunerada')
-            ) {
-              category = 'Transferência';
-              type = 'transfer';
-            }
-
-
-          if (descLower.includes('pagamento para banco inter')) {
-            category = 'Transferência';
-            type = 'transfer';
-          }
-
-          if (
-            descLower.includes('pagamento fatura cartao inter') ||
-            descLower.includes('pagamento efetuado') ||
-            descLower.includes('pagamento para fatura cartao')
-          ) {
-            category = 'Financeiro / Pagamentos';
-          }
-
-          if (descLower.includes('ressarcimento - pagamento cartao')) {
-            category = 'Transferência';
-            type = 'transfer';
-          }
-
-          if (descLower.includes('pix recebido de anderson maranhao')) {
-            category = 'Transferência';
-            type = 'transfer';
-          }
-
-          if (descLower.includes('maria das dores da silva')) {
-            category = 'Prestação de contas';
-          }
-        if (category === "Outros") {
-          for (const cat of categories) {
-            if (!cat.keywords) continue;
-
-            if (cat.keywords.some((k: string) => clean.includes(normalizeText(k)))) {
-              category = cat.name;
-              break;
-            }
-          }
-        }
-
-          const installment = extractInstallmentData(memo);
-
-        return {
-          date,
-          description: memo,
-          merchant: memo,
-          externalId: fitId || undefined,
-          amount: Math.abs(amount),
-            ...installment,
-
-          category,
-          type,
-        };
+        ...installment,
+        category,
+        type,
+      } as unknown as ParsedTransaction;
     })
     .filter(
-  (item): item is ParsedTransaction =>
-    Boolean(item && item.date && item.amount)
-);
+      (item): item is ParsedTransaction =>
+        Boolean(item && item.date && item.amount)
+    );
 
   return transactions;
 }
