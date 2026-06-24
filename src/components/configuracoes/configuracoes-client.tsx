@@ -321,7 +321,7 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
           ] = await Promise.all([
           getAccountsWithBalance(user.uid),
           getCompanies(user.uid),
-          getCategories(),
+          getCategories(user.uid),
             getAccountIdentities(),
         ]);
 

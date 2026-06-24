@@ -24,13 +24,53 @@ export type Category = {
 };
 
 export async function getCategories(userId?: string): Promise<Category[]> {
-  const q = query(collection(db, "categories"), orderBy("name", "asc"));
-  const snap = await getDocs(q);
+  const queries = [
+    query(collection(db, "categories"), where("isDefault", "==", true)),
+    query(collection(db, "categories"), where("isGlobal", "==", true)),
+  ];
 
-  return snap.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Category[];
+  if (userId) {
+    queries.push(query(collection(db, "categories"), where("userId", "==", userId)));
+  }
+
+  const snaps = await Promise.all(queries.map((q) => getDocs(q)));
+
+  const mergedMap = new Map<string, Category>();
+
+  // A e B: Defaults/Globais
+  const defaultDocs = [...snaps[0].docs, ...snaps[1].docs];
+  for (const docSnap of defaultDocs) {
+    const data = docSnap.data() as Omit<Category, 'id'>;
+    const cat: Category = {
+      id: docSnap.id,
+      ...data,
+    };
+    const key = normalizeCategoryKey(cat.name);
+    if (key) {
+      mergedMap.set(key, cat);
+    }
+  }
+
+  // C: Do usuário (se userId fornecido)
+  if (userId && snaps[2]) {
+    for (const docSnap of snaps[2].docs) {
+      const data = docSnap.data() as Omit<Category, 'id'>;
+      const cat: Category = {
+        id: docSnap.id,
+        ...data,
+      };
+      const key = normalizeCategoryKey(cat.name);
+      if (key) {
+        // Categoria do usuário vence
+        mergedMap.set(key, cat);
+      }
+    }
+  }
+
+  const items = Array.from(mergedMap.values());
+  items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+
+  return items;
 }
 
 export async function addCategory(data: { name: string; keywords?: string[] }) {

@@ -52,7 +52,7 @@ function enrichInstallment(transaction: ParsedTransaction, rawText: string): Par
   } as ParsedTransaction;
 }
 
-export async function parseNubankCSV(csv: string): Promise<ParsedTransaction[]> {
+export async function parseNubankCSV(csv: string, userId?: string): Promise<ParsedTransaction[]> {
   const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 
   if (lines.length === 0) return [];
@@ -68,7 +68,7 @@ export async function parseNubankCSV(csv: string): Promise<ParsedTransaction[]> 
       : lines;
 
   // Carrega contexto 1 única vez antes do loop — zero I/O por linha
-  const context = await buildClassificationContext();
+  const context = await buildClassificationContext(userId);
 
   const parsed = dataLines.map((line) => {
     const parts = line.split(delimiter).map((part) => part.trim());
@@ -128,7 +128,7 @@ export async function parseBankStatementText(text: string, userId?: string): Pro
   const result: ParsedTransaction[] = [];
 
   // Carrega contexto 1 única vez antes do loop — zero I/O por linha
-  const context = await buildClassificationContext();
+  const context = await buildClassificationContext(userId);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];

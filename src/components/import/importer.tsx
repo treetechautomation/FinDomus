@@ -246,14 +246,14 @@ export function Importer() {
             file.type === "application/octet-stream"
           ) {
             const text = await file.text();
-            extractedTransactions = await parseOFX(text);
+            extractedTransactions = await parseOFX(text, user?.uid);
 
           } else if (
             file.name.toLowerCase().endsWith(".csv") ||
             file.type === "text/csv"
           ) {
             const text = await file.text();
-            extractedTransactions = await parseNubankCSV(text);
+            extractedTransactions = await parseNubankCSV(text, user?.uid);
 
           } else {
             toast({

@@ -198,10 +198,22 @@ service cloud.firestore {
     }
 
     match /categories/{docId} {
-      allow read, write: if isAuthenticated() && 
-        (resource.data.userId == request.auth.uid || resource.data.isGlobal == true);
-      allow create: if isAuthenticated() && 
-        (request.resource.data.userId == request.auth.uid || request.resource.data.isGlobal == true);
+      allow read: if isAuthenticated() &&
+        (
+          resource.data.userId == request.auth.uid ||
+          resource.data.isDefault == true ||
+          resource.data.isGlobal == true
+        );
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.isDefault != true &&
+        request.resource.data.isGlobal != true;
+
+      allow update, delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.isDefault != true &&
+        resource.data.isGlobal != true;
     }
 
     match /payables/{docId} {

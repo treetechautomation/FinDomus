@@ -180,8 +180,8 @@ function isUsefulDescription(value?: string | null): boolean {
   return true;
 }
 
-export async function parseOFX(text: string): Promise<ParsedTransaction[]> {
-  const categories = (await getCategories()) as Array<{ name: string; keywords?: string[] }>;
+export async function parseOFX(text: string, userId?: string): Promise<ParsedTransaction[]> {
+  const categories = (await getCategories(userId)) as Array<{ name: string; keywords?: string[] }>;
 
   const transactions = text
     .split('<STMTTRN>')

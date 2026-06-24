@@ -185,7 +185,7 @@ export function NewTransactionDialog() {
         const [companiesData, accountsData, categoriesData] = await Promise.all([
           getCompanies(user.uid),
           getAccounts(user.uid),
-          getCategories(),
+          getCategories(user.uid),
         ]);
 
         setCompanies(companiesData);

@@ -35,8 +35,7 @@ function isTransfer(text: string) {
   );
 }
 
-// 🔥 aprendizado persistente
-async function classifyByLearning(text: string) {
+async function classifyByLearning(text: string, userId?: string) {
 
   const learned = await getLearnedCategory(text);
 
@@ -44,7 +43,7 @@ async function classifyByLearning(text: string) {
     return learned.category;
   }
 
-  const categories = await getCategories();
+  const categories = await getCategories(userId);
 
   for (const cat of categories) {
     if (!cat.keywords) continue;
@@ -125,9 +124,9 @@ export type ClassificationContext = {
  * Deve ser chamado UMA VEZ antes do loop de importação.
  * Executa 3 queries em paralelo: categories, identities e category_learning.
  */
-export async function buildClassificationContext(): Promise<ClassificationContext> {
+export async function buildClassificationContext(userId?: string): Promise<ClassificationContext> {
   const [categories, accountIdentities, learningSnap] = await Promise.all([
-    getCategories(),
+    getCategories(userId),
     getAccountIdentities(),
     getDocs(collection(db, 'category_learning')),
   ]);
@@ -215,7 +214,8 @@ export function classifyTransactionWithContext(
  */
 export async function classifyTransaction(
   rawText: string,
-  amount: number
+  amount: number,
+  userId?: string
 ): Promise<ParsedTransaction> {
 
   const text = normalizeText(rawText);
@@ -247,7 +247,7 @@ export async function classifyTransaction(
   }
 
   // prioridade 1: aprendizado
-  const learned = await classifyByLearning(text);
+  const learned = await classifyByLearning(text, userId);
 
   // prioridade 2: IA fallback
   const ai = learned ? null : await classifyByAI(text);
