@@ -69,13 +69,27 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
 
   if (lines.length === 0) return [];
 
-  const header = lines[0].toLowerCase();
-  const delimiter = header.includes(';') ? ';' : ',';
-  const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
+  // 1. Encontrar a linha do cabeçalho (busca nas primeiras 15 linhas)
+  let headerIndex = -1;
+  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+    const lower = lines[i].toLowerCase();
+    if (
+      (lower.includes('data') || lower.includes('date') || lower === 'dia') &&
+      (lower.includes('valor') || lower.includes('amount') || lower.includes('value') || lower.includes('estabelecimento') || lower.includes('descrição') || lower.includes('descricao') || lower.includes('título') || lower.includes('titulo'))
+    ) {
+      headerIndex = i;
+      break;
+    }
+  }
 
-  // Encontrar índices dos campos por prioridade de palavra-chave
-  const dateIndex = headers.findIndex(h => h.includes('data') || h.includes('date') || h === 'dia');
-  const amountIndex = headers.findIndex(h => h.includes('valor') || h.includes('amount') || h.includes('value'));
+  const headerLine = headerIndex !== -1 ? lines[headerIndex] : lines[0];
+  const header = headerLine.toLowerCase();
+  const delimiter = header.includes(';') ? ';' : ',';
+  const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase());
+
+  // 2. Mapeamento por cabeçalhos (Metadata)
+  let dateIndex = headers.findIndex(h => h.includes('data') || h.includes('date') || h === 'dia');
+  let amountIndex = headers.findIndex(h => h.includes('valor') || h.includes('amount') || h.includes('value'));
   
   let titleIndex = headers.findIndex(h => 
     h.includes('estabelecimento') || 
@@ -85,7 +99,9 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
     h.includes('description') || 
     h.includes('histórico') || 
     h.includes('historico') || 
-    h.includes('detalhes')
+    h.includes('detalhes') ||
+    h.includes('título') ||
+    h.includes('titulo')
   );
   if (titleIndex === -1) {
     titleIndex = headers.findIndex(h => h.includes('identificador') || h.includes('memo') || h.includes('ref'));
@@ -93,12 +109,55 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
   
   const installmentIndex = headers.findIndex(h => h.includes('parcela') || h.includes('installment'));
 
-  const dataLines = lines.slice(1);
+  const dataLines = headerIndex !== -1 ? lines.slice(headerIndex + 1) : lines;
+
+  // 3. Se falhar na identificação dos campos fundamentais, usar a heurística de valores
+  if (dateIndex === -1 || amountIndex === -1 || titleIndex === -1) {
+    // Procurar primeira linha com dados reais para inferir colunas
+    const firstDataLine = dataLines.find((line) => {
+      const parts = line.split(delimiter);
+      return parts.some(p => /^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}$/.test(p.trim()));
+    }) || dataLines[0];
+
+    if (firstDataLine) {
+      const parts = firstDataLine.split(delimiter).map(p => p.trim());
+      
+      if (dateIndex === -1) {
+        dateIndex = parts.findIndex(p => /^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}$/.test(p));
+      }
+      
+      if (amountIndex === -1) {
+        amountIndex = parts.findIndex((p, idx) => {
+          if (idx === dateIndex) return false;
+          const clean = p.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+          const n = Number(clean);
+          return !Number.isNaN(n) && clean !== '' && p.length > 0;
+        });
+      }
+
+      if (titleIndex === -1) {
+        let maxLength = -1;
+        parts.forEach((p, idx) => {
+          if (idx === dateIndex || idx === amountIndex || idx === installmentIndex) return;
+          if (p.length > maxLength) {
+            maxLength = p.length;
+            titleIndex = idx;
+          }
+        });
+      }
+    }
+  }
 
   // Carrega contexto 1 única vez antes do loop — zero I/O por linha
   const context = await buildClassificationContext(userId);
 
   const parsed = dataLines.map((line) => {
+    // Ignorar linhas vazias ou de saldo
+    const lowerLine = line.toLowerCase();
+    if (lowerLine.includes('saldo anterior') || lowerLine.includes('saldo atual') || lowerLine.includes('saldo final') || lowerLine.includes('total de despesas')) {
+      return null;
+    }
+
     const parts = line.split(delimiter).map((part) => part.trim());
 
     if (parts.length < 2) return null;
@@ -127,6 +186,9 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
     }
 
     if (!date || !title || Number.isNaN(amount)) return null;
+
+    // Se o valor de data for um cabeçalho ou inválido, pular
+    if (date.toLowerCase().includes('data') || date.toLowerCase().includes('date')) return null;
 
     const rawText =
       installmentText && installmentText !== '-'

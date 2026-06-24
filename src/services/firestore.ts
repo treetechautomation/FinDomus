@@ -1,6 +1,5 @@
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, getDoc, setDoc, query, orderBy, doc, updateDoc, deleteDoc, writeBatch, where } from "firebase/firestore";
-import { getTransactions } from '@/services/firestore/transactions';
 import {
   investments as mockInvestments,
   companies as mockCompanies,
