@@ -5,12 +5,24 @@ import {
 } from './transaction-classifier';
 
 function parseAmountBR(value: string) {
-  const clean = String(value || '')
-    .replace(/[R$\s]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
 
-  const n = Number(clean || 0);
+  let clean = raw.replace(/[R$\s]/g, '');
+
+  if (clean.includes(',') && clean.includes('.')) {
+    const commaIndex = clean.indexOf(',');
+    const dotIndex = clean.indexOf('.');
+    if (commaIndex > dotIndex) {
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    } else {
+      clean = clean.replace(/,/g, '');
+    }
+  } else if (clean.includes(',')) {
+    clean = clean.replace(',', '.');
+  }
+
+  const n = Number(clean);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -59,13 +71,29 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
 
   const header = lines[0].toLowerCase();
   const delimiter = header.includes(';') ? ';' : ',';
+  const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
 
-  const dataLines =
-    header.includes('data') ||
-    header.includes('date') ||
-    header.includes('estabelecimento')
-      ? lines.slice(1)
-      : lines;
+  // Encontrar índices dos campos por prioridade de palavra-chave
+  const dateIndex = headers.findIndex(h => h.includes('data') || h.includes('date') || h === 'dia');
+  const amountIndex = headers.findIndex(h => h.includes('valor') || h.includes('amount') || h.includes('value'));
+  
+  let titleIndex = headers.findIndex(h => 
+    h.includes('estabelecimento') || 
+    h.includes('descrição') || 
+    h.includes('descricao') || 
+    h.includes('title') || 
+    h.includes('description') || 
+    h.includes('histórico') || 
+    h.includes('historico') || 
+    h.includes('detalhes')
+  );
+  if (titleIndex === -1) {
+    titleIndex = headers.findIndex(h => h.includes('identificador') || h.includes('memo') || h.includes('ref'));
+  }
+  
+  const installmentIndex = headers.findIndex(h => h.includes('parcela') || h.includes('installment'));
+
+  const dataLines = lines.slice(1);
 
   // Carrega contexto 1 única vez antes do loop — zero I/O por linha
   const context = await buildClassificationContext(userId);
@@ -73,50 +101,44 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
   const parsed = dataLines.map((line) => {
     const parts = line.split(delimiter).map((part) => part.trim());
 
-    if (parts.length < 3) return null;
+    if (parts.length < 2) return null;
 
-    // Layout: Data;Estabelecimento;Portador;Valor;Parcela
-    if (
-      delimiter === ';' &&
-      header.includes('estabelecimento') &&
-      header.includes('valor')
-    ) {
-      const date = parts[0];
-      const title = parts[1];
-      const valueText = parts[3] || '';
-      const installmentText = parts[4] || '';
+    let date = "";
+    let amount = 0;
+    let title = "";
+    let installmentText = "";
 
-      const amount = parseAmountBR(valueText);
-
-      if (!date || !title || Number.isNaN(amount)) return null;
-
-      const rawText =
-        installmentText && installmentText !== '-'
-          ? title + ' - Parcela ' + installmentText
-          : title;
-
-      return enrichInstallment(
-        {
-          ...classifyTransactionWithContext(rawText, amount > 0 ? -Math.abs(amount) : amount, context),
-          date,
-        },
-        rawText
-      );
+    if (dateIndex !== -1 && amountIndex !== -1) {
+      date = parts[dateIndex] || "";
+      amount = parseAmountBR(parts[amountIndex]);
+      title = titleIndex !== -1 ? parts[titleIndex] : "";
+      if (!title && parts.length > 2) {
+        const otherPart = parts.find((p, idx) => idx !== dateIndex && idx !== amountIndex && p);
+        title = otherPart || "Lançamento CSV";
+      } else if (!title) {
+        title = "Lançamento CSV";
+      }
+      installmentText = installmentIndex !== -1 ? parts[installmentIndex] : "";
+    } else {
+      // Fallback antigo: date,title,amount
+      date = parts[0] || "";
+      title = parts.slice(1, -1).join(delimiter).trim();
+      amount = parseAmountBR(parts[parts.length - 1]);
     }
-
-    // Layout antigo: date,title,amount
-    const date = parts[0];
-    const title = parts.slice(1, -1).join(delimiter).trim();
-    const amount = parseAmountBR(parts[parts.length - 1]);
 
     if (!date || !title || Number.isNaN(amount)) return null;
 
+    const rawText =
+      installmentText && installmentText !== '-'
+        ? title + ' - Parcela ' + installmentText
+        : title;
+
     return enrichInstallment(
       {
-        ...classifyTransactionWithContext(title, amount > 0 ? -Math.abs(amount) : amount, context),
+        ...classifyTransactionWithContext(rawText, amount > 0 ? -Math.abs(amount) : amount, context),
         date,
       },
-      title
+      rawText
     );
   });
 

@@ -163,12 +163,21 @@ function parseImportAmount(value: string | number | null | undefined): number {
   const raw = String(value ?? '').trim();
   if (!raw) return 0;
 
-  const normalized = raw
-    .replace(/[R$\s]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
+  let clean = raw.replace(/[R$\s]/g, '');
 
-  const n = Number(normalized);
+  if (clean.includes(',') && clean.includes('.')) {
+    const commaIndex = clean.indexOf(',');
+    const dotIndex = clean.indexOf('.');
+    if (commaIndex > dotIndex) {
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    } else {
+      clean = clean.replace(/,/g, '');
+    }
+  } else if (clean.includes(',')) {
+    clean = clean.replace(',', '.');
+  }
+
+  const n = Number(clean);
   return Number.isFinite(n) ? n : 0;
 }
 
