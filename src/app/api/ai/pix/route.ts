@@ -3,6 +3,7 @@ import { classifyPixFlow } from '@/ai/flows/classify-pix';
 import { canUseAIAdmin, registerAIUsageAdmin } from '@/core/ai/usage.admin';
 import { getCategoriesAdmin } from '@/services/firestore/categories.admin';
 import { verifyIdToken } from '@/lib/verify-id-token';
+import { keywordMatches, normalizeForMatch } from '@/core/finance/transaction-classifier';
 
 export async function POST(req: Request) {
   try {
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     const categories = await getCategoriesAdmin();
-    const clean = rawText.toLowerCase();
+    const clean = normalizeForMatch(rawText);
 
 // 🔥 IDENTIFICAÇÃO CPF/CNPJ
 const onlyNumbers = rawText.replace(/\D/g, '');
@@ -49,7 +50,7 @@ if (onlyNumbers.length === 14) {
 
     for (const cat of categories as any[]) {
       const keywords = cat.keywords || [];
-      if (keywords.some((k: string) => clean.includes(String(k).toLowerCase()))) {
+      if (keywords.some((k: string) => keywordMatches(rawText, k))) {
         return NextResponse.json({
           type: Number(amount || 0) > 0 ? 'income' : 'expense',
           category: cat.name,

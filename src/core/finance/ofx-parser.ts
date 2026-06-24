@@ -1,5 +1,11 @@
-import { normalizeText, type ParsedTransaction } from './transaction-classifier';
-import { getCategories } from '@/services/firestore/categories';
+import {
+  normalizeText,
+  inferCategoryFromDescription,
+  isBlacklistedCategory,
+  buildClassificationContext,
+  classifyTransactionWithContext,
+  type ParsedTransaction,
+} from './transaction-classifier';
 
 function getTag(block: string, tag: string) {
   const match = block.match(new RegExp(`<${tag}>([^<\r\n]+)`));
@@ -190,7 +196,7 @@ function isUsefulDescription(value?: string | null): boolean {
 }
 
 export async function parseOFX(text: string, userId?: string): Promise<ParsedTransaction[]> {
-  const categories = (await getCategories(userId)) as Array<{ name: string; keywords?: string[] }>;
+  const context = await buildClassificationContext(userId);
 
   const transactions = text
     .split('<STMTTRN>')
@@ -221,17 +227,14 @@ export async function parseOFX(text: string, userId?: string): Promise<ParsedTra
         return null;
       }
 
-      const type: 'income' | 'expense' = amount >= 0 ? "income" : "expense";
-      let category = inferCategoryFromMemo(descLower) || "Outros";
+      // Classifica usando o motor unificado
+      const classified = classifyTransactionWithContext(memo, amount, context);
+      let category = classified.category;
 
       if (category === "Outros") {
-        for (const cat of categories) {
-          if (!cat.keywords) continue;
-
-          if (cat.keywords.some((k: string) => normalizeText(memo).includes(normalizeText(k)))) {
-            category = cat.name;
-            break;
-          }
+        const fallback = inferCategoryFromMemo(descLower);
+        if (fallback) {
+          category = fallback;
         }
       }
 
@@ -245,7 +248,7 @@ export async function parseOFX(text: string, userId?: string): Promise<ParsedTra
         amount: Math.abs(amount),
         ...installment,
         category,
-        type,
+        type: classified.type,
       } as unknown as ParsedTransaction;
     })
     .filter(

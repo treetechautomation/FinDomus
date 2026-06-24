@@ -26,6 +26,38 @@ export function normalizeText(text: string) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+export function normalizeForMatch(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function escapeRegExp(text: string): string {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function keywordMatches(description: string, keyword: string): boolean {
+  const normDesc = normalizeForMatch(description);
+  const normKw = normalizeForMatch(keyword);
+
+  if (!normKw) return false;
+
+  const escapedKw = escapeRegExp(normKw);
+
+  if (normKw.length <= 2) {
+    const regex = new RegExp(`\\b${escapedKw}\\b`, 'i');
+    return regex.test(normDesc);
+  }
+
+  const regex = new RegExp(`\\b${escapedKw}|${escapedKw}\\b`, 'i');
+  return regex.test(normDesc);
+}
+
+
 function findCategoryByNames(candidates: string[], availableCategories: { name: string; keywords?: string[] }[]): string | null {
   for (const candidate of candidates) {
     const normCand = normalizeText(candidate);
@@ -49,8 +81,6 @@ export function inferCategoryFromDescription(
   type: 'income' | 'expense' | 'transfer',
   availableCategories: { name: string; keywords?: string[] }[] = []
 ): { category: string; type?: 'income' | 'expense' | 'transfer' } | null {
-  const text = normalizeText(rawDescription);
-
   // 1. Rendimentos / Investimentos (rendimento automático, rendimento, juros, remuneração, cdb, renda fixa)
   const isRendimento = [
     "rendimento automatico",
@@ -59,7 +89,7 @@ export function inferCategoryFromDescription(
     "remuneracao",
     "cdb",
     "renda fixa",
-  ].some((kw) => text.includes(kw));
+  ].some((kw) => keywordMatches(rawDescription, kw));
 
   if (isRendimento) {
     const matched = findCategoryByNames(
@@ -78,7 +108,7 @@ export function inferCategoryFromDescription(
     "fatura cartao",
     "cartao btg",
     "cartao",
-  ].some((kw) => text.includes(kw));
+  ].some((kw) => keywordMatches(rawDescription, kw));
 
   if (isCartao) {
     const matched = findCategoryByNames(
@@ -101,7 +131,7 @@ export function inferCategoryFromDescription(
     "bradesco",
     "santander",
     "caixa",
-  ].some((kw) => text.includes(kw)) || /\bbb\b/.test(text);
+  ].some((kw) => keywordMatches(rawDescription, kw)) || /\bbb\b/.test(normalizeForMatch(rawDescription));
 
   if (isBanco) {
     const matched = findCategoryByNames(
@@ -114,8 +144,8 @@ export function inferCategoryFromDescription(
   }
 
   // 4. Assessoria / Contabilidade (assessoria, contabilidade, consultoria)
-  const hasContabilidade = text.includes("contabilidade");
-  const hasAssessoria = text.includes("assessoria") || text.includes("consultoria");
+  const hasContabilidade = keywordMatches(rawDescription, "contabilidade");
+  const hasAssessoria = keywordMatches(rawDescription, "assessoria") || keywordMatches(rawDescription, "consultoria");
 
   if (hasContabilidade || hasAssessoria) {
     const candidates = hasContabilidade
@@ -171,7 +201,7 @@ async function classifyByLearning(text: string, userId?: string) {
     if (!cat.keywords) continue;
     if (isBlacklistedCategory(cat.name, text)) continue;
 
-    if (cat.keywords.some((k: string) => text.includes(k))) {
+    if (cat.keywords.some((k: string) => keywordMatches(text, k))) {
       return cat.name;
     }
   }
@@ -330,7 +360,7 @@ export function classifyTransactionWithContext(
     context.categories.find(
       (cat) => {
         if (isBlacklistedCategory(cat.name, rawText)) return false;
-        return cat.keywords?.some((k: string) => text.includes(k));
+        return cat.keywords?.some((k: string) => keywordMatches(rawText, k));
       }
     )?.name ?? null
   );
