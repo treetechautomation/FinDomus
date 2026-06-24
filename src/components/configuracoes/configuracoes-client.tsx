@@ -319,10 +319,22 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
             categoriesResult,
             identitiesResult,
           ] = await Promise.all([
-          getAccountsWithBalance(user.uid),
-          getCompanies(user.uid),
-          getCategories(user.uid),
-            getAccountIdentities(),
+          getAccountsWithBalance(user.uid).catch(err => {
+            console.error('Erro ao carregar contas com saldo:', err);
+            return [];
+          }),
+          getCompanies(user.uid).catch(err => {
+            console.error('Erro ao carregar empresas:', err);
+            return [];
+          }),
+          getCategories(user.uid).catch(err => {
+            console.error('Erro ao carregar categorias:', err);
+            return [];
+          }),
+          getAccountIdentities().catch(err => {
+            console.error('Erro ao carregar identidades de conta:', err);
+            return [];
+          }),
         ]);
 
         setAccounts(accountsResult || []);

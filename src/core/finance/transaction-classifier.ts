@@ -26,6 +26,128 @@ export function normalizeText(text: string) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function findCategoryByNames(candidates: string[], availableCategories: { name: string; keywords?: string[] }[]): string | null {
+  for (const candidate of candidates) {
+    const normCand = normalizeText(candidate);
+    const matched = availableCategories.find(
+      (cat) => normalizeText(cat.name) === normCand
+    );
+    if (matched) return matched.name;
+  }
+  for (const candidate of candidates) {
+    const normCand = normalizeText(candidate);
+    const matched = availableCategories.find(
+      (cat) => normalizeText(cat.name).includes(normCand)
+    );
+    if (matched) return matched.name;
+  }
+  return null;
+}
+
+export function inferCategoryFromDescription(
+  rawDescription: string,
+  type: 'income' | 'expense' | 'transfer',
+  availableCategories: { name: string; keywords?: string[] }[] = []
+): { category: string; type?: 'income' | 'expense' | 'transfer' } | null {
+  const text = normalizeText(rawDescription);
+
+  // 1. Rendimentos / Investimentos (rendimento automático, rendimento, juros, remuneração, cdb, renda fixa)
+  const isRendimento = [
+    "rendimento automatico",
+    "rendimento",
+    "juros",
+    "remuneracao",
+    "cdb",
+    "renda fixa",
+  ].some((kw) => text.includes(kw));
+
+  if (isRendimento) {
+    const matched = findCategoryByNames(
+      ["Rendimentos", "Investimentos", "CDB / Renda Fixa", "Outros recebimentos"],
+      availableCategories
+    );
+    return {
+      category: matched || "Rendimentos",
+      type: "income",
+    };
+  }
+
+  // 2. Fatura / Cartão (pagamento para fatura, fatura cartao, cartao btg, cartão)
+  const isCartao = [
+    "pagamento para fatura",
+    "fatura cartao",
+    "cartao btg",
+    "cartao",
+  ].some((kw) => text.includes(kw));
+
+  if (isCartao) {
+    const matched = findCategoryByNames(
+      ["Cartão de Crédito"],
+      availableCategories
+    );
+    return {
+      category: matched || "Cartão de Crédito",
+      type: "expense",
+    };
+  }
+
+  // 3. Bancos / Transferências (banco inter, nubank, btg, itau, bradesco, santander, caixa, bb)
+  // Nota: Não forçar type = transfer. Manter o type original.
+  const isBanco = [
+    "banco inter",
+    "nubank",
+    "btg",
+    "itau",
+    "bradesco",
+    "santander",
+    "caixa",
+  ].some((kw) => text.includes(kw)) || /\bbb\b/.test(text);
+
+  if (isBanco) {
+    const matched = findCategoryByNames(
+      ["Transferência entre contas", "Transferências", "Bancos"],
+      availableCategories
+    );
+    return {
+      category: matched || "Transferência entre contas",
+    };
+  }
+
+  // 4. Assessoria / Contabilidade (assessoria, contabilidade, consultoria)
+  const hasContabilidade = text.includes("contabilidade");
+  const hasAssessoria = text.includes("assessoria") || text.includes("consultoria");
+
+  if (hasContabilidade || hasAssessoria) {
+    const candidates = hasContabilidade
+      ? ["Contabilidade", "Serviços Profissionais", "Prestadores / Terceiros"]
+      : ["Serviços Profissionais", "Contabilidade", "Prestadores / Terceiros"];
+    const matched = findCategoryByNames(candidates, availableCategories);
+    return {
+      category: matched || (hasContabilidade ? "Contabilidade" : "Serviços Profissionais"),
+      type: "expense",
+    };
+  }
+
+  return null;
+}
+
+export function isBlacklistedCategory(categoryName: string, rawDescription: string): boolean {
+  const normDesc = normalizeText(rawDescription);
+  const normCat = normalizeText(categoryName);
+
+  // Regra 5: Nunca permitir que descrições contendo "rendimento" caiam em "Equipamentos / TI"
+  if (normDesc.includes('rendimento') && (normCat === 'equipamentos / ti' || normCat.includes('equipamentos') || normCat === 'ti')) {
+    return true;
+  }
+
+  // Regra 6: Nunca permitir que descrições contendo "banco" ou "pagamento" caiam em "Jogos / Games"
+  if ((normDesc.includes('banco') || normDesc.includes('pagamento')) && (normCat === 'jogos / games' || normCat.includes('jogos') || normCat.includes('games'))) {
+    return true;
+  }
+
+  return false;
+}
+
 function isTransfer(text: string) {
   const t = normalizeText(text);
   return (
@@ -47,6 +169,7 @@ async function classifyByLearning(text: string, userId?: string) {
 
   for (const cat of categories) {
     if (!cat.keywords) continue;
+    if (isBlacklistedCategory(cat.name, text)) continue;
 
     if (cat.keywords.some((k: string) => text.includes(k))) {
       return cat.name;
@@ -126,9 +249,18 @@ export type ClassificationContext = {
  */
 export async function buildClassificationContext(userId?: string): Promise<ClassificationContext> {
   const [categories, accountIdentities, learningSnap] = await Promise.all([
-    getCategories(userId),
-    getAccountIdentities(),
-    getDocs(collection(db, 'category_learning')),
+    getCategories(userId).catch(err => {
+      console.error('Erro ao carregar categorias no contexto:', err);
+      return [];
+    }),
+    getAccountIdentities().catch(err => {
+      console.error('Erro ao carregar identidades no contexto:', err);
+      return [];
+    }),
+    getDocs(collection(db, 'category_learning')).catch(err => {
+      console.error('Erro ao carregar aprendizado no contexto:', err);
+      return { docs: [] } as any;
+    }),
   ]);
 
   const learningMap = new Map<string, string>();
@@ -186,14 +318,24 @@ export function classifyTransactionWithContext(
   const fingerprint = buildLearningFingerprint(text);
   const learned = context.learningMap.get(fingerprint) ?? null;
 
-  // 4. Keyword de categoria (em memória)
-  const categoryByKeyword = learned ?? (
+  // 4. Priority classification layers (inferCategoryFromDescription)
+  const inferred = learned ? null : inferCategoryFromDescription(
+    rawText,
+    amount >= 0 ? 'income' : 'expense',
+    context.categories
+  );
+
+  // 5. Keyword de categoria (em memória)
+  const categoryByKeyword = learned ?? inferred?.category ?? (
     context.categories.find(
-      (cat) => cat.keywords?.some((k: string) => text.includes(k))
+      (cat) => {
+        if (isBlacklistedCategory(cat.name, rawText)) return false;
+        return cat.keywords?.some((k: string) => text.includes(k));
+      }
     )?.name ?? null
   );
 
-  // 5. Fallback IA síncrona
+  // 6. Fallback IA síncrona
   const ai = categoryByKeyword ? null : classifyByAISync(text);
   const category = categoryByKeyword || ai || 'Outros';
 
@@ -203,7 +345,7 @@ export function classifyTransactionWithContext(
     merchant: rawText,
     category,
     amount: Math.abs(amount),
-    type: amount >= 0 ? 'income' : 'expense',
+    type: inferred?.type || (amount >= 0 ? 'income' : 'expense'),
   };
 }
 
@@ -249,10 +391,14 @@ export async function classifyTransaction(
   // prioridade 1: aprendizado
   const learned = await classifyByLearning(text, userId);
 
-  // prioridade 2: IA fallback
-  const ai = learned ? null : await classifyByAI(text);
+  // priority inference (layer 2)
+  const categories = await getCategories(userId);
+  const inferred = learned ? null : inferCategoryFromDescription(rawText, amount >= 0 ? 'income' : 'expense', categories);
 
-  const category = learned || ai || 'Outros';
+  // prioridade 3: IA fallback
+  const ai = (learned || inferred?.category) ? null : await classifyByAI(text);
+
+  const category = learned || inferred?.category || ai || 'Outros';
 
   return {
     date: '',
@@ -260,6 +406,6 @@ export async function classifyTransaction(
     merchant: rawText,
     category,
     amount: Math.abs(amount),
-    type: amount >= 0 ? 'income' : 'expense',
+    type: inferred?.type || (amount >= 0 ? 'income' : 'expense'),
   };
 }
