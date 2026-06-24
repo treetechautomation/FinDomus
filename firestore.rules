@@ -173,10 +173,10 @@ service cloud.firestore {
     }
 
     match /monthly_closures/{docId} {
-      allow read, write: if isAuthenticated() && 
-        (resource.data.userId == request.auth.uid || resource.data.owner == request.auth.uid);
-      allow create: if isAuthenticated() && 
-        (request.resource.data.userId == request.auth.uid || request.resource.data.owner == request.auth.uid);
+      allow get: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow list: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     match /month_openings/{docId} {
