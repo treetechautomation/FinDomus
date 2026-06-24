@@ -337,14 +337,14 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
     }
 
     loadConfigData();
-  }, []);
+  }, [user?.uid]);
 
   const companies = companiesData.map((company: any) => company.name);
 
-  const categoryMap = new Map<string, { id?: string; name: string; keywords?: string[] }>();
+  const categoryMap = new Map<string, { id?: string; name: string; keywords?: string[]; isDefault?: boolean; isGlobal?: boolean }>();
 
   for (const name of defaultCategories) {
-    categoryMap.set(name.toLowerCase(), { name, keywords: [] });
+    categoryMap.set(name.toLowerCase(), { name, keywords: [], isDefault: true, isGlobal: true });
   }
 
   for (const category of firestoreCategories) {

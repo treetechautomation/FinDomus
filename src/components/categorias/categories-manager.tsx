@@ -16,6 +16,8 @@ type Category = {
   id?: string;
   name: string;
   keywords?: string[];
+  isDefault?: boolean;
+  isGlobal?: boolean;
 };
 
 export function CategoriesManager({ categories }: { categories: Category[] }) {
@@ -147,16 +149,18 @@ async function handlePreviewDuplicates() {
                 {category.name}
               </Badge>
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                disabled={!category.id || deletingId === category.id}
-                onClick={() => handleDelete(category)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              {!(category.isDefault || category.isGlobal) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!category.id || deletingId === category.id}
+                  onClick={() => handleDelete(category)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
 
             <Input
