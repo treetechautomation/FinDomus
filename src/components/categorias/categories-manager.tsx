@@ -160,9 +160,13 @@ async function handlePreviewDuplicates() {
             </div>
 
             <Input
-              placeholder="keywords: nutag, pedagio, sem parar"
-              defaultValue={(category.keywords || []).join(', ')}
-              onBlur={(e) => handleKeywordsBlur(category, e.target.value)}
+              placeholder="Sem keywords cadastradas"
+              value={
+                Array.isArray(category.keywords) && category.keywords.length > 0
+                  ? category.keywords.join(", ")
+                  : "Sem keywords cadastradas"
+              }
+              readOnly
               disabled={!category.id}
             />
           </div>
