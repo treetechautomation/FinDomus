@@ -173,7 +173,7 @@ export default function PlanejamentoPage() {
     .reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
 
   const manualMonthlyLiabilities = liabilities
-    .filter((l: any) => Number(l.remainingBalance || 0) > 0)
+    .filter((l: any) => Number(l.remainingBalance || 0) > 0 && !l.installmentKey)
     .reduce((sum: number, l: any) => sum + Number(l.installmentValue || 0), 0);
 
   const autoInstallmentGroups = new Map<string, any>();
@@ -203,6 +203,12 @@ export default function PlanejamentoPage() {
 
   const monthlyLiabilities = manualMonthlyLiabilities + autoMonthlyLiabilities;
   const totalFutureLiabilities = manualMonthlyLiabilities + autoRemainingLiabilities;
+
+  const paidInstallmentsAmount = monthTransactions
+    .filter((t: any) => t.type === 'expense' && (t.isInstallment || t.installmentKey))
+    .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
+
+  const adjustedMonthlyLiabilities = Math.max(0, monthlyLiabilities - paidInstallmentsAmount);
 
 const monthlyExpenses = monthTransactions
     .filter((t: any) => t.type === 'expense')
@@ -275,7 +281,7 @@ const monthlyExpenses = monthTransactions
   })
         .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0)
         + (cat.name.toLowerCase().includes('dívida') || cat.name.toLowerCase().includes('divida')
-            ? monthlyLiabilities
+            ? adjustedMonthlyLiabilities
             : 0);
 
     const remaining = planned - spent;
