@@ -3,6 +3,7 @@ import { getTaxObligations } from '@/services/firestore/fiscal';
 import { getAccountsWithBalance } from '@/services/firestore/accounts';
 import { getLiabilities } from '@/services/firestore/liabilities';
 import { getTransactionsByMonthList } from '@/services/firestore/transactions';
+import { getInvestments } from '@/services/firestore/investments';
 import { getCashflowProjection } from '@/core/finance/cashflow';
 import { buildDRE } from "@/core/finance/dre-engine";
 import { getMonthData } from "@/core/finance/month-reader";
@@ -108,12 +109,14 @@ export async function getDashboardReal(userId: string) {
     liabilities,
     pfTransactions,
     pjTransactions,
+    investments,
   ] = await Promise.all([
     getAccountsWithBalance(userId),
     getTaxObligations(),
     getLiabilities(userId),
     getTransactionsByMonthList(userId, 'PF', lastSixMonths),
     getTransactionsByMonthList(userId, 'PJ', lastSixMonths),
+    getInvestments(userId),
   ]);
 
   // União PF+PJ para o gráfico de 6 meses e cálculos mensais combinados
@@ -129,6 +132,32 @@ export async function getDashboardReal(userId: string) {
     .reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
 
   const total = totalPF + totalPJ;
+
+  // ===== NET WORTH =====
+  const totalAccounts = totalPF + totalPJ;
+
+  const totalInvestments = investments.reduce((sum: number, item: any) => {
+    let value = 0;
+    if (item.currentValue !== undefined && item.currentValue !== null) {
+      value = Number(item.currentValue);
+    } else if (item.quantity && item.currentPrice) {
+      value = Number(item.quantity) * Number(item.currentPrice);
+    }
+    return sum + (isNaN(value) ? 0 : value);
+  }, 0);
+
+  const activeLiabilities = liabilities.filter((item: any) => {
+    const balance = Number(item.remainingBalance || 0);
+    return balance > 0;
+  });
+
+  const totalLiabilities = activeLiabilities.reduce(
+    (sum: number, item: any) => sum + Number(item.remainingBalance || 0),
+    0
+  );
+
+  const netWorthValue = totalAccounts + totalInvestments - totalLiabilities;
+  const totalAssets = totalAccounts + totalInvestments;
 
 
 
@@ -203,5 +232,12 @@ export async function getDashboardReal(userId: string) {
       allocation: getAccountAllocation(accounts),
       dre,
       cashflow,
+      netWorth: {
+        totalAccounts,
+        totalInvestments,
+        totalAssets,
+        totalLiabilities,
+        value: netWorthValue,
+      },
     };
   }
