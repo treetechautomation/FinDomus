@@ -182,8 +182,17 @@ export async function addTransaction(userId: string, data: TransactionDTO) {
 export async function addTransactionsBatch(userId: string, items: TransactionDTO[]) {
   if (!userId) throw new Error("userId required");
   const now = new Date().toISOString();
-  const householdId = await resolveUserHouseholdId(userId);
+  console.log("[IMPORT_DEBUG] resolveUserHouseholdId start", { userId });
+  let householdId;
+  try {
+    householdId = await resolveUserHouseholdId(userId);
+    console.log("[IMPORT_DEBUG] resolveUserHouseholdId ok", { householdId });
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] resolveUserHouseholdId failed", err);
+    throw err;
+  }
 
+  console.log("[IMPORT_DEBUG] validItems mapping start", { itemsCount: items.length });
   const validItems = items
     .map((item) => {
       const normalizedDate = normalizeTransactionDate(item.date ?? now);
@@ -206,6 +215,7 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
       };
     })
     .filter((item) => item.description && Number.isFinite(Number(item.amount)));
+  console.log("[IMPORT_DEBUG] validItems mapping ok", { validItemsCount: validItems.length });
 
   if (!validItems.length) {
     return { inserted: 0, skipped: 0, duplicates: [] as TransactionDTO[] };
@@ -230,40 +240,54 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
     hashesByOwner.get(owner)!.push(item.importHash);
   }
 
-  for (const [owner, hashes] of hashesByOwner) {
-    const chunkQueries: Promise<void>[] = [];
+  console.log("[IMPORT_DEBUG] query existingHashes start", { uniqueItemsCount: uniqueItems.length });
+  try {
+    for (const [owner, hashes] of hashesByOwner) {
+      const chunkQueries: Promise<void>[] = [];
 
-    for (let i = 0; i < hashes.length; i += 30) {
-      const chunk = hashes.slice(i, i + 30);
-      const q = query(
-        collection(db, 'transactions'),
-        where('userId', '==', userId),
-        where('owner', '==', owner),
-        where('importHash', 'in', chunk)
-      );
-      chunkQueries.push(
-        getDocs(q).then((snap) => {
-          snap.docs.forEach((d) => {
-            const h = d.data().importHash;
-            if (h) existingHashes.add(h);
-          });
-        })
-      );
+      for (let i = 0; i < hashes.length; i += 30) {
+        const chunk = hashes.slice(i, i + 30);
+        const q = query(
+          collection(db, 'transactions'),
+          where('userId', '==', userId),
+          where('owner', '==', owner),
+          where('importHash', 'in', chunk)
+        );
+        chunkQueries.push(
+          getDocs(q).then((snap) => {
+            snap.docs.forEach((d) => {
+              const h = d.data().importHash;
+              if (h) existingHashes.add(h);
+            });
+          })
+        );
+      }
+
+      await Promise.all(chunkQueries);
     }
-
-    await Promise.all(chunkQueries);
+    console.log("[IMPORT_DEBUG] query existingHashes ok", { existingHashesCount: existingHashes.size });
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] query existingHashes failed", err);
+    throw err;
   }
 
   const toInsert = uniqueItems.filter(
     (item) => !existingHashes.has(item.importHash || '')
   );
 
-  for (const item of toInsert) {
-    await assertMonthOpen(
-      userId,
-      item.owner || 'PF',
-      item.competenceMonthKey || item.monthKey
-    );
+  console.log("[IMPORT_DEBUG] assertMonthOpen start", { toInsertCount: toInsert.length });
+  try {
+    for (const item of toInsert) {
+      await assertMonthOpen(
+        userId,
+        item.owner || 'PF',
+        item.competenceMonthKey || item.monthKey
+      );
+    }
+    console.log("[IMPORT_DEBUG] assertMonthOpen ok");
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] assertMonthOpen failed", err);
+    throw err;
   }
 
   const batch = writeBatch(db);
@@ -275,8 +299,15 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
     batch.set(ref, data);
   }
 
-  if (toInsert.length) {
-    await batch.commit();
+  console.log("[IMPORT_DEBUG] batch.commit transactions start", { count: toInsert.length });
+  try {
+    if (toInsert.length) {
+      await batch.commit();
+    }
+    console.log("[IMPORT_DEBUG] batch.commit transactions ok");
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] batch.commit transactions failed", err);
+    throw err;
   }
 
   const summaryTargets = new Set(
@@ -285,12 +316,20 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
       .map((item) => `${item.owner || 'PF'}|${item.monthKey}`)
   );
 
-  for (const target of summaryTargets) {
-    const [owner, month] = target.split('|') as ['PF' | 'PJ', string];
+  console.log("[IMPORT_DEBUG] generateMonthlySummary batch start", { targetCount: summaryTargets.size });
+  try {
+    for (const target of summaryTargets) {
+      const [owner, month] = target.split('|') as ['PF' | 'PJ', string];
 
-    if (month) {
-      await generateMonthlySummary(userId, owner, month);
+      if (month) {
+        console.log("[IMPORT_DEBUG] generateMonthlySummary start", { userId, owner, month });
+        await generateMonthlySummary(userId, owner, month);
+        console.log("[IMPORT_DEBUG] generateMonthlySummary ok");
+      }
     }
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] generateMonthlySummary failed", err);
+    throw err;
   }
 
   const installmentItems = toInsert.filter(
@@ -301,11 +340,14 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
       item.installmentKey
   );
 
+  console.log("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction batch start", { installmentItemsCount: installmentItems.length });
   for (const item of installmentItems) {
     try {
+      console.log("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction start", { itemDescription: item.description, key: item.installmentKey });
       await upsertLiabilityFromInstallmentTransaction(userId, item);
+      console.log("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction ok");
     } catch (err) {
-      console.error("[addTransactionsBatch] Falha ao atualizar passivo automático do lançamento:", err);
+      console.error("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction failed", err);
     }
   }
 

@@ -289,6 +289,7 @@ export function Importer() {
   };
 
   const confirmImport = async (decisions?: Record<string, 'accepted' | 'ignored'>) => {
+    console.log("[IMPORT_DEBUG] confirmImport start", { userId: user?.uid, transactionsLength: transactions.length });
     if (!user?.uid) {
       toast({
         title: "Erro na autenticação",
@@ -338,7 +339,11 @@ export function Importer() {
         return data;
       });
 
+      console.log("[IMPORT_DEBUG] payload created", { length: payload.length });
+
       const summary = await addTransactionsBatch(user.uid, payload);
+
+      console.log("[IMPORT_DEBUG] addTransactionsBatch completed", summary);
 
       toast({
         title: "Importação concluída",
@@ -347,7 +352,13 @@ export function Importer() {
 
       clearStaging(); // limpa sessionStorage após sucesso
       clearImport();
-    } catch (error) {
+    } catch (err: any) {
+      console.error("[IMPORT_DEBUG] confirmImport failed", {
+        code: err?.code,
+        message: err?.message,
+        stack: err?.stack,
+        err
+      });
       toast({
         title: "Erro ao salvar",
         description: "Não foi possível salvar os lançamentos no banco de dados.",

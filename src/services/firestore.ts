@@ -28,12 +28,20 @@ function getMonthKey(date?: string) {
 export async function generateMonthlySummary(userId: string, owner: "PF" | "PJ", month: string) {
   if (!userId) throw new Error("userId required");
 
-  const snap = await getDocs(
-    query(
-      collection(db, "transactions"),
-      where("userId", "==", userId)
-    )
-  );
+  console.log("[IMPORT_DEBUG] getDocs transactions start", { userId, owner, month });
+  let snap;
+  try {
+    snap = await getDocs(
+      query(
+        collection(db, "transactions"),
+        where("userId", "==", userId)
+      )
+    );
+    console.log("[IMPORT_DEBUG] getDocs transactions ok", { docsCount: snap.docs.length });
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] getDocs transactions failed", err);
+    throw err;
+  }
 
   const transactions = snap.docs
     .map(doc => doc.data())
@@ -57,18 +65,25 @@ export async function generateMonthlySummary(userId: string, owner: "PF" | "PJ",
 
   const docId = `${userId}_${owner}_${month}`;
 
-  await setDoc(doc(db, "monthly_summaries", docId), {
-    id: docId,
-    userId,
-    owner,
-    month,
-    income,
-    expenses,
-    balance,
-    transactionsCount: transactions.length,
-    categories,
-    updatedAt: new Date().toISOString(),
-  }, { merge: true });
+  console.log("[IMPORT_DEBUG] setDoc monthly_summaries start", { docId });
+  try {
+    await setDoc(doc(db, "monthly_summaries", docId), {
+      id: docId,
+      userId,
+      owner,
+      month,
+      income,
+      expenses,
+      balance,
+      transactionsCount: transactions.length,
+      categories,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    console.log("[IMPORT_DEBUG] setDoc monthly_summaries ok");
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] setDoc monthly_summaries failed", err);
+    throw err;
+  }
 
   return {
     owner,

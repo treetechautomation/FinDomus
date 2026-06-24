@@ -66,6 +66,7 @@ export async function deleteLiability(userId: string, liabilityId: string) {
 }
 
 export async function upsertLiabilityFromInstallmentTransaction(userId: string, transaction: any) {
+  console.log("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction start", { userId, transactionId: transaction.id });
   if (!userId) throw new Error("userId required");
   if (!transaction?.isInstallment) return null;
 
@@ -96,6 +97,7 @@ export async function upsertLiabilityFromInstallmentTransaction(userId: string, 
     .replace(/\(?\s*\d+\s*\/\s*\d+\s*\)?/g, '')
     .trim();
 
+  console.log("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction check existing start", { installmentKey });
   const q = query(
     collection(db, 'liabilities'),
     where('userId', '==', userId),
@@ -104,6 +106,7 @@ export async function upsertLiabilityFromInstallmentTransaction(userId: string, 
   );
 
   const snap = await getDocs(q);
+  console.log("[IMPORT_DEBUG] upsertLiabilityFromInstallmentTransaction check existing ok", { found: !snap.empty });
 
   const payload = {
     name,
@@ -132,13 +135,16 @@ export async function upsertLiabilityFromInstallmentTransaction(userId: string, 
     const existingCurrent = Number(existingData.currentInstallment || 0);
 
     if (existingCurrent <= currentInstallment) {
+      console.log("[IMPORT_DEBUG] updateDoc liability start", { liabilityId: existing.id });
       await updateDoc(doc(db, 'liabilities', existing.id), {
         ...payload,
         createdAt: existingData.createdAt,
       });
+      console.log("[IMPORT_DEBUG] updateDoc liability ok");
     }
     liabilityId = existing.id;
   } else {
+    console.log("[IMPORT_DEBUG] addDoc liability start");
     const householdId = await resolveUserHouseholdId(userId);
     const docRef = await addDoc(collection(db, 'liabilities'), {
       ...payload,
@@ -146,6 +152,7 @@ export async function upsertLiabilityFromInstallmentTransaction(userId: string, 
       householdId,
       createdAt: new Date().toISOString(),
     });
+    console.log("[IMPORT_DEBUG] addDoc liability ok", { newLiabilityId: docRef.id });
     liabilityId = docRef.id;
   }
 
@@ -165,13 +172,16 @@ export async function upsertLiabilityFromInstallmentTransaction(userId: string, 
       status: 'paid',
     };
 
+    console.log("[IMPORT_DEBUG] calling addLiabilityPayment start", { liabilityId });
     await addLiabilityPayment(userId, payment);
+    console.log("[IMPORT_DEBUG] calling addLiabilityPayment ok");
   }
 
   return liabilityId;
 }
 
 export async function addLiabilityPayment(userId: string, payment: LiabilityPayment) {
+  console.log("[IMPORT_DEBUG] addLiabilityPayment start", { userId, payment });
   if (!userId) throw new Error("userId required");
   await assertMonthOpen(userId, payment.owner, payment.competenceMonthKey);
 
@@ -192,20 +202,34 @@ export async function addLiabilityPayment(userId: string, payment: LiabilityPaym
     updatedAt: now,
   };
 
-  await setDoc(paymentDocRef, payload);
+  console.log("[IMPORT_DEBUG] setDoc payment subcollection start", { refPath: paymentDocRef.path });
+  try {
+    await setDoc(paymentDocRef, payload);
+    console.log("[IMPORT_DEBUG] setDoc payment subcollection ok");
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] setDoc payment subcollection failed", err);
+    throw err;
+  }
 
   // Atualiza o passivo pai
   const remainingInstallments = Math.max(payment.totalInstallments - payment.installmentNumber, 0);
   const remainingBalance = Number((remainingInstallments * payment.amount).toFixed(2));
 
   const liabilityRef = doc(db, "liabilities", payment.liabilityId);
-  await updateDoc(liabilityRef, {
-    currentInstallment: payment.installmentNumber,
-    remainingInstallments,
-    remainingBalance,
-    status: remainingInstallments > 0 ? "active" : "paid",
-    updatedAt: now,
-  });
+  console.log("[IMPORT_DEBUG] updateDoc parent liability start", { remainingInstallments, remainingBalance });
+  try {
+    await updateDoc(liabilityRef, {
+      currentInstallment: payment.installmentNumber,
+      remainingInstallments,
+      remainingBalance,
+      status: remainingInstallments > 0 ? "active" : "paid",
+      updatedAt: now,
+    });
+    console.log("[IMPORT_DEBUG] updateDoc parent liability ok");
+  } catch (err) {
+    console.error("[IMPORT_DEBUG] updateDoc parent liability failed", err);
+    throw err;
+  }
 }
 
 export async function reverseLiabilityPayment(
