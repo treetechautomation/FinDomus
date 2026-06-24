@@ -272,17 +272,24 @@ const monthlyExpenses = monthTransactions
 
   const budgetRows = categories.map((cat) => {
     const planned = monthlyIncome * (Number(cat.percentage || 0) / 100);
-      const spent = monthTransactions
-        .filter((t: any) => t.type === 'expense')
-        .filter((t: any) => {
-    const txCat = normalizeCategory(getPlanningTransactionCategory(t));
-    const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
-    return goalCats.some((gc: string) => txCat.includes(gc));
-  })
-        .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0)
-        + (cat.name.toLowerCase().includes('dívida') || cat.name.toLowerCase().includes('divida')
-            ? adjustedMonthlyLiabilities
-            : 0);
+    const isPatrimonial = cat.id === 'patrimonio' || cat.id === 'independencia';
+
+    const spent = monthTransactions
+      .filter((t: any) => {
+        if (isPatrimonial) {
+          return t.type === 'expense' || t.type === 'income' || t.type === 'transfer';
+        }
+        return t.type === 'expense';
+      })
+      .filter((t: any) => {
+        const txCat = normalizeCategory(getPlanningTransactionCategory(t));
+        const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
+        return goalCats.some((gc: string) => txCat.includes(gc));
+      })
+      .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0)
+      + (cat.name.toLowerCase().includes('dívida') || cat.name.toLowerCase().includes('divida')
+          ? adjustedMonthlyLiabilities
+          : 0);
 
     const remaining = planned - spent;
     const used = planned > 0 ? (spent / planned) * 100 : spent > 0 ? 100 : 0;
@@ -297,7 +304,12 @@ const monthlyExpenses = monthTransactions
       const isDebtGoal = cat.name.toLowerCase().includes('dívida') || cat.name.toLowerCase().includes('divida');
 
       const goalTransactions = monthTransactions
-        .filter((t: any) => t.type === 'expense')
+        .filter((t: any) => {
+          if (isPatrimonial) {
+            return t.type === 'expense' || t.type === 'income' || t.type === 'transfer';
+          }
+          return t.type === 'expense';
+        })
         .filter((t: any) => {
           const txCat = normalizeCategory(getPlanningTransactionCategory(t));
           const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
