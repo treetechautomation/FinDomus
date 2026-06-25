@@ -238,9 +238,9 @@ export default function PrimeiroMilhaoPage() {
     return Math.max(needed, 0);
   }
 
-  const neededConservador = calculateNeededMonthlyContribution(calculated.initial, calculated.target, 5, 15);
-  const neededModerado = calculateNeededMonthlyContribution(calculated.initial, calculated.target, 9, 15);
-  const neededAgressivo = calculateNeededMonthlyContribution(calculated.initial, calculated.target, 13, 15);
+  const neededConservador = calculateNeededMonthlyContribution(initial, target, 5, 15);
+  const neededModerado = calculateNeededMonthlyContribution(initial, target, 9, 15);
+  const neededAgressivo = calculateNeededMonthlyContribution(initial, target, 13, 15);
 
   const colors = [
     '#22d3ee',
@@ -466,10 +466,10 @@ export default function PrimeiroMilhaoPage() {
       <div>
         <h2 className="text-lg font-bold tracking-tight text-white mb-1 flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-cyan-400" />
-          Simulador de Cenários FIRE (Meta em 15 Anos)
+          Simulador de Cenários FIRE (Meta em 15 anos)
         </h2>
         <p className="text-xs text-zinc-500 font-light mb-4">
-          Aporte mensal necessário para alcançar o primeiro milhão (ou sua meta) em 15 anos com juros compostos.
+          Aportes mensais necessários considerando seu valor inicial e meta atuais.
           {realYieldsAvg !== null && realYieldsAvg > 0 && (
             <span className="text-cyan-400 ml-1 font-normal">
               Seus proventos reais médios de {brl(realYieldsAvg)}/mês podem cobrir parte desse esforço!
