@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Importer } from '@/components/import/importer';
 import { B3Importer } from '@/components/import/b3/b3-importer';
+import { CorretorasImporter } from '@/components/import/corretoras/corretoras-importer';
 
 export function ImportCenter() {
   const [activeSource, setActiveSource] = useState<'financeiro' | 'b3' | 'corretoras' | 'cripto'>('financeiro');
@@ -39,23 +40,7 @@ export function ImportCenter() {
         </TabsContent>
 
         <TabsContent value="corretoras" className="mt-6 animate-in fade-in duration-300">
-          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-zinc-400 mb-2">
-                <Building2 className="h-6 w-6" />
-                <Badge className="bg-white/5 text-zinc-400 border-white/10">Integração Futura</Badge>
-              </div>
-              <CardTitle className="text-xl font-bold">Importação via Corretoras</CardTitle>
-              <CardDescription>
-                Integração automatizada ou por arquivos com XP, BTG, Rico, Inter e outras corretoras nacionais.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="py-6">
-              <p className="text-sm text-zinc-400">
-                Esta funcionalidade está programada para sprints futuras do roadmap do FinDomus.
-              </p>
-            </CardContent>
-          </Card>
+          <CorretorasImporter />
         </TabsContent>
 
         <TabsContent value="cripto" className="mt-6 animate-in fade-in duration-300">
