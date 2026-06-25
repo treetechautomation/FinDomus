@@ -50,6 +50,11 @@ const InvestmentYieldsTab = dynamic(
   { ssr: false }
 );
 
+const InvestmentB3DashboardTab = dynamic(
+  () => import('@/components/investimentos/tabs/investment-b3-dashboard-tab').then((mod) => mod.InvestmentB3DashboardTab),
+  { ssr: false }
+);
+
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -563,6 +568,12 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
         <span className="relative">ATIVOS</span>
       </TabsTrigger>
       <TabsTrigger 
+        value="b3-dashboard"
+        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+      >
+        <span className="relative">CARTEIRA B3</span>
+      </TabsTrigger>
+      <TabsTrigger 
         value="metas"
         className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
       >
@@ -628,6 +639,12 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
           getTypeLabel={getTypeLabel}
           getTypeBadgeStyle={getTypeBadgeStyle}
         />
+      </TabsContent>
+    )}
+
+    {activeTab === 'b3-dashboard' && (
+      <TabsContent value="b3-dashboard">
+        <InvestmentB3DashboardTab userId={user?.uid || ''} />
       </TabsContent>
     )}
 
