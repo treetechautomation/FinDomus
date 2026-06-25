@@ -17,23 +17,26 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     let text = '';
+    let parsedData;
 
     if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
       // Usa o leitor de PDF (que já está isolado no core) para pegar o texto
       const { extractTextFromPDF } = await import('@/core/finance/pdf-reader');
       text = await extractTextFromPDF(buffer, password || undefined);
+      parsedData = parseB3Pdf(text);
+    } else if (file.name.endsWith('.xlsx')) {
+      const { parseB3Xlsx } = await import('@/services/import/b3/b3-xlsx-parser');
+      parsedData = parseB3Xlsx(buffer, file.name);
     } else {
       // Se for CSV/Texto
       text = buffer.toString('utf-8');
+      parsedData = parseB3Pdf(text);
     }
-
-    // Chama o parser puramente B3
-    const parsedData = parseB3Pdf(text);
 
     return NextResponse.json({ 
       success: true,
       data: parsedData,
-      rawTextLen: text.length
+      rawTextLen: file.name.endsWith('.xlsx') ? buffer.length : text.length
     });
   } catch (error: any) {
     console.error('B3 Import Error:', error);
