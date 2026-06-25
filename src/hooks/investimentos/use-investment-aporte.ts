@@ -53,9 +53,9 @@ export function useInvestmentAporte({
     return goals.map((goal: any) => {
       const suggestion = aporteSuggestions.find((item: any) => item.name === goal.name);
       const proportionalValue =
-        totalSuggestedGap > 0 && suggestion
-          ? (suggestion.suggestedValue / totalSuggestedGap) * aporteNumber
-          : aporteNumber * (goal.value / 100);
+        totalSuggestedGap > 0
+          ? (suggestion ? (suggestion.suggestedValue / totalSuggestedGap) * aporteNumber : 0)
+          : (aporteNumber * (goal.value / 100));
 
       return {
         name: goal.name,
