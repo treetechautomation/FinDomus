@@ -7,12 +7,24 @@ type BudgetSummaryCardProps = {
   brl: (value: number) => string;
 };
 
+const isPatrimonialGoal = (name: string) => {
+  const norm = String(name || '')
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+  return norm.includes("construcao de patrimonio") || norm.includes("independencia financeira");
+};
+
 export function BudgetSummaryCard({
   budgetRows,
   monthlyIncome,
   totalOutflow,
   brl,
 }: BudgetSummaryCardProps) {
+  const patrimonialRows = budgetRows.filter((item) => isPatrimonialGoal(item.name));
+  const aporteSugerido = patrimonialRows.reduce((sum, item) => sum + Math.max(0, item.remaining), 0);
+
   return (
     <Card>
       <CardHeader>
@@ -61,20 +73,33 @@ export function BudgetSummaryCard({
           </tbody>
         </table>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:grid-cols-4 border-t border-border/40 pt-6">
           <div>
             <div className="text-2xl font-bold text-emerald-500">{brl(totalOutflow)}</div>
-            <div className="text-xs font-semibold">Total gasto</div>
+            <div className="text-xs font-semibold text-muted-foreground">Total gasto</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-primary">{brl(monthlyIncome)}</div>
-            <div className="text-xs font-semibold">Receita do mês</div>
+            <div className="text-xs font-semibold text-muted-foreground">Receita do mês</div>
           </div>
           <div>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               {monthlyIncome > 0 ? ((totalOutflow / monthlyIncome) * 100).toFixed(1) : '0'}%
             </div>
-            <div className="text-xs font-semibold">Utilizado da renda</div>
+            <div className="text-xs font-semibold text-muted-foreground">Utilizado da renda</div>
+          </div>
+          <div className="relative overflow-hidden p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+            <div className="text-2xl font-black text-cyan-400 tracking-tight">{brl(aporteSugerido)}</div>
+            <div className="text-xs font-bold text-cyan-300">Aporte sugerido do mês</div>
+            <div className="text-[9px] text-zinc-400 mt-1 leading-tight">
+              Baseado no saldo de: Construção de patrimônio + Independência financeira
+            </div>
+            <a 
+              href="/investimentos" 
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 mt-2 transition-colors"
+            >
+              Ir para Aportar →
+            </a>
           </div>
         </div>
       </CardContent>
