@@ -32,9 +32,10 @@ interface StatCardProps extends VariantProps<typeof statCardVariants> {
   description?: string;
   className?: string;
   glowColor?: 'blue' | 'green' | 'orange' | 'purple' | 'red';
+  children?: React.ReactNode;
 }
 
-export function StatCard({ title, value, icon: Icon, description, variant, size, className, glowColor }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, description, variant, size, className, glowColor, children }: StatCardProps) {
   const isSmall = size === 'sm';
   
   // Custom class determination for premium glows
@@ -67,6 +68,7 @@ export function StatCard({ title, value, icon: Icon, description, variant, size,
       <CardContent className={cn(isSmall ? "pb-4 px-4" : "")}>
         <div className={cn("font-extrabold tracking-tight text-white", isSmall ? "text-lg" : "text-3xl")}>{value}</div>
         {description && <p className={cn("text-zinc-500 font-light mt-1", isSmall ? "text-[10px]" : "text-xs")}>{description}</p>}
+        {children}
       </CardContent>
     </Card>
   );

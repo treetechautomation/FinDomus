@@ -6,9 +6,11 @@ import dynamic from 'next/dynamic';
 
 import type { Investment, Account, Liability } from '@/services/firestore/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, Sparkles, Plus } from 'lucide-react';
+import { TrendingUp, Sparkles, Plus, Calendar, CalendarDays, Target } from 'lucide-react';
 import { NewYieldDialog } from './new-yield-dialog';
 import { Button } from '@/components/ui/button';
+import { StatCard } from '@/components/overview/stat-card';
+import { getInvestmentYields, type InvestmentYield } from '@/services/firestore/yields';
 
 import { calculateFinancialCore } from '@/core/finance/financial-core';
 import { useInvestmentMetrics } from '@/hooks/investimentos/use-investment-metrics';
@@ -163,6 +165,7 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
   const [prefillTicker, setPrefillTicker] = useState<{ ticker: string; name?: string; type?: string; price?: number; source?: string } | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [openYieldDialog, setOpenYieldDialog] = useState(false);
+  const [yields, setYields] = useState<InvestmentYield[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<'Conservador' | 'Moderado' | 'Arrojado'>('Arrojado');
@@ -203,6 +206,13 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
 
     loadWealthData();
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getInvestmentYields(user.uid)
+      .then(setYields)
+      .catch(console.error);
+  }, [user?.uid, investments]);
 
   function applyInvestmentProfile(profile: keyof typeof INVESTMENT_PROFILES) {
     setSelectedProfile(profile);
@@ -300,8 +310,46 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     distribution,
   });
 
-  
-return (
+  const yieldMetrics = useMemo(() => {
+    const today = new Date();
+    const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Obter os últimos 12 meses (incluindo o atual) em formato YYYY-MM
+    const last12Months = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
+
+    let totalCurrentMonth = 0;
+    let totalLast12M = 0;
+
+    yields.forEach((y) => {
+      if (!y.date || !y.amount) return;
+      
+      if (y.date.startsWith(currentYearMonth)) {
+        totalCurrentMonth += Number(y.amount) || 0;
+      }
+      
+      if (last12Months.some((ym) => y.date.startsWith(ym))) {
+        totalLast12M += Number(y.amount) || 0;
+      }
+    });
+
+    const averageMonthly = totalLast12M / 12;
+    const targetIndependence = 6000;
+    const progressPercent = targetIndependence > 0 ? (averageMonthly / targetIndependence) * 100 : 0;
+
+    return {
+      totalCurrentMonth,
+      totalLast12M,
+      averageMonthly,
+      targetIndependence,
+      progressPercent,
+    };
+  }, [yields]);
+
+  return (
     <div className="relative">
       <div className="absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
@@ -333,7 +381,45 @@ return (
         </div>
       </div>
 
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title="Proventos do Mês"
+          value={money(yieldMetrics.totalCurrentMonth)}
+          icon={Calendar}
+          description="Recebido no mês vigente"
+          glowColor="blue"
+        />
+        <StatCard
+          title="Últimos 12 Meses"
+          value={money(yieldMetrics.totalLast12M)}
+          icon={CalendarDays}
+          description="Total acumulado nos últimos 12 meses"
+          glowColor="purple"
+        />
+        <StatCard
+          title="Média Mensal"
+          value={money(yieldMetrics.averageMonthly)}
+          icon={TrendingUp}
+          description="Média móvel dos últimos 12 meses"
+          glowColor="green"
+        />
+        <StatCard
+          title="Independência Financeira"
+          value={`${yieldMetrics.progressPercent.toFixed(1)}%`}
+          icon={Target}
+          description={`Média de ${money(yieldMetrics.averageMonthly)} do alvo de ${money(yieldMetrics.targetIndependence)}`}
+          glowColor="orange"
+        >
+          <div className="w-full bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div
+              className="bg-amber-400 h-full rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${Math.min(yieldMetrics.progressPercent, 100)}%` }}
+            />
+          </div>
+        </StatCard>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
     <TabsList className="bg-transparent border-b border-white/10 rounded-none w-full justify-start gap-1 p-0 h-auto">
       <TabsTrigger 
         value="ativos"
