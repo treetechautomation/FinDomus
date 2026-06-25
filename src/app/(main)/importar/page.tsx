@@ -1,4 +1,4 @@
-import { Importer } from "@/components/import/importer";
+import { ImportCenter } from "@/components/import/import-center";
 
 export default function ImportarPage() {
   return (
@@ -10,7 +10,7 @@ export default function ImportarPage() {
         </p>
       </div>
 
-      <Importer />
+      <ImportCenter />
     </div>
   );
 }

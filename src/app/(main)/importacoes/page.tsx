@@ -1,4 +1,4 @@
-import { Importer } from "@/components/import/importer";
+import { ImportCenter } from "@/components/import/import-center";
 import { Upload } from "lucide-react";
 
 export default function ImportacoesPage() {
@@ -14,7 +14,7 @@ export default function ImportacoesPage() {
         </p>
       </div>
 
-      <Importer />
+      <ImportCenter />
     </div>
   );
 }

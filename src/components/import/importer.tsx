@@ -6,11 +6,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { 
   Upload, FileText, X, 
-  Loader2, Lock, ShieldCheck, ChevronRight, RotateCcw,
-  TrendingUp, Building2, Wallet
+  Loader2, Lock, ShieldCheck, ChevronRight, RotateCcw
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -80,7 +77,6 @@ function clearStaging() {
 export function Importer() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [activeSource, setActiveSource] = useState<'financeiro' | 'b3' | 'corretoras' | 'cripto'>('financeiro');
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfPassword, setPdfPassword] = useState('');
@@ -468,25 +464,8 @@ export function Importer() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="financeiro" value={activeSource} onValueChange={(val) => setActiveSource(val as any)} className="w-full">
-        <TabsList className="bg-slate-900/60 border border-white/5 grid w-full grid-cols-2 md:grid-cols-4 p-1 h-auto rounded-xl">
-          <TabsTrigger value="financeiro" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-            Financeiro
-          </TabsTrigger>
-          <TabsTrigger value="b3" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center justify-center gap-1.5">
-            Carteira B3 <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[9px] px-1 py-0 h-4">Breve</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="corretoras" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-            Corretoras
-          </TabsTrigger>
-          <TabsTrigger value="cripto" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-            Cripto / Futuro
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="financeiro" className="space-y-6 mt-6 animate-in fade-in duration-300">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="border-primary/20 bg-card/70">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-primary/20 bg-card/70">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="h-5 w-5 text-primary" />
@@ -624,89 +603,7 @@ export function Importer() {
                 </CardContent>
               </Card>
             </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="b3" className="mt-6 animate-in fade-in duration-300">
-          <Card className="border-amber-500/20 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl" />
-            <CardHeader>
-              <div className="flex items-center gap-2 text-amber-400 mb-2">
-                <TrendingUp className="h-6 w-6" />
-                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">Em Homologação</Badge>
-              </div>
-              <CardTitle className="text-xl font-bold">Importação B3 em preparação</CardTitle>
-              <CardDescription>
-                Carregue sua carteira de investimentos diretamente com relatórios da Área do Investidor B3.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-zinc-300">Aqui você poderá importar:</h4>
-                <ul className="text-sm text-zinc-400 space-y-2 pl-4 list-disc">
-                  <li>Posição de custódia consolidada</li>
-                  <li>Extrato de movimentações históricas (compras e vendas)</li>
-                  <li>Dividendos, JCP e proventos recebidos/provisionados</li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-zinc-300">Formatos previstos:</h4>
-                <div className="flex gap-2">
-                  <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-300">CSV B3</Badge>
-                  <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-300">PDF B3</Badge>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-white/5">
-                <Button disabled className="w-full md:w-auto bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                  Importar Carteira B3 em breve
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="corretoras" className="mt-6 animate-in fade-in duration-300">
-          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-zinc-400 mb-2">
-                <Building2 className="h-6 w-6" />
-                <Badge className="bg-white/5 text-zinc-400 border-white/10">Integração Futura</Badge>
-              </div>
-              <CardTitle className="text-xl font-bold">Importação via Corretoras</CardTitle>
-              <CardDescription>
-                Integração automatizada ou por arquivos com XP, BTG, Rico, Inter e outras corretoras nacionais.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="py-6">
-              <p className="text-sm text-zinc-400">
-                Esta funcionalidade está programada para sprints futuras do roadmap do FinDomus.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="cripto" className="mt-6 animate-in fade-in duration-300">
-          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-zinc-400 mb-2">
-                <Wallet className="h-6 w-6" />
-                <Badge className="bg-white/5 text-zinc-400 border-white/10">Integração Futura</Badge>
-              </div>
-              <CardTitle className="text-xl font-bold">Criptomoedas e Ativos Globais</CardTitle>
-              <CardDescription>
-                Importação de carteira cripto, extratos de exchanges (Binance, Mercado Bitcoin) e contratos futuros.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="py-6">
-              <p className="text-sm text-zinc-400">
-                Esta funcionalidade está programada para sprints futuras do roadmap do FinDomus.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
     </div>
   );
 }
