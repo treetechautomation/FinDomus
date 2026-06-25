@@ -22,6 +22,8 @@ import { getAccountsWithBalance } from '@/services/firestore/accounts';
 import { getLiabilities } from '@/services/firestore/liabilities';
 import { getInvestmentYields } from '@/services/firestore/yields';
 import { calculateFinancialCore } from '@/core/finance/financial-core';
+import { auth } from '@/lib/firebase';
+import { getIdToken } from 'firebase/auth';
 
 const aportes = [50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 5000, 10000];
 const anos = [10, 15, 20, 25, 30, 35, 40];
@@ -66,6 +68,9 @@ export default function PrimeiroMilhaoPage() {
   const [loadingRealData, setLoadingRealData] = useState(false);
   const [realYieldsAvg, setRealYieldsAvg] = useState<number | null>(null);
   const [hasLoadedRealData, setHasLoadedRealData] = useState(false);
+  const [selicRate, setSelicRate] = useState<number | null>(null);
+  const [walletRate, setWalletRate] = useState<number | null>(null);
+  const [rateSource, setRateSource] = useState('Cenário manual');
 
   const [initialInput, setInitialInput] = useState('1000000');
   const [targetInput, setTargetInput] = useState('100000000');
@@ -123,6 +128,46 @@ export default function PrimeiroMilhaoPage() {
           }
         });
         setRealYieldsAvg(totalYields12M / 12);
+
+        // Somar o total investido e o valor atual para calcular a rentabilidade da carteira
+        let totalInvested = 0;
+        let totalCurrentValue = 0;
+
+        (investmentsData || []).forEach((item: any) => {
+          const qty = Number(item.quantity || 0);
+          const avgPrice = Number(item.averagePrice || 0);
+          const currentPrice = Number(item.currentPrice || 0);
+          const val = Number(item.currentValue || 0);
+          const contributions = Number(item.contributions || 0);
+
+          const itemInvested = qty > 0 && avgPrice > 0 ? qty * avgPrice : contributions;
+          const itemCurrent = qty > 0 && currentPrice > 0 ? qty * currentPrice : val;
+
+          totalInvested += itemInvested;
+          totalCurrentValue += itemCurrent;
+        });
+
+        if (totalInvested > 0) {
+          const yieldReturn = (totalCurrentValue - totalInvested) / totalInvested;
+          setWalletRate(yieldReturn * 100);
+        }
+
+        // Buscar a taxa SELIC atual
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const token = await getIdToken(currentUser);
+          const marketRes = await fetch('/api/market/tickers', {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          const marketJson = await marketRes.json();
+          if (marketJson?.ok && Array.isArray(marketJson.data)) {
+            const selicTick = marketJson.data.find((t: any) => t.symbol === 'SELIC');
+            if (selicTick && typeof selicTick.price === 'number') {
+              setSelicRate(selicTick.price);
+            }
+          }
+        }
       } catch (err) {
         console.error('Erro ao carregar dados reais na calculadora:', err);
       } finally {
@@ -173,6 +218,12 @@ export default function PrimeiroMilhaoPage() {
       rate,
     });
   }
+
+  const handleApplyRate = (value: number, source: string) => {
+    const formattedRate = value.toFixed(2).replace('.', ',');
+    setRateInput(formattedRate);
+    setRateSource(source);
+  };
 
   const gap = Math.max(calculated.target - calculated.initial, 0);
 
@@ -226,18 +277,81 @@ export default function PrimeiroMilhaoPage() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="grid gap-4 lg:grid-cols-5">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-primary">Rendimento anual</label>
-            <div className="flex h-11 items-center rounded-md border bg-background">
-              <span className="px-3 text-sm text-muted-foreground">%</span>
-              <input
-                value={rateInput}
-                onChange={(e) => setRateInput(e.target.value)}
-                className="w-full bg-transparent px-2 outline-none"
-              />
+        <CardContent className="space-y-6">
+          {/* Seção de Presets Rápidos */}
+          <div className="space-y-2.5 border-b border-white/5 pb-4">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+              Presets de Rentabilidade Anual
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={selicRate === null}
+                onClick={() => handleApplyRate(selicRate!, 'SELIC atual')}
+                className="text-xs border-white/10 hover:border-cyan-500/40 rounded-xl px-3 py-1.5 h-8 bg-slate-900/40 text-white"
+              >
+                {selicRate !== null ? `SELIC atual (${selicRate.toFixed(2)}% a.a.)` : 'SELIC indisponível'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={walletRate === null}
+                onClick={() => handleApplyRate(walletRate!, 'Carteira')}
+                className="text-xs border-white/10 hover:border-cyan-500/40 rounded-xl px-3 py-1.5 h-8 bg-slate-900/40 text-white"
+              >
+                {walletRate !== null ? `Carteira (${walletRate.toFixed(1)}% acum.)` : 'Carteira indisponível'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => handleApplyRate(5, 'Conservador 5%')}
+                className="text-xs border-white/10 hover:border-cyan-500/40 rounded-xl px-3 py-1.5 h-8 bg-slate-900/40 text-white"
+              >
+                Conservador (5% a.a.)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => handleApplyRate(9, 'Moderado 9%')}
+                className="text-xs border-white/10 hover:border-cyan-500/40 rounded-xl px-3 py-1.5 h-8 bg-slate-900/40 text-white"
+              >
+                Moderado (9% a.a.)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => handleApplyRate(13, 'Agressivo 13%')}
+                className="text-xs border-white/10 hover:border-cyan-500/40 rounded-xl px-3 py-1.5 h-8 bg-slate-900/40 text-white"
+              >
+                Agressivo (13% a.a.)
+              </Button>
             </div>
+            <p className="text-[10px] text-zinc-500 font-light mt-1">
+              Fonte da rentabilidade usada: <span className="font-semibold text-cyan-400">{rateSource}</span>
+            </p>
           </div>
+
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-primary">Rendimento anual</label>
+              <div className="flex h-11 items-center rounded-md border bg-background">
+                <span className="px-3 text-sm text-muted-foreground">%</span>
+                <input
+                  value={rateInput}
+                  onChange={(e) => {
+                    setRateInput(e.target.value);
+                    setRateSource('Cenário manual');
+                  }}
+                  className="w-full bg-transparent px-2 outline-none"
+                />
+              </div>
+            </div>
 
           <div className="space-y-2">
             <label className="text-xs font-semibold text-primary">Rendimento mensal</label>
@@ -279,6 +393,7 @@ export default function PrimeiroMilhaoPage() {
             <Button onClick={handleCalculate} className="h-11 w-full">
               Calcular
             </Button>
+          </div>
           </div>
         </CardContent>
       </Card>
