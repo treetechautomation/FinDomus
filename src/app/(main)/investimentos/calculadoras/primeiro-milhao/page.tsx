@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Line,
   LineChart,
@@ -11,11 +11,17 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from 'recharts';
-import { Calculator, ShieldAlert, Target, TrendingUp } from 'lucide-react';
+import { Calculator, ShieldAlert, Target, TrendingUp, AlertCircle, HelpCircle, Coins } from 'lucide-react';
 
 import { simulateCompound, generateChartData } from '@/core/finance/million';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/providers/auth-provider';
+import { getInvestments } from '@/services/firestore/investments';
+import { getAccountsWithBalance } from '@/services/firestore/accounts';
+import { getLiabilities } from '@/services/firestore/liabilities';
+import { getInvestmentYields } from '@/services/firestore/yields';
+import { calculateFinancialCore } from '@/core/finance/financial-core';
 
 const aportes = [50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 5000, 10000];
 const anos = [10, 15, 20, 25, 30, 35, 40];
@@ -56,6 +62,11 @@ function WealthTooltip({ active, payload, label }: any) {
 }
 
 export default function PrimeiroMilhaoPage() {
+  const { user } = useAuth();
+  const [loadingRealData, setLoadingRealData] = useState(false);
+  const [realYieldsAvg, setRealYieldsAvg] = useState<number | null>(null);
+  const [hasLoadedRealData, setHasLoadedRealData] = useState(false);
+
   const [initialInput, setInitialInput] = useState('1000000');
   const [targetInput, setTargetInput] = useState('100000000');
   const [rateInput, setRateInput] = useState('8');
@@ -65,6 +76,62 @@ export default function PrimeiroMilhaoPage() {
     target: 1000000,
     rate: 8,
   });
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    setLoadingRealData(true);
+    async function loadRealData() {
+      try {
+        const [investmentsData, accountsData, liabilitiesData, yieldsData] = await Promise.all([
+          getInvestments(user!.uid),
+          getAccountsWithBalance(user!.uid),
+          getLiabilities(user!.uid),
+          getInvestmentYields(user!.uid),
+        ]);
+
+        const financial = calculateFinancialCore({
+          accounts: accountsData || [],
+          investments: investmentsData || [],
+          liabilities: liabilitiesData || [],
+        });
+
+        const realNetWorth = financial.netWorth || 0;
+        
+        if (realNetWorth > 0) {
+          const roundedNetWorth = Math.round(realNetWorth);
+          setInitialInput(String(roundedNetWorth * 100));
+          setCalculated((c) => ({
+            ...c,
+            initial: roundedNetWorth,
+          }));
+          setHasLoadedRealData(true);
+        }
+
+        // Média de proventos 12M
+        const today = new Date();
+        const last12Months = Array.from({ length: 12 }, (_, i) => {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        });
+
+        let totalYields12M = 0;
+        (yieldsData || []).forEach((y) => {
+          if (y.date && y.amount && last12Months.some((ym) => y.date.startsWith(ym))) {
+            totalYields12M += Number(y.amount) || 0;
+          }
+        });
+        setRealYieldsAvg(totalYields12M / 12);
+      } catch (err) {
+        console.error('Erro ao carregar dados reais na calculadora:', err);
+      } finally {
+        setLoadingRealData(false);
+      }
+    }
+
+    loadRealData();
+  }, [user?.uid]);
 
   const initial = onlyNumber(initialInput);
   const target = onlyNumber(targetInput);
@@ -106,6 +173,23 @@ export default function PrimeiroMilhaoPage() {
       rate,
     });
   }
+
+  const gap = Math.max(calculated.target - calculated.initial, 0);
+
+  function calculateNeededMonthlyContribution(initial: number, target: number, annualRate: number, years: number) {
+    const r = (Math.pow(1 + annualRate / 100, 1 / 12) - 1);
+    const n = years * 12;
+    if (r <= 0) return (target - initial) / n;
+    
+    const compoundFactor = Math.pow(1 + r, n);
+    const annuityFactor = (compoundFactor - 1) / r;
+    const needed = (target - initial * compoundFactor) / annuityFactor;
+    return Math.max(needed, 0);
+  }
+
+  const neededConservador = calculateNeededMonthlyContribution(calculated.initial, calculated.target, 5, 15);
+  const neededModerado = calculateNeededMonthlyContribution(calculated.initial, calculated.target, 9, 15);
+  const neededAgressivo = calculateNeededMonthlyContribution(calculated.initial, calculated.target, 13, 15);
 
   const colors = [
     '#22d3ee',
@@ -199,47 +283,121 @@ export default function PrimeiroMilhaoPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-white/5 bg-slate-950/20 backdrop-blur-xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs font-semibold text-zinc-400 tracking-wider uppercase">
               <Target className="h-4 w-4 text-primary" />
-              Meta patrimonial
+              Meta Desejada
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-bold">{brl(calculated.target)}</CardContent>
+          <CardContent>
+            <div className="text-2xl font-black text-white tracking-tight">{brl(calculated.target)}</div>
+            <p className="text-[10px] text-zinc-500 font-light mt-1">Valor alvo definido</p>
+          </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Patrimônio inicial
+        <Card className="border-white/5 bg-slate-950/20 backdrop-blur-xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs font-semibold text-zinc-400 tracking-wider uppercase">
+              <TrendingUp className="h-4 w-4 text-cyan-400" />
+              Patrimônio Inicial
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-bold">{brl(calculated.initial)}</CardContent>
+          <CardContent>
+            <div className="text-2xl font-black text-white tracking-tight">{brl(calculated.initial)}</div>
+            <p className="text-[10px] text-zinc-500 font-light mt-1">
+              {hasLoadedRealData ? "Pré-carregado do seu patrimônio real" : "Valor manual informado"}
+            </p>
+          </CardContent>
         </Card>
 
-        <Card className={bestAffordableScenario ? 'border-emerald-500/30' : 'border-destructive/40'}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldAlert className="h-4 w-4 text-primary" />
+        <Card className="border-white/5 bg-slate-950/20 backdrop-blur-xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs font-semibold text-zinc-400 tracking-wider uppercase">
+              <Coins className="h-4 w-4 text-amber-400" />
+              Falta Guardar (Gap)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-amber-300 tracking-tight">{brl(gap)}</div>
+            <p className="text-[10px] text-zinc-500 font-light mt-1">
+              {calculated.target > 0 ? `${((calculated.initial / calculated.target) * 100).toFixed(1)}%` : '0%'} já acumulado
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={bestAffordableScenario ? 'border-emerald-500/30 bg-slate-950/20 backdrop-blur-xl' : 'border-destructive/40 bg-slate-950/20 backdrop-blur-xl'}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs font-semibold text-zinc-400 tracking-wider uppercase">
+              <ShieldAlert className="h-4 w-4 text-emerald-400" />
               Diagnóstico
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-sm">
+          <CardContent className="text-xs text-zinc-300 font-light">
             {bestAffordableScenario ? (
               <div>
-                Com aportes de <b>{brl(bestAffordableScenario.aporte)}</b>, a meta pode ser atingida em cerca de{' '}
-                <b>{bestAffordableScenario.ano} anos</b>.
+                Com aportes de <span className="font-semibold text-white">{brl(bestAffordableScenario.aporte)}</span>, a meta pode ser atingida em cerca de <span className="font-semibold text-white">{bestAffordableScenario.ano} anos</span>.
               </div>
             ) : (
-              <div className="text-destructive">
-                Nenhum cenário da tabela atinge a meta. Será necessário aumentar aporte, prazo ou rentabilidade.
+              <div className="text-destructive font-medium">
+                Nenhum cenário padrão atinge a meta. Aumente aporte ou prazo.
               </div>
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-bold tracking-tight text-white mb-1 flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-cyan-400" />
+          Simulador de Cenários FIRE (Meta em 15 Anos)
+        </h2>
+        <p className="text-xs text-zinc-500 font-light mb-4">
+          Aporte mensal necessário para alcançar o primeiro milhão (ou sua meta) em 15 anos com juros compostos.
+          {realYieldsAvg !== null && realYieldsAvg > 0 && (
+            <span className="text-cyan-400 ml-1 font-normal">
+              Seus proventos reais médios de {brl(realYieldsAvg)}/mês podem cobrir parte desse esforço!
+            </span>
+          )}
+        </p>
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card className="border-amber-500/20 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden group hover:border-amber-500/40 transition-colors duration-300">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold text-zinc-400">Cenário Conservador (5% a.a.)</CardTitle>
+              <CardDescription className="text-[10px] text-zinc-500">Alocação defensiva em renda fixa pós-fixada</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-black text-white tracking-tight">{brl(neededConservador)}/mês</div>
+              <p className="text-[10px] text-zinc-500 font-light mt-1">Aporte mensal necessário por 15 anos</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-emerald-500/20 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden group hover:border-emerald-500/40 transition-colors duration-300">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold text-zinc-400">Cenário Moderado (9% a.a.)</CardTitle>
+              <CardDescription className="text-[10px] text-zinc-500">Carteira balanceada (FIIs, Selic e Ações)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-black text-emerald-400 tracking-tight">{brl(neededModerado)}/mês</div>
+              <p className="text-[10px] text-zinc-500 font-light mt-1">Aporte mensal necessário por 15 anos</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden group hover:border-cyan-500/40 transition-colors duration-300">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold text-zinc-400">Cenário Agressivo (13% a.a.)</CardTitle>
+              <CardDescription className="text-[10px] text-zinc-500">Foco em ações de crescimento, FIIs e cripto</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-black text-cyan-400 tracking-tight">{brl(neededAgressivo)}/mês</div>
+              <p className="text-[10px] text-zinc-500 font-light mt-1">Aporte mensal necessário por 15 anos</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
