@@ -6,8 +6,11 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { 
   Upload, FileText, X, 
-  Loader2, Lock, ShieldCheck, ChevronRight, RotateCcw
+  Loader2, Lock, ShieldCheck, ChevronRight, RotateCcw,
+  TrendingUp, Building2, Wallet
 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -77,6 +80,7 @@ function clearStaging() {
 export function Importer() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [activeSource, setActiveSource] = useState<'financeiro' | 'b3' | 'corretoras' | 'cripto'>('financeiro');
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfPassword, setPdfPassword] = useState('');
@@ -463,145 +467,246 @@ export function Importer() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <Card className="border-primary/20 bg-card/70">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-primary" />
-            Upload de Documento
-          </CardTitle>
-          <CardDescription>
-            Arraste seu extrato bancário ou fatura de cartão.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Banner de restauração de staging */}
-          {restoredStaging && (
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm">
-              <RotateCcw className="h-4 w-4 text-amber-500 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-amber-500">Importação anterior salva</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {restoredStaging.fileName || 'Arquivo desconhecido'} — {restoredStaging.transactions.length} transações
-                </p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs h-7"
-                  onClick={() => {
-                    setTransactions(restoredStaging.transactions);
-                    setOwner(restoredStaging.owner);
-                    setCompetenceMonth(restoredStaging.competenceMonth);
-                    setImportName(restoredStaging.importName);
-                    setCompanyId(restoredStaging.companyId);
-                    setStep(restoredStaging.step);
-                    setRestoredStaging(null);
-                  }}
+    <div className="space-y-6">
+      <Tabs defaultValue="financeiro" value={activeSource} onValueChange={(val) => setActiveSource(val as any)} className="w-full">
+        <TabsList className="bg-slate-900/60 border border-white/5 grid w-full grid-cols-2 md:grid-cols-4 p-1 h-auto rounded-xl">
+          <TabsTrigger value="financeiro" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            Financeiro
+          </TabsTrigger>
+          <TabsTrigger value="b3" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center justify-center gap-1.5">
+            Carteira B3 <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[9px] px-1 py-0 h-4">Breve</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="corretoras" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            Corretoras
+          </TabsTrigger>
+          <TabsTrigger value="cripto" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            Cripto / Futuro
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="financeiro" className="space-y-6 mt-6 animate-in fade-in duration-300">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="border-primary/20 bg-card/70">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Upload de Documento
+                </CardTitle>
+                <CardDescription>
+                  Arraste seu extrato bancário ou fatura de cartão.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Banner de restauração de staging */}
+                {restoredStaging && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm">
+                    <RotateCcw className="h-4 w-4 text-amber-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-amber-500">Importação anterior salva</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {restoredStaging.fileName || 'Arquivo desconhecido'} — {restoredStaging.transactions.length} transações
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7"
+                        onClick={() => {
+                          setTransactions(restoredStaging.transactions);
+                          setOwner(restoredStaging.owner);
+                          setCompetenceMonth(restoredStaging.competenceMonth);
+                          setImportName(restoredStaging.importName);
+                          setCompanyId(restoredStaging.companyId);
+                          setStep(restoredStaging.step);
+                          setRestoredStaging(null);
+                        }}
+                      >
+                        Continuar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-7"
+                        onClick={() => { clearStaging(); setRestoredStaging(null); }}
+                      >
+                        Descartar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div 
+                  {...getRootProps()} 
+                  className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
+                    isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                  }`}
                 >
-                  Continuar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs h-7"
-                  onClick={() => { clearStaging(); setRestoredStaging(null); }}
-                >
-                  Descartar
-                </Button>
-              </div>
-            </div>
-          )}
-          <div 
-            {...getRootProps()} 
-            className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
-              isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <div className="flex flex-col items-center gap-3">
-              <div className="p-3 bg-secondary rounded-full">
-                {file ? <FileText className="h-8 w-8 text-primary" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
-              </div>
-              {file ? (
-                <div>
-                  <p className="font-medium">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-3 bg-secondary rounded-full">
+                      {file ? <FileText className="h-8 w-8 text-primary" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
+                    </div>
+                    {file ? (
+                      <div>
+                        <p className="font-medium">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="font-medium">
+                          {isDragActive ? 'Solte o arquivo aqui' : 'Arraste e solte o arquivo aqui'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Suporta PDF, CSV, OFX, XLS, XLSX, PNG e JPG
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div>
-                  <p className="font-medium">
-                    {isDragActive ? 'Solte o arquivo aqui' : 'Arraste e solte o arquivo aqui'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Suporta PDF, CSV, OFX, XLS, XLSX, PNG e JPG
-                  </p>
-                </div>
-              )}
+
+                {pdfNeedsPassword && (
+                  <div className="space-y-2 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 text-amber-500 mb-2">
+                      <Lock className="h-4 w-4" />
+                      <Label htmlFor="pdf-pass" className="font-bold">PDF Protegido</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Este arquivo exige senha para ser lido (geralmente o CPF do titular).
+                    </p>
+                    <div className="flex gap-2">
+                      <Input 
+                        id="pdf-pass"
+                        type="password" 
+                        placeholder="Digite a senha do PDF" 
+                        value={pdfPassword}
+                        onChange={(e) => setPdfPassword(e.target.value)}
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {file && (
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1" 
+                      onClick={processFile} 
+                      disabled={isProcessing || (pdfNeedsPassword && !pdfPassword)}
+                    >
+                      {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
+                      {pdfNeedsPassword ? 'Tentar com Senha' : 'Processar Arquivo'}
+                    </Button>
+                    <Button variant="outline" onClick={clearImport} disabled={isProcessing}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <Alert>
+                <ShieldCheck className="h-4 w-4" />
+                <AlertTitle>Privacidade Garantida</AlertTitle>
+                <AlertDescription>
+                  Seus arquivos são processados em ambiente seguro. Senhas de PDF nunca são armazenadas e os arquivos temporários são apagados imediatamente após a leitura.
+                </AlertDescription>
+              </Alert>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Dicas de Importação</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground space-y-2">
+                  <p>• <strong>Bancos Suportados:</strong> Nubank, Itaú, Bradesco, Santander, BTG e Inter.</p>
+                  <p>• <strong>Formato Ideal:</strong> Dê preferência a PDFs de extratos mensais ou arquivos OFX/CSV diretos do Internet Banking.</p>
+                  <p>• <strong>Faturas:</strong> Se enviar imagem da fatura, garanta que a foto esteja nítida e bem iluminada.</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
+        </TabsContent>
 
-          {pdfNeedsPassword && (
-            <div className="space-y-2 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-2 text-amber-500 mb-2">
-                <Lock className="h-4 w-4" />
-                <Label htmlFor="pdf-pass" className="font-bold">PDF Protegido</Label>
+        <TabsContent value="b3" className="mt-6 animate-in fade-in duration-300">
+          <Card className="border-amber-500/20 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl" />
+            <CardHeader>
+              <div className="flex items-center gap-2 text-amber-400 mb-2">
+                <TrendingUp className="h-6 w-6" />
+                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">Em Homologação</Badge>
               </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Este arquivo exige senha para ser lido (geralmente o CPF do titular).
+              <CardTitle className="text-xl font-bold">Importação B3 em preparação</CardTitle>
+              <CardDescription>
+                Carregue sua carteira de investimentos diretamente com relatórios da Área do Investidor B3.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-zinc-300">Aqui você poderá importar:</h4>
+                <ul className="text-sm text-zinc-400 space-y-2 pl-4 list-disc">
+                  <li>Posição de custódia consolidada</li>
+                  <li>Extrato de movimentações históricas (compras e vendas)</li>
+                  <li>Dividendos, JCP e proventos recebidos/provisionados</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-zinc-300">Formatos previstos:</h4>
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-300">CSV B3</Badge>
+                  <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-300">PDF B3</Badge>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/5">
+                <Button disabled className="w-full md:w-auto bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  Importar Carteira B3 em breve
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="corretoras" className="mt-6 animate-in fade-in duration-300">
+          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
+            <CardHeader>
+              <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                <Building2 className="h-6 w-6" />
+                <Badge className="bg-white/5 text-zinc-400 border-white/10">Integração Futura</Badge>
+              </div>
+              <CardTitle className="text-xl font-bold">Importação via Corretoras</CardTitle>
+              <CardDescription>
+                Integração automatizada ou por arquivos com XP, BTG, Rico, Inter e outras corretoras nacionais.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="py-6">
+              <p className="text-sm text-zinc-400">
+                Esta funcionalidade está programada para sprints futuras do roadmap do FinDomus.
               </p>
-              <div className="flex gap-2">
-                <Input 
-                  id="pdf-pass"
-                  type="password" 
-                  placeholder="Digite a senha do PDF" 
-                  value={pdfPassword}
-                  onChange={(e) => setPdfPassword(e.target.value)}
-                  className="bg-background"
-                />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cripto" className="mt-6 animate-in fade-in duration-300">
+          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
+            <CardHeader>
+              <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                <Wallet className="h-6 w-6" />
+                <Badge className="bg-white/5 text-zinc-400 border-white/10">Integração Futura</Badge>
               </div>
-            </div>
-          )}
-
-          {file && (
-            <div className="flex gap-2">
-              <Button 
-                className="flex-1" 
-                onClick={processFile} 
-                disabled={isProcessing || (pdfNeedsPassword && !pdfPassword)}
-              >
-                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
-                {pdfNeedsPassword ? 'Tentar com Senha' : 'Processar Arquivo'}
-              </Button>
-              <Button variant="outline" onClick={clearImport} disabled={isProcessing}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="space-y-4">
-        <Alert>
-          <ShieldCheck className="h-4 w-4" />
-          <AlertTitle>Privacidade Garantida</AlertTitle>
-          <AlertDescription>
-            Seus arquivos são processados em ambiente seguro. Senhas de PDF nunca são armazenadas e os arquivos temporários são apagados imediatamente após a leitura.
-          </AlertDescription>
-        </Alert>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Dicas de Importação</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground space-y-2">
-            <p>• <strong>Bancos Suportados:</strong> Nubank, Itaú, Bradesco, Santander, BTG e Inter.</p>
-            <p>• <strong>Formato Ideal:</strong> Dê preferência a PDFs de extratos mensais ou arquivos OFX/CSV diretos do Internet Banking.</p>
-            <p>• <strong>Faturas:</strong> Se enviar imagem da fatura, garanta que a foto esteja nítida e bem iluminada.</p>
-          </CardContent>
-        </Card>
-      </div>
+              <CardTitle className="text-xl font-bold">Criptomoedas e Ativos Globais</CardTitle>
+              <CardDescription>
+                Importação de carteira cripto, extratos de exchanges (Binance, Mercado Bitcoin) e contratos futuros.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="py-6">
+              <p className="text-sm text-zinc-400">
+                Esta funcionalidade está programada para sprints futuras do roadmap do FinDomus.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
