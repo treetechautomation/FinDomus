@@ -173,6 +173,7 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
   const [yields, setYields] = useState<InvestmentYield[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
+  const [closures, setClosures] = useState<any[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<'Conservador' | 'Moderado' | 'Arrojado'>('Arrojado');
   const [goals, setGoals] = useState([
     { name: 'Ações Nacionais', value: 25 },
@@ -189,20 +190,23 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     if (!user?.uid) return;
 
     async function loadWealthData() {
-      const [{ getAccountsWithBalance }, { getLiabilities }, { getInvestmentGoals }] = await Promise.all([
+      const [{ getAccountsWithBalance }, { getLiabilities }, { getInvestmentGoals }, { getMonthlyClosures }] = await Promise.all([
           import('@/services/firestore/accounts'),
         import('@/services/firestore/liabilities'),
         import('@/services/firestore'),
+        import('@/services/firestore/monthly-closures'),
       ]);
 
-      const [accountsData, liabilitiesData, goalsData] = await Promise.all([
+      const [accountsData, liabilitiesData, goalsData, closuresData] = await Promise.all([
         getAccountsWithBalance(user!.uid),
         getLiabilities(user!.uid),
         getInvestmentGoals(user!.uid),
+        getMonthlyClosures(user!.uid, 'PF'),
       ]);
 
       setAccounts(accountsData || []);
       setLiabilities(liabilitiesData || []);
+      setClosures(closuresData || []);
       
       if (goalsData && goalsData.length > 0) {
         setGoals(goalsData);
@@ -216,6 +220,11 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     if (!user?.uid) return;
     getInvestmentYields(user.uid)
       .then(setYields)
+      .catch(console.error);
+
+    import('@/services/firestore/monthly-closures')
+      .then(({ getMonthlyClosures }) => getMonthlyClosures(user.uid, 'PF'))
+      .then(setClosures)
       .catch(console.error);
   }, [user?.uid, investments]);
 
@@ -315,6 +324,30 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     distribution,
   });
 
+  const monthlyLivingCost = useMemo(() => {
+    // Filtrar closures fechados de PF
+    const closedPF = closures
+      .filter((c) => c.status === 'CLOSED')
+      .sort((a, b) => b.month.localeCompare(a.month)); // Mais recentes primeiro
+
+    if (closedPF.length === 0) {
+      return {
+        amount: 6000,
+        isFallback: true,
+      };
+    }
+
+    // Pegar até os últimos 6 closures fechados
+    const recentClosures = closedPF.slice(0, 6);
+    const totalExpenses = recentClosures.reduce((sum, c) => sum + (Number(c.expenses) || 0), 0);
+    const average = totalExpenses / recentClosures.length;
+
+    return {
+      amount: average > 0 ? average : 6000,
+      isFallback: average <= 0,
+    };
+  }, [closures]);
+
   const yieldMetrics = useMemo(() => {
     const today = new Date();
     const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -342,17 +375,22 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     });
 
     const averageMonthly = totalLast12M / 12;
-    const targetIndependence = 6000;
-    const progressPercent = targetIndependence > 0 ? (averageMonthly / targetIndependence) * 100 : 0;
+    const targetLivingCost = monthlyLivingCost.amount;
+    const progressPercent = targetLivingCost > 0 ? (averageMonthly / targetLivingCost) * 100 : 0;
+    
+    // Alvo FIRE = (despesas mensais * 12) / 0.04
+    const targetNetWorth = (targetLivingCost * 12) / 0.04;
 
     return {
       totalCurrentMonth,
       totalLast12M,
       averageMonthly,
-      targetIndependence,
+      targetIndependence: targetLivingCost,
       progressPercent,
+      targetNetWorth,
+      isLivingCostFallback: monthlyLivingCost.isFallback,
     };
-  }, [yields]);
+  }, [yields, monthlyLivingCost]);
 
   return (
     <div className="relative">
@@ -412,14 +450,28 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
           title="Independência Financeira"
           value={`${yieldMetrics.progressPercent.toFixed(1)}%`}
           icon={Target}
-          description={`Média de ${money(yieldMetrics.averageMonthly)} do alvo de ${money(yieldMetrics.targetIndependence)}`}
+          description={yieldMetrics.isLivingCostFallback ? "Meta estimada padrão" : "Meta baseada no seu custo de vida médio"}
           glowColor="orange"
         >
-          <div className="w-full bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div className="w-full bg-slate-800 rounded-full h-1.5 mt-2.5 overflow-hidden">
             <div
               className="bg-amber-400 h-full rounded-full transition-all duration-500 ease-out"
               style={{ width: `${Math.min(yieldMetrics.progressPercent, 100)}%` }}
             />
+          </div>
+          <div className="mt-3 space-y-1 text-[10px] text-zinc-500 font-light border-t border-white/5 pt-2">
+            <div className="flex justify-between">
+              <span>Média de Proventos:</span>
+              <span className="font-semibold text-zinc-300">{money(yieldMetrics.averageMonthly)}/mês</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Meta Mensal:</span>
+              <span className="font-semibold text-zinc-300">{money(yieldMetrics.targetIndependence)}/mês</span>
+            </div>
+            <div className="flex justify-between border-t border-white/[0.03] pt-1 mt-1 text-amber-400/80 font-medium">
+              <span>Alvo FIRE:</span>
+              <span>{money(yieldMetrics.targetNetWorth)}</span>
+            </div>
           </div>
         </StatCard>
       </div>
