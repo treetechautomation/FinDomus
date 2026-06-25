@@ -6,7 +6,10 @@ import dynamic from 'next/dynamic';
 
 import type { Investment, Account, Liability } from '@/services/firestore/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, Sparkles } from 'lucide-react';
+import { TrendingUp, Sparkles, Plus } from 'lucide-react';
+import { NewYieldDialog } from './new-yield-dialog';
+import { Button } from '@/components/ui/button';
+
 import { calculateFinancialCore } from '@/core/finance/financial-core';
 import { useInvestmentMetrics } from '@/hooks/investimentos/use-investment-metrics';
 import { useInvestmentAporte } from '@/hooks/investimentos/use-investment-aporte';
@@ -159,6 +162,7 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
   const [prefillAporte, setPrefillAporte] = useState<{ type: string; amount: number } | null>(null);
   const [prefillTicker, setPrefillTicker] = useState<{ ticker: string; name?: string; type?: string; price?: number; source?: string } | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
+  const [openYieldDialog, setOpenYieldDialog] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<'Conservador' | 'Moderado' | 'Arrojado'>('Arrojado');
@@ -315,9 +319,17 @@ return (
             Gerencie sua carteira de investimentos com inteligência
           </p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/10 to-amber-500/10 border border-cyan-500/20">
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-medium text-amber-300">Wealth Intelligence</span>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setOpenYieldDialog(true)}
+            className="rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold h-9 px-4 flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" /> Lançar Provento
+          </Button>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/10 to-amber-500/10 border border-cyan-500/20">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span className="text-sm font-medium text-amber-300">Wealth Intelligence</span>
+          </div>
         </div>
       </div>
 
@@ -444,6 +456,12 @@ return (
         editingInvestment={editingInvestment}
         onClose={() => setPrefillTicker(null)}
         onCloseEditing={() => { setEditingInvestment(null); setEditingTicker(''); }}
+        onRefresh={onRefresh}
+      />
+
+      <NewYieldDialog
+        open={openYieldDialog}
+        onOpenChange={setOpenYieldDialog}
         onRefresh={onRefresh}
       />
   </div>
