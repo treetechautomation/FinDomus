@@ -22,6 +22,9 @@ export interface B3ParseResult {
   positions: B3Position[];
   dividends: B3Dividend[];
   errors: string[];
+  rawTextLength?: number;
+  positionsCount?: number;
+  incomeCount?: number;
 }
 
 // Persistência no Firestore
