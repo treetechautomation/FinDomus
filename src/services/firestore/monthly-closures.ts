@@ -18,6 +18,7 @@ import { getAccountsWithBalance } from "@/services/firestore/accounts";
 import { getTaxObligations } from "@/services/firestore/fiscal";
 import { getLiabilities } from "@/services/firestore/liabilities";
 import { getTransactionsByOwnerAndMonth } from '@/services/firestore/transactions';
+import { getInvestments } from '@/services/firestore/investments';
 
 export type MonthlyClosureStatus = "OPEN" | "CLOSED" | "REOPENED";
 
@@ -177,11 +178,12 @@ export async function closeMonthlyCompetence(
     return existing;
   }
 
-  const [transactions, accounts, obligations, liabilities] = await Promise.all([
+  const [transactions, accounts, obligations, liabilities, investments] = await Promise.all([
     getTransactionsByOwnerAndMonth(userId, owner, month),
     getAccountsWithBalance(userId),
     getTaxObligations(),
     getLiabilities(userId),
+    getInvestments(userId),
   ]);
 
   const monthTransactions = transactions.filter((t: any) => {
@@ -232,12 +234,52 @@ export async function closeMonthlyCompetence(
       ? buildDRE(monthTransactions)
       : undefined;
 
-  const snapshot = buildMonthSnapshot({
+  function getInvestmentCurrentValue(item: any): number {
+    if (item.currentValue !== undefined && item.currentValue !== null) {
+      return Number(item.currentValue) || 0;
+    }
+
+    const quantity = Number(item.quantity || 0);
+    const currentPrice = Number(item.currentPrice || 0);
+    if (quantity > 0 && currentPrice > 0) {
+      return quantity * currentPrice;
+    }
+
+    return Number(item.contributions || 0) || 0;
+  }
+
+  const filteredInvestments = investments.filter((item: any) => {
+    if (item.owner !== undefined && item.owner !== null) {
+      return item.owner === owner;
+    }
+    return owner === 'PF';
+  });
+
+  const totalInvestments = filteredInvestments.reduce(
+    (sum: number, item: any) => sum + getInvestmentCurrentValue(item),
+    0
+  );
+
+  const snapshot: any = buildMonthSnapshot({
     monthKey: month,
     transactions: monthTransactions,
     liabilities: liabilities.filter((l: any) => l.owner === owner),
     taxObligations: obligations.filter((o: any) => o.owner === owner),
   });
+
+  const totalLiabilities = Number(snapshot.commitments?.liabilities || 0);
+
+  snapshot.assets = {
+    accountsBalance: closingAccountBalance,
+    investmentsValue: totalInvestments,
+    totalAssets: closingAccountBalance + totalInvestments,
+  };
+
+  snapshot.netWorth = {
+    value: (closingAccountBalance + totalInvestments) - totalLiabilities,
+    totalAssets: closingAccountBalance + totalInvestments,
+    totalLiabilities,
+  };
 
   const closurePayload: MonthlyClosure = {
     userId,

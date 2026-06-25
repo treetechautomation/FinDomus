@@ -1,3 +1,6 @@
+import type { WealthProfile } from '@/services/firestore/planning';
+import type { PFDRE } from './dre-engine';
+
 export type WealthCategory = {
   id: string;
   name: string;
@@ -144,4 +147,104 @@ export function getWealthRecommendation(rows: any[]) {
   }
 
   return alerts.join('\n');
+}
+
+export type PFWealthAnalysis = {
+  pilar: string;
+  metaPercent: number;
+  realizadoPercent: number;
+  diferencaPercent: number;
+  status: 'good' | 'warning' | 'danger';
+};
+
+export type PFWealthReport = {
+  analysis: PFWealthAnalysis[];
+  score: number;
+  scoreLabel: string;
+  insights: string[];
+};
+
+export function buildPFWealthAnalysis(dre: PFDRE, profile: WealthProfile | null): PFWealthReport {
+  const analysis: PFWealthAnalysis[] = [];
+  let score = 100;
+  const insights: string[] = [];
+
+  const getMeta = (id: string, defaultMeta: number) => {
+    const found = profile?.categories?.find((c) => c.id === id);
+    return found ? found.percentage : defaultMeta;
+  };
+
+  const categoriesToCompare = [
+    { pilar: "Essenciais", key: "essenciais", id: "essenciais", defaultMeta: 30, type: "expense" },
+    { pilar: "Qualidade de Vida", key: "qualidadeVida", id: "qualidade", defaultMeta: 10, type: "expense" },
+    { pilar: "Estilo de Vida", key: "estiloVida", id: "estilo", defaultMeta: 10, type: "expense" },
+    { pilar: "Educação", key: "educacao", id: "intelectual", defaultMeta: 5, type: "expense" },
+    { pilar: "Saúde", key: "saude", id: "saude", defaultMeta: 5, type: "expense" },
+    { pilar: "Construção Patrimonial", key: "construcaoPatrimonial", id: "patrimonio", defaultMeta: 20, type: "investment" }
+  ];
+
+  for (const item of categoriesToCompare) {
+    const metaPercent = getMeta(item.id, item.defaultMeta);
+    const value = dre[item.key as keyof PFDRE] || 0;
+    const realizadoPercent = dre.receitaTotal > 0 ? (value / dre.receitaTotal) * 100 : 0;
+    const diferencaPercent = realizadoPercent - metaPercent;
+
+    let status: 'good' | 'warning' | 'danger' = 'good';
+
+    if (item.type === "expense") {
+      if (realizadoPercent > metaPercent) {
+        status = realizadoPercent <= metaPercent + 5 ? "warning" : "danger";
+      }
+    } else { // investment (Construção Patrimonial)
+      if (realizadoPercent < metaPercent) {
+        status = realizadoPercent >= metaPercent - 5 ? "warning" : "danger";
+      }
+    }
+
+    // Penalizações do Score
+    if (status === "warning") score -= 5;
+    if (status === "danger") score -= 15;
+
+    analysis.push({
+      pilar: item.pilar,
+      metaPercent,
+      realizadoPercent: Number(realizadoPercent.toFixed(2)),
+      diferencaPercent: Number(diferencaPercent.toFixed(2)),
+      status
+    });
+  }
+
+  // Penalização adicional por saldo de caixa negativo
+  if (dre.saldoRestante < 0) {
+    score -= 20;
+  }
+
+  score = Math.max(0, Math.min(100, score));
+
+  let scoreLabel = "Excelente";
+  if (score < 50) scoreLabel = "Crítico";
+  else if (score < 70) scoreLabel = "Atenção";
+  else if (score < 90) scoreLabel = "Muito Bom";
+
+  // Geração de insights
+  analysis.forEach((item) => {
+    if (item.status === "danger") {
+      if (item.metaPercent > 0) {
+        if (item.diferencaPercent > 0) {
+          insights.push(`🚨 Você está ${item.diferencaPercent.toFixed(1)}% acima da meta planejada em ${item.pilar}.`);
+        } else {
+          insights.push(`📉 Seus investimentos em ${item.pilar} estão ${Math.abs(item.diferencaPercent).toFixed(1)}% abaixo da meta ideal.`);
+        }
+      }
+    }
+  });
+
+  if (dre.saldoRestante < 0) {
+    insights.push("⚠️ Seu orçamento está no vermelho neste mês. Tente reduzir despesas discricionárias.");
+  }
+  if (dre.taxaAcumulacao >= 30) {
+    insights.push("🎉 Parabéns! Sua taxa de acumulação está excelente neste período.");
+  }
+
+  return { analysis, score, scoreLabel, insights };
 }

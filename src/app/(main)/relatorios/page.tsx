@@ -6,6 +6,8 @@ import { getPersonalTransactions } from "@/services/firestore/transactions";
 import { buildPFDRE } from "@/core/finance/dre-engine";
 import { getCurrentMonthKey, getLastMonths, formatMonthLabel, isTransactionInMonth } from "@/core/finance/financial-period-engine";
 import { PfDreCard } from "@/components/relatorios/pf-dre-card";
+import { getWealthProfile, type WealthProfile } from "@/services/firestore/planning";
+import { buildPFWealthAnalysis } from "@/core/finance/wealth-engine";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart3, Loader2 } from "lucide-react";
@@ -26,6 +28,7 @@ export default function RelatoriosPage() {
   const [reportType, setReportType] = useState("pessoal-dre");
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonthKey());
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [wealthProfile, setWealthProfile] = useState<WealthProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const monthOptions = useMemo(() => getLastMonths(12, getCurrentMonthKey()), []);
@@ -33,9 +36,13 @@ export default function RelatoriosPage() {
   useEffect(() => {
     if (!user?.uid) return;
     setLoading(true);
-    getPersonalTransactions(user.uid)
-      .then((txs) => {
+    Promise.all([
+      getPersonalTransactions(user.uid),
+      getWealthProfile(user.uid)
+    ])
+      .then(([txs, profile]) => {
         setTransactions(txs || []);
+        setWealthProfile(profile);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -48,6 +55,10 @@ export default function RelatoriosPage() {
   const drePF = useMemo(() => {
     return buildPFDRE(filteredTransactions);
   }, [filteredTransactions]);
+
+  const wealthReport = useMemo(() => {
+    return buildPFWealthAnalysis(drePF, wealthProfile);
+  }, [drePF, wealthProfile]);
 
   return (
     <div className="space-y-6">
@@ -104,7 +115,7 @@ export default function RelatoriosPage() {
         </div>
       ) : reportType === "pessoal-dre" ? (
         <div className="grid gap-6">
-          <PfDreCard dre={drePF} />
+          <PfDreCard dre={drePF} report={wealthReport} />
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
