@@ -27,6 +27,7 @@ type Props = {
   money: (value: number) => string;
   getTypeBadgeStyle: (value: string) => string;
   setPrefillAporte: (value: { type: string; amount: number }) => void;
+  suggestedAporte?: number | null;
 };
 
 export function InvestmentAporteTab({
@@ -38,6 +39,7 @@ export function InvestmentAporteTab({
   money,
   getTypeBadgeStyle,
   setPrefillAporte,
+  suggestedAporte,
 }: Props) {
   return (
     <div className="space-y-6">
@@ -66,6 +68,18 @@ export function InvestmentAporteTab({
                 inputMode="decimal"
                 className="bg-background/50 border-white/10 focus:border-cyan-500/50 focus:ring-cyan-500/20"
               />
+              {suggestedAporte !== undefined && suggestedAporte !== null && suggestedAporte > 0 && (
+                <div className="mt-1 flex items-center gap-1.5 animate-in fade-in duration-300">
+                  <span className="text-[10px] text-zinc-500 font-light">Sugestão do Planejamento:</span>
+                  <button
+                    type="button"
+                    onClick={() => setAporteValue(String(suggestedAporte))}
+                    className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 hover:underline transition-all"
+                  >
+                    {money(suggestedAporte)}
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-end">
               <Button type="button" className="w-full md:w-48 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30">

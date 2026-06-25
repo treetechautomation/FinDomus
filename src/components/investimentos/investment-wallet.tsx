@@ -11,6 +11,8 @@ import { NewYieldDialog } from './new-yield-dialog';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/overview/stat-card';
 import { getInvestmentYields, type InvestmentYield } from '@/services/firestore/yields';
+import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financial-period-engine';
+import { defaultWealthCategories } from '@/core/finance/wealth-engine';
 
 import { calculateFinancialCore } from '@/core/finance/financial-core';
 import { useInvestmentMetrics } from '@/hooks/investimentos/use-investment-metrics';
@@ -165,6 +167,7 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
   const [search, setSearch] = useState('');
   const [editingTicker, setEditingTicker] = useState('');
   const [aporteValue, setAporteValue] = useState('1000');
+  const [suggestedAporte, setSuggestedAporte] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('ativos');
   const [prefillAporte, setPrefillAporte] = useState<{ type: string; amount: number } | null>(null);
   const [prefillTicker, setPrefillTicker] = useState<{ ticker: string; name?: string; type?: string; price?: number; source?: string } | null>(null);
@@ -226,6 +229,81 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
       .then(({ getMonthlyClosures }) => getMonthlyClosures(user.uid, 'PF'))
       .then(setClosures)
       .catch(console.error);
+  }, [user?.uid, investments]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    async function calculateAporteSugerido() {
+      try {
+        const [{ getWealthProfile }, { getPersonalTransactions }] = await Promise.all([
+          import('@/services/firestore/planning'),
+          import('@/services/firestore/transactions'),
+        ]);
+
+        const [profile, txs] = await Promise.all([
+          getWealthProfile(user!.uid),
+          getPersonalTransactions(user!.uid),
+        ]);
+
+        const currentMonthKey = getCurrentMonthKey();
+        const monthTransactions = (txs || []).filter((t: any) => isTransactionInMonth(t, currentMonthKey));
+
+        const monthlyIncome = monthTransactions
+          .filter((t: any) => t.type === 'income')
+          .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+
+        const profileCategories = profile?.categories?.length ? profile.categories : defaultWealthCategories;
+
+        // Categoria 1: patrimonio
+        const catPatrimonio = profileCategories.find((c) => c.id === 'patrimonio') || defaultWealthCategories.find((c) => c.id === 'patrimonio');
+        // Categoria 2: independencia
+        const catIndependencia = profileCategories.find((c) => c.id === 'independencia') || defaultWealthCategories.find((c) => c.id === 'independencia');
+
+        const calculateGoalRemaining = (cat: any) => {
+          if (!cat) return 0;
+          const planned = monthlyIncome * (Number(cat.percentage || 0) / 100);
+          
+          const normalizeCategory = (name: string) => String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+          const getPlanningTransactionCategory = (transaction: any) => {
+            const LEGACY_MERCHANT_CATEGORY_MAP: Record<string, string> = {
+              guanabara: 'Alimentação',
+              supermercado: 'Alimentação',
+              mercado: 'Alimentação',
+              shell: 'Transporte',
+              ipiranga: 'Transporte',
+              gasolina: 'Transporte',
+              igreja: 'Doações',
+              dizimo: 'Doações',
+              dízimo: 'Doações',
+            };
+            const raw = String(transaction?.category || '');
+            return LEGACY_MERCHANT_CATEGORY_MAP[raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()] || raw;
+          };
+
+          const spent = monthTransactions
+            .filter((t: any) => t.type === 'expense' || t.type === 'income' || t.type === 'transfer')
+            .filter((t: any) => {
+              const txCat = normalizeCategory(getPlanningTransactionCategory(t));
+              const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
+              return goalCats.some((gc: string) => txCat.includes(gc));
+            })
+            .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
+
+          return planned - spent;
+        };
+
+        const remainingPatrimonio = calculateGoalRemaining(catPatrimonio);
+        const remainingIndependencia = calculateGoalRemaining(catIndependencia);
+
+        const totalSugerido = Math.max(0, remainingPatrimonio) + Math.max(0, remainingIndependencia);
+        setSuggestedAporte(totalSugerido);
+      } catch (err) {
+        console.error('Erro ao calcular aporte sugerido na carteira:', err);
+      }
+    }
+
+    calculateAporteSugerido();
   }, [user?.uid, investments]);
 
   function applyInvestmentProfile(profile: keyof typeof INVESTMENT_PROFILES) {
@@ -577,6 +655,7 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
           money={money}
           getTypeBadgeStyle={getTypeBadgeStyle}
           setPrefillAporte={setPrefillAporte}
+          suggestedAporte={suggestedAporte}
         />
       </TabsContent>
     )}
