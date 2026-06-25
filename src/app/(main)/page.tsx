@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, Banknote, Building2, Landmark, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Banknote, Building2, Landmark, TrendingUp, Users, Sparkles } from 'lucide-react';
 import { StatCard } from '@/components/overview/stat-card';
 import dynamic from 'next/dynamic';
 
@@ -29,6 +29,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatCurrency } from '@/core/finance/formatters';
 import { getDashboardReal } from '@/core/finance/dashboard-real';
 import { getMonthlyClosures } from '@/services/firestore/monthly-closures';
+import { getPersonalTransactions } from '@/services/firestore/transactions';
+import { getWealthProfile } from '@/services/firestore/planning';
+import { buildPFDRE } from '@/core/finance/dre-engine';
+import { buildPFWealthAnalysis } from '@/core/finance/wealth-engine';
+import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financial-period-engine';
 import { useAuth } from '@/providers/auth-provider';
 
 function DreRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
@@ -44,6 +49,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<any>(null);
   const [netWorthHistory, setNetWorthHistory] = useState<any[]>([]);
+  const [wealthReport, setWealthReport] = useState<any>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -84,6 +90,19 @@ export default function DashboardPage() {
           });
 
         setNetWorthHistory(sortedData);
+      })
+      .catch(console.error);
+
+    Promise.all([
+      getPersonalTransactions(user.uid),
+      getWealthProfile(user.uid)
+    ])
+      .then(([txs, profile]) => {
+        const currentMonthKey = getCurrentMonthKey();
+        const filteredTransactions = (txs || []).filter((t: any) => isTransactionInMonth(t, currentMonthKey));
+        const drePF = buildPFDRE(filteredTransactions);
+        const report = buildPFWealthAnalysis(drePF, profile);
+        setWealthReport(report);
       })
       .catch(console.error);
   }, [user?.uid]);
@@ -158,6 +177,88 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Card de Score Financeiro Executivo */}
+          {wealthReport && (
+            <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(16,185,129,0.02)] transition-all duration-300 relative group overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.01] to-transparent pointer-events-none" />
+              <CardHeader className="pb-3">
+                <CardTitle className="text-zinc-400 text-sm font-semibold tracking-wide flex items-center gap-2">
+                  🎯 SCORE DE SAÚDE FINANCEIRA PF
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col md:flex-row items-center justify-between gap-6 pt-1">
+                <div className="flex flex-col sm:flex-row items-center gap-5">
+                  <div className="relative flex items-center justify-center">
+                    <svg className="w-24 h-24 transform -rotate-90">
+                      <circle cx="48" cy="48" r="38" className="stroke-slate-800/50" strokeWidth="6" fill="transparent" />
+                      <circle 
+                        cx="48" 
+                        cy="48" 
+                        r="38" 
+                        stroke={
+                          wealthReport.score >= 90 ? '#10b981' :
+                          wealthReport.score >= 70 ? '#60a5fa' :
+                          wealthReport.score >= 50 ? '#f59e0b' :
+                          '#ef4444'
+                        } 
+                        strokeWidth="6" 
+                        fill="transparent"
+                        strokeDasharray={2 * Math.PI * 38} 
+                        strokeDashoffset={2 * Math.PI * 38 - (wealthReport.score / 100) * (2 * Math.PI * 38)} 
+                        strokeLinecap="round"
+                        style={{ 
+                          filter: `drop-shadow(0 0 4px ${
+                            wealthReport.score >= 90 ? 'rgba(16,185,129,0.2)' :
+                            wealthReport.score >= 70 ? 'rgba(96,165,250,0.2)' :
+                            wealthReport.score >= 50 ? 'rgba(245,158,11,0.2)' :
+                            'rgba(239,68,68,0.2)'
+                          })` 
+                        }} 
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center">
+                      <span className="text-2xl font-extrabold text-white">{wealthReport.score}</span>
+                    </div>
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <div className={`text-lg font-bold tracking-tight ${
+                      wealthReport.score >= 90 ? 'text-emerald-400' :
+                      wealthReport.score >= 70 ? 'text-blue-400' :
+                      wealthReport.score >= 50 ? 'text-amber-400' :
+                      'text-red-400'
+                    }`}>
+                      {wealthReport.scoreLabel}
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-1 max-w-[280px]">
+                      Comportamento de receitas, gastos e aportes em relação ao planejamento estratégico pessoal.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex-1 w-full space-y-2">
+                  <div className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                    <Sparkles className="w-3.5 h-3.5 text-[#00beea]" />
+                    Insights de Saúde Financeira
+                  </div>
+                  {wealthReport.insights.length > 0 ? (
+                    <div className="space-y-1.5 max-h-[100px] overflow-y-auto pr-1">
+                      {wealthReport.insights.slice(0, 2).map((insight: string, idx: number) => (
+                        <div key={idx} className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/30 text-[11px] leading-relaxed text-zinc-300 flex items-start gap-2">
+                          <span className="flex-shrink-0 mt-0.5">💡</span>
+                          <span>{insight.replace(/^(🚨|⚠️|🎉|✅|💡)\s*/, '')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-900/20 text-zinc-400 text-xs text-center">
+                      Sem pendências ou desvios de orçamento identificados.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <NetworthEvolutionChart data={netWorthHistory} />
         </div>
