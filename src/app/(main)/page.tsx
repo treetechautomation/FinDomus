@@ -18,10 +18,17 @@ const CashflowChart = dynamic(
   () => import('@/components/overview/cashflow-chart').then(m => ({ default: m.CashflowChart })),
   { ssr: false, loading: () => <div className="h-[300px] w-full animate-pulse rounded-xl bg-muted" /> }
 );
+
+const NetworthEvolutionChart = dynamic(
+  () => import('@/components/overview/networth-evolution-chart').then(m => ({ default: m.NetworthEvolutionChart })),
+  { ssr: false, loading: () => <div className="h-[300px] w-full animate-pulse rounded-xl bg-muted" /> }
+);
+
 import { CashflowScenarioSwitcher } from '@/components/overview/cashflow-scenario-switcher';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/core/finance/formatters';
 import { getDashboardReal } from '@/core/finance/dashboard-real';
+import { getMonthlyClosures } from '@/services/firestore/monthly-closures';
 import { useAuth } from '@/providers/auth-provider';
 
 function DreRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
@@ -36,10 +43,49 @@ function DreRow({ label, value, strong = false }: { label: string; value: number
 export default function DashboardPage() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<any>(null);
+  const [netWorthHistory, setNetWorthHistory] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user?.uid) return;
     getDashboardReal(user.uid).then(setDashboard).catch(console.error);
+
+    getMonthlyClosures(user.uid)
+      .then((closures) => {
+        const monthlyDataMap = new Map<string, { netWorth: number; assets: number; liabilities: number }>();
+
+        closures.forEach((c) => {
+          const monthKey = c.month; // YYYY-MM
+          const existing = monthlyDataMap.get(monthKey) || { netWorth: 0, assets: 0, liabilities: 0 };
+          
+          const closureNetWorth = c.snapshot?.netWorth?.value ?? (c.cashflow?.closingBalance ?? c.balance ?? 0);
+          const closureAssets = c.snapshot?.netWorth?.totalAssets ?? (c.cashflow?.closingBalance ?? c.balance ?? 0);
+          const closureLiabilities = c.snapshot?.netWorth?.totalLiabilities ?? Number(c.snapshot?.commitments?.liabilities ?? 0);
+
+          monthlyDataMap.set(monthKey, {
+            netWorth: existing.netWorth + closureNetWorth,
+            assets: existing.assets + closureAssets,
+            liabilities: existing.liabilities + closureLiabilities,
+          });
+        });
+
+        const sortedData = Array.from(monthlyDataMap.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([monthKey, values]) => {
+            const [year, monthNum] = monthKey.split('-');
+            const date = new Date(Number(year), Number(monthNum) - 1, 1);
+            const label = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+            return {
+              monthKey,
+              label,
+              netWorth: Number(values.netWorth.toFixed(2)),
+              assets: Number(values.assets.toFixed(2)),
+              liabilities: Number(values.liabilities.toFixed(2)),
+            };
+          });
+
+        setNetWorthHistory(sortedData);
+      })
+      .catch(console.error);
   }, [user?.uid]);
 
   if (!dashboard) {
@@ -58,60 +104,65 @@ export default function DashboardPage() {
       </div>
 
       {dashboard.netWorth && (
-        <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300 overflow-hidden relative group">
-          <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/[0.02] to-transparent pointer-events-none" />
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-zinc-400 text-sm font-semibold tracking-wide flex items-center gap-2">
-                  💎 PATRIMÔNIO LÍQUIDO (NET WORTH)
-                </CardTitle>
-                <div className="text-4xl font-extrabold tracking-tight text-white mt-1">
-                  {formatCurrency(dashboard.netWorth.value)}
-                </div>
-              </div>
-              <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-                <TrendingUp className="h-6 w-6" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-6 md:grid-cols-2 pt-4 border-t border-slate-800/30">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-sm font-medium text-emerald-400">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  Ativos Totais
-                </span>
-                <span className="font-bold">{formatCurrency(dashboard.netWorth.totalAssets)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400 pl-3.5 border-l border-slate-800/50">
+        <div className="space-y-6">
+          <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300 overflow-hidden relative group">
+            <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/[0.02] to-transparent pointer-events-none" />
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
                 <div>
-                  <span className="block text-zinc-500">Contas</span>
-                  <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalAccounts)}</span>
+                  <CardTitle className="text-zinc-400 text-sm font-semibold tracking-wide flex items-center gap-2">
+                    💎 PATRIMÔNIO LÍQUIDO (NET WORTH)
+                  </CardTitle>
+                  <div className="text-4xl font-extrabold tracking-tight text-white mt-1">
+                    {formatCurrency(dashboard.netWorth.value)}
+                  </div>
                 </div>
-                <div>
-                  <span className="block text-zinc-500">Investimentos</span>
-                  <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalInvestments)}</span>
+                <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                  <TrendingUp className="h-6 w-6" />
                 </div>
               </div>
-            </div>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-2 pt-4 border-t border-slate-800/30">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm font-medium text-emerald-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    Ativos Totais
+                  </span>
+                  <span className="font-bold">{formatCurrency(dashboard.netWorth.totalAssets)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400 pl-3.5 border-l border-slate-800/50">
+                  <div>
+                    <span className="block text-zinc-500">Contas</span>
+                    <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalAccounts)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-zinc-500">Investimentos</span>
+                    <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalInvestments)}</span>
+                  </div>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-sm font-medium text-rose-400">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-rose-400" />
-                  Passivos Totais
-                </span>
-                <span className="font-bold">{formatCurrency(dashboard.netWorth.totalLiabilities)}</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm font-medium text-rose-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rose-400" />
+                    Passivos Totais
+                  </span>
+                  <span className="font-bold">{formatCurrency(dashboard.netWorth.totalLiabilities)}</span>
+                </div>
+                <div className="text-xs text-zinc-400 pl-3.5 border-l border-slate-800/50">
+                  <span className="block text-zinc-500">Financiamentos e Dívidas</span>
+                  <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalLiabilities)}</span>
+                </div>
               </div>
-              <div className="text-xs text-zinc-400 pl-3.5 border-l border-slate-800/50">
-                <span className="block text-zinc-500">Financiamentos e Dívidas</span>
-                <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalLiabilities)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <NetworthEvolutionChart data={netWorthHistory} />
+        </div>
       )}
+
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
