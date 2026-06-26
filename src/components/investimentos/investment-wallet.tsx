@@ -55,6 +55,11 @@ const InvestmentB3DashboardTab = dynamic(
   { ssr: false }
 );
 
+const InvestmentConsolidadoTab = dynamic(
+  () => import('@/components/investimentos/tabs/investment-consolidado-tab').then((mod) => mod.InvestmentConsolidadoTab),
+  { ssr: false }
+);
+
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -574,6 +579,12 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
         <span className="relative">CARTEIRA B3</span>
       </TabsTrigger>
       <TabsTrigger 
+        value="consolidado"
+        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+      >
+        <span className="relative">CONSOLIDADO</span>
+      </TabsTrigger>
+      <TabsTrigger 
         value="metas"
         className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
       >
@@ -645,6 +656,12 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     {activeTab === 'b3-dashboard' && (
       <TabsContent value="b3-dashboard">
         <InvestmentB3DashboardTab userId={user?.uid || ''} />
+      </TabsContent>
+    )}
+
+    {activeTab === 'consolidado' && (
+      <TabsContent value="consolidado">
+        <InvestmentConsolidadoTab userId={user?.uid || ''} />
       </TabsContent>
     )}
 
