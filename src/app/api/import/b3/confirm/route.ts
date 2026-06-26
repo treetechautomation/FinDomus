@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { persistB3Data } from '@/services/import/b3/b3-persister';
+import { verifyIdToken } from '@/lib/verify-id-token';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { parsedData, fileName, userId } = body;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Não autorizado. userId ausente.' }, { status: 401 });
+    const authHeader = req.headers.get('authorization');
+    let decodedToken;
+    try {
+      decodedToken = await verifyIdToken(authHeader);
+    } catch (err: any) {
+      const isMissing = !authHeader || !authHeader.startsWith('Bearer ');
+      return NextResponse.json(
+        { success: false, error: isMissing ? "UNAUTHORIZED" : "FORBIDDEN" },
+        { status: isMissing ? 401 : 403 }
+      );
     }
+    const userId = decodedToken.uid;
+
+    const body = await req.json();
+    const { parsedData, fileName } = body;
 
     if (!parsedData || !fileName) {
       return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });

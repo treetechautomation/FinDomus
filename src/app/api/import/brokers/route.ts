@@ -6,22 +6,33 @@ import { normalizeBrokerImport } from '@/services/import/brokers/normalizer';
 import { validateBrokerImport } from '@/services/import/brokers/validation-engine';
 import { evaluateImportDecisions } from '@/services/import/brokers/import-decision-engine';
 import { persistBrokerData } from '@/services/import/brokers/broker-persister';
+import { verifyIdToken } from '@/lib/verify-id-token';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization');
+    let decodedToken;
+    try {
+      decodedToken = await verifyIdToken(authHeader);
+    } catch (err: any) {
+      const isMissing = !authHeader || !authHeader.startsWith('Bearer ');
+      return NextResponse.json(
+        { success: false, error: isMissing ? "UNAUTHORIZED" : "FORBIDDEN" },
+        { status: isMissing ? 401 : 403 }
+      );
+    }
+    const userId = decodedToken.uid;
+
     const contentType = req.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
       const body = await req.json();
-      const { action, userId, fileName, importData } = body;
+      const { action, fileName, importData } = body;
 
       if (action === 'confirm') {
-        if (!userId) {
-          return NextResponse.json({ error: 'ID de usuário obrigatório para confirmar importação.' }, { status: 400 });
-        }
         if (!importData) {
           return NextResponse.json({ error: 'Dados de importação ausentes.' }, { status: 400 });
         }
@@ -37,7 +48,6 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const password = formData.get('password') as string | null;
-    const userId = formData.get('userId') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });

@@ -72,13 +72,24 @@ export async function consolidatePortfolio(userId: string): Promise<Consolidated
     getInvestmentYields(userId)
   ]);
 
-  // Find latest years for snapshots
-  const b3LatestYear = b3Positions.length > 0 ? Math.max(...b3Positions.map(p => p.year)) : 0;
-  const brokerLatestYear = brokerPositions.length > 0 ? Math.max(...brokerPositions.map(p => p.year)) : 0;
+  // Mantém a posição mais recente por instituição/corretora para evitar que uma corretora apague outra ao importar anos diferentes.
+  const b3LatestYearsByInst: Record<string, number> = {};
+  for (const pos of b3Positions) {
+    const inst = normalizeInstitution(pos.institution);
+    b3LatestYearsByInst[inst] = Math.max(b3LatestYearsByInst[inst] || 0, pos.year);
+  }
+  const activeB3Positions = b3Positions.filter(
+    (p) => p.year === b3LatestYearsByInst[normalizeInstitution(p.institution)]
+  );
 
-  // Filter positions to keep only the latest year
-  const activeB3Positions = b3Positions.filter(p => p.year === b3LatestYear);
-  const activeBrokerPositions = brokerPositions.filter(p => p.year === brokerLatestYear);
+  const brokerLatestYearsByBroker: Record<string, number> = {};
+  for (const pos of brokerPositions) {
+    const broker = normalizeInstitution(pos.broker);
+    brokerLatestYearsByBroker[broker] = Math.max(brokerLatestYearsByBroker[broker] || 0, pos.year);
+  }
+  const activeBrokerPositions = brokerPositions.filter(
+    (p) => p.year === brokerLatestYearsByBroker[normalizeInstitution(p.broker)]
+  );
 
   // Group items by ticker
   const tickerGroups: Record<string, {

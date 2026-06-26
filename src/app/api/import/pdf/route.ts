@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import { verifyIdToken } from '@/lib/verify-id-token';
 
 const execFile = promisify(execFileCb);
 
@@ -23,10 +24,22 @@ async function isQpdfAvailable(): Promise<boolean> {
 export async function POST(req: NextRequest) {
   const tempFiles: string[] = [];
   try {
+    const authHeader = req.headers.get('authorization');
+    let decodedToken;
+    try {
+      decodedToken = await verifyIdToken(authHeader);
+    } catch (err: any) {
+      const isMissing = !authHeader || !authHeader.startsWith('Bearer ');
+      return NextResponse.json(
+        { success: false, error: isMissing ? "UNAUTHORIZED" : "FORBIDDEN" },
+        { status: isMissing ? 401 : 403 }
+      );
+    }
+    const userId = decodedToken.uid;
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const password = formData.get('password') as string | null;
-    const userId = String(formData.get('userId') || '');
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });

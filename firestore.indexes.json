@@ -129,6 +129,15 @@
         { "fieldPath": "monthKey", "order": "ASCENDING" },
         { "fieldPath": "__name__", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "owner", "order": "ASCENDING" },
+        { "fieldPath": "importHash", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
