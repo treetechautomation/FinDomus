@@ -66,7 +66,7 @@ export function SidebarNav() {
       <SidebarMenu className="flex-1 px-2">
         {menuItems.map((item) => (
           <SidebarMenuItem key={item.href} className="group">
-            <Link href={item.href}>
+            <Link href={item.href} id={`sidebar-link-${item.href.replace('/', '') || 'overview'}`}>
               <SidebarMenuButton
                 isActive={pathname === item.href}
                 tooltip={item.label}

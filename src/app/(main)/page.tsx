@@ -3,6 +3,10 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Banknote, Building2, Landmark, TrendingUp, Users, Sparkles } from 'lucide-react';
 import { StatCard } from '@/components/overview/stat-card';
 import dynamic from 'next/dynamic';
+import { useVisibility } from '@/providers/visibility-provider';
+import { FinancialSection } from '@/components/onboarding/FinancialSection';
+import { useTour } from '@/core/onboarding/tour-engine';
+import { MAIN_TOUR_ID } from '@/core/onboarding/tour-registry';
 
 const ConsolidatedBalance = dynamic(
   () => import('@/components/overview/consolidated-balance').then(m => ({ default: m.ConsolidatedBalance })),
@@ -37,10 +41,11 @@ import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financi
 import { useAuth } from '@/providers/auth-provider';
 
 function DreRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+  const { showFinancialValues } = useVisibility();
   return (
     <div className={strong ? "flex justify-between border-t pt-2 font-bold" : "flex justify-between"}>
       <span>{label}</span>
-      <span>{value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+      <span>{showFinancialValues ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '••••••••••'}</span>
     </div>
   );
 }
@@ -50,6 +55,8 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [netWorthHistory, setNetWorthHistory] = useState<any[]>([]);
   const [wealthReport, setWealthReport] = useState<any>(null);
+  const { showFinancialValues } = useVisibility();
+  const { startTour, completedTours, dismissedTours } = useTour();
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -107,6 +114,19 @@ export default function DashboardPage() {
       .catch(console.error);
   }, [user?.uid]);
 
+  // Autostart do tour na primeira visita ao dashboard
+  useEffect(() => {
+    if (dashboard) {
+      const isMainTourSeen = completedTours.includes(MAIN_TOUR_ID) || dismissedTours.includes(MAIN_TOUR_ID);
+      if (!isMainTourSeen) {
+        const timer = setTimeout(() => {
+          startTour(MAIN_TOUR_ID);
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [dashboard, completedTours, dismissedTours, startTour]);
+
   if (!dashboard) {
     return <div className="p-6 text-muted-foreground">Carregando dashboard...</div>;
   }
@@ -124,7 +144,7 @@ export default function DashboardPage() {
 
       {dashboard.netWorth && (
         <div className="space-y-6">
-          <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300 overflow-hidden relative group">
+          <Card id="tour-step-dashboard" className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300 overflow-hidden relative group">
             <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/[0.02] to-transparent pointer-events-none" />
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -133,7 +153,7 @@ export default function DashboardPage() {
                     💎 PATRIMÔNIO LÍQUIDO (NET WORTH)
                   </CardTitle>
                   <div className="text-4xl font-extrabold tracking-tight text-white mt-1">
-                    {formatCurrency(dashboard.netWorth.value)}
+                    {showFinancialValues ? formatCurrency(dashboard.netWorth.value) : '••••••••••'}
                   </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
@@ -148,16 +168,16 @@ export default function DashboardPage() {
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
                     Ativos Totais
                   </span>
-                  <span className="font-bold">{formatCurrency(dashboard.netWorth.totalAssets)}</span>
+                  <span className="font-bold">{showFinancialValues ? formatCurrency(dashboard.netWorth.totalAssets) : '••••••••••'}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400 pl-3.5 border-l border-slate-800/50">
                   <div>
                     <span className="block text-zinc-500">Contas</span>
-                    <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalAccounts)}</span>
+                    <span className="font-semibold text-zinc-300">{showFinancialValues ? formatCurrency(dashboard.netWorth.totalAccounts) : '••••••••••'}</span>
                   </div>
                   <div>
                     <span className="block text-zinc-500">Investimentos</span>
-                    <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalInvestments)}</span>
+                    <span className="font-semibold text-zinc-300">{showFinancialValues ? formatCurrency(dashboard.netWorth.totalInvestments) : '••••••••••'}</span>
                   </div>
                 </div>
               </div>
@@ -168,11 +188,11 @@ export default function DashboardPage() {
                     <span className="h-2 w-2 rounded-full bg-rose-400" />
                     Passivos Totais
                   </span>
-                  <span className="font-bold">{formatCurrency(dashboard.netWorth.totalLiabilities)}</span>
+                  <span className="font-bold">{showFinancialValues ? formatCurrency(dashboard.netWorth.totalLiabilities) : '••••••••••'}</span>
                 </div>
                 <div className="text-xs text-zinc-400 pl-3.5 border-l border-slate-800/50">
                   <span className="block text-zinc-500">Financiamentos e Dívidas</span>
-                  <span className="font-semibold text-zinc-300">{formatCurrency(dashboard.netWorth.totalLiabilities)}</span>
+                  <span className="font-semibold text-zinc-300">{showFinancialValues ? formatCurrency(dashboard.netWorth.totalLiabilities) : '••••••••••'}</span>
                 </div>
               </div>
             </CardContent>
@@ -260,10 +280,11 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          <NetworthEvolutionChart data={netWorthHistory} />
+          <FinancialSection>
+            <NetworthEvolutionChart data={netWorthHistory} />
+          </FinancialSection>
         </div>
       )}
-
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -297,45 +318,53 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ConsolidatedBalance data={dashboard.allocation} />
-        <MonthlyFlow data={dashboard.monthlyFlow} />
+        <FinancialSection>
+          <ConsolidatedBalance data={dashboard.allocation} />
+        </FinancialSection>
+        <FinancialSection>
+          <MonthlyFlow data={dashboard.monthlyFlow} />
+        </FinancialSection>
       </div>
 
-      <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <AlertTriangle className="h-5 w-5 text-zinc-400" />
-            Previsão de Caixa PJ
-          </CardTitle>
-          <CardDescription className="text-zinc-500">Projeção dos próximos {dashboard.cashflow.days} dias.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-4">
-          <StatCard title="Saldo Atual PJ" value={formatCurrency(dashboard.cashflow.currentBalance)} icon={Banknote} size="sm" />
-          <StatCard title="Saídas Previstas" value={formatCurrency(dashboard.cashflow.totalOutflow)} icon={ArrowDown} variant="negative" size="sm" />
-          <StatCard title="Menor Saldo" value={formatCurrency(dashboard.cashflow.lowestBalance)} icon={TrendingUp} variant={dashboard.cashflow.lowestBalance >= 0 ? "positive" : "negative"} size="sm" />
-          <StatCard title="Saldo Projetado" value={formatCurrency(dashboard.cashflow.projectedBalance)} icon={Landmark} variant={dashboard.cashflow.projectedBalance >= 0 ? "positive" : "negative"} size="sm" />
-        </CardContent>
-        <CashflowScenarioSwitcher scenarios={dashboard.cashflowScenarios} />
-      </Card>
+      <FinancialSection>
+        <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <AlertTriangle className="h-5 w-5 text-zinc-400" />
+              Previsão de Caixa PJ
+            </CardTitle>
+            <CardDescription className="text-zinc-500">Projeção dos próximos {dashboard.cashflow.days} dias.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-4">
+            <StatCard title="Saldo Atual PJ" value={formatCurrency(dashboard.cashflow.currentBalance)} icon={Banknote} size="sm" />
+            <StatCard title="Saídas Previstas" value={formatCurrency(dashboard.cashflow.totalOutflow)} icon={ArrowDown} variant="negative" size="sm" />
+            <StatCard title="Menor Saldo" value={formatCurrency(dashboard.cashflow.lowestBalance)} icon={TrendingUp} variant={dashboard.cashflow.lowestBalance >= 0 ? "positive" : "negative"} size="sm" />
+            <StatCard title="Saldo Projetado" value={formatCurrency(dashboard.cashflow.projectedBalance)} icon={Landmark} variant={dashboard.cashflow.projectedBalance >= 0 ? "positive" : "negative"} size="sm" />
+          </CardContent>
+          <CashflowScenarioSwitcher scenarios={dashboard.cashflowScenarios} />
+        </Card>
+      </FinancialSection>
 
-      <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(245,158,11,0.02)] transition-all duration-300">
-        <CardHeader>
-          <CardTitle className="text-white">DRE Empresarial</CardTitle>
-          <CardDescription className="text-zinc-500">Resultado automático das empresas com base nos lançamentos PJ.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-zinc-300">
-          <DreRow label="Receita Bruta" value={dashboard.dre.receitaBruta} />
-          <DreRow label="(-) Impostos" value={dashboard.dre.impostos} />
-          <DreRow label="Receita Líquida" value={dashboard.dre.receitaLiquida} strong />
-          <DreRow label="(-) Despesas Operacionais" value={dashboard.dre.despesas} />
-          <DreRow label="Lucro Bruto" value={dashboard.dre.lucroBruto} strong />
-          <DreRow label="(-) Pessoas" value={dashboard.dre.pessoas} />
-          <DreRow label="Lucro Operacional" value={dashboard.dre.lucroOperacional} strong />
-          <DreRow label="(-) Pró-labore" value={dashboard.dre.proLabore} />
-          <DreRow label="(-) Outros" value={dashboard.dre.outros} />
-          <DreRow label="Lucro Líquido" value={dashboard.dre.lucroLiquido} strong />
-        </CardContent>
-      </Card>
+      <FinancialSection>
+        <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(245,158,11,0.02)] transition-all duration-300">
+          <CardHeader>
+            <CardTitle className="text-white">DRE Empresarial</CardTitle>
+            <CardDescription className="text-zinc-500">Resultado automático das empresas com base nos lançamentos PJ.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-zinc-300">
+            <DreRow label="Receita Bruta" value={dashboard.dre.receitaBruta} />
+            <DreRow label="(-) Impostos" value={dashboard.dre.impostos} />
+            <DreRow label="Receita Líquida" value={dashboard.dre.receitaLiquida} strong />
+            <DreRow label="(-) Despesas Operacionais" value={dashboard.dre.despesas} />
+            <DreRow label="Lucro Bruto" value={dashboard.dre.lucroBruto} strong />
+            <DreRow label="(-) Pessoas" value={dashboard.dre.pessoas} />
+            <DreRow label="Lucro Operacional" value={dashboard.dre.lucroOperacional} strong />
+            <DreRow label="(-) Pró-labore" value={dashboard.dre.proLabore} />
+            <DreRow label="(-) Outros" value={dashboard.dre.outros} />
+            <DreRow label="Lucro Líquido" value={dashboard.dre.lucroLiquido} strong />
+          </CardContent>
+        </Card>
+      </FinancialSection>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(16,185,129,0.02)] transition-all duration-300">

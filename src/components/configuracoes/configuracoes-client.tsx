@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { X, Download, Upload, Copy, Share2, Users, Shield, UserPlus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { X, Download, Upload, Copy, Share2, Users, Shield, UserPlus, Eye, EyeOff, RotateCcw } from "lucide-react";
 import {
   getActiveHouseholdForUser,
   getHouseholdMembers,
@@ -29,6 +30,9 @@ import { AIUsagePanel } from "@/components/ai/ai-usage-panel";
 import { getFinancialAIData } from "@/services/firestore/financial-ai";
 import { getAccountIdentities } from "@/services/firestore/account-identities";
 import { useAuth } from "@/providers/auth-provider";
+import { useVisibility } from "@/providers/visibility-provider";
+import { useTour } from "@/core/onboarding/tour-engine";
+import { useToast } from "@/hooks/use-toast";
 
 function accountTypeLabel(type: string) {
   switch (type) {
@@ -50,6 +54,9 @@ function accountTypeLabel(type: string) {
 export function ConfiguracoesClient() {
   const { user, profile } = useAuth();
   const [aiData, setAIData] = useState<any>(null);
+  const { showFinancialValues, autoHideOnStart, toggleVisibility, setAutoHideOnStart } = useVisibility();
+  const { resetTours } = useTour();
+  const { toast } = useToast();
 
   const [household, setHousehold] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
@@ -306,7 +313,7 @@ export function ConfiguracoesClient() {
   const [companiesData, setCompaniesData] = useState<any[]>([]);
   const [firestoreCategories, setFirestoreCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
+  const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadConfigData() {
@@ -340,7 +347,7 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
         setAccounts(accountsResult || []);
         setCompaniesData(companiesResult || []);
         setFirestoreCategories(categoriesResult || []);
-          setAccountIdentities(identitiesResult || []);
+        setAccountIdentities(identitiesResult || []);
       } catch (error) {
         console.error('Erro ao carregar configurações:', error);
       } finally {
@@ -367,6 +374,15 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
     a.name.localeCompare(b.name, 'pt-BR')
   );
 
+  const handleResetTour = () => {
+    resetTours();
+    toast({
+      title: "Visita Guiada Resetada! 🚀",
+      description: "O tour principal de onboarding foi reiniciado. Visite a página 'Visão Geral' para iniciar o tour.",
+      duration: 5000,
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -385,7 +401,7 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
       </div>
 
       <Tabs defaultValue="perfil" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="familia">Família</TabsTrigger>
           <TabsTrigger value="empresas">Empresas</TabsTrigger>
@@ -393,6 +409,7 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
           <TabsTrigger value="categorias">Categorias</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
           <TabsTrigger value="ia">IA</TabsTrigger>
+          <TabsTrigger value="preferencias">Preferências</TabsTrigger>
         </TabsList>
 
         <TabsContent value="perfil" className="mt-6">
@@ -686,10 +703,10 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm font-medium">
-                        {Number(account.balance || 0).toLocaleString('pt-BR', {
+                        {showFinancialValues ? Number(account.balance || 0).toLocaleString('pt-BR', {
                           style: 'currency',
                           currency: 'BRL',
-                        })}
+                        }) : '••••••••••'}
                       </div>
                       <Badge variant={account.owner === 'PF' ? 'default' : 'outline'}>
                         {account.owner === 'PF' ? 'Pessoal' : 'Empresa'}
@@ -734,7 +751,6 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
               <Button variant="outline">
                 <Upload className="mr-2 h-4 w-4" />
                 Importar Backup
-
               </Button>
             </CardContent>
           </Card>
@@ -774,10 +790,12 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
                 <Card className="p-4">
                   <div className="text-sm text-muted-foreground">Previsão Próximo Mês</div>
                   <div className="mt-2 text-3xl font-bold">{aiData
-    ? aiData.projectedNextMonth.toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-      })
+    ? showFinancialValues
+      ? aiData.projectedNextMonth.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        })
+      : '••••••••••'
     : '-'}</div>
                   <div className="mt-1 text-xs text-muted-foreground">Comprometimento previsto</div>
                 </Card>
@@ -812,6 +830,68 @@ const [accountIdentities, setAccountIdentities] = useState<any[]>([]);
                   <div className="rounded-lg border p-3">O sistema já consegue prever parte do fluxo futuro automaticamente.</div>
                 </div>
               </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preferencias" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Preferências da Experiência</CardTitle>
+              <CardDescription>Personalize suas preferências de segurança de tela e onboarding.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950/20 p-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="show-financials" className="text-sm font-bold text-white flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-cyan-400" />
+                    Exibir valores financeiros
+                  </Label>
+                  <p className="text-xs text-zinc-400">
+                    Oculta ou exibe saldos, limites e gráficos financeiros em todas as telas da plataforma.
+                  </p>
+                </div>
+                <Switch
+                  id="show-financials"
+                  checked={showFinancialValues}
+                  onCheckedChange={toggleVisibility}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950/20 p-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="auto-hide" className="text-sm font-bold text-white flex items-center gap-2">
+                    <EyeOff className="h-4 w-4 text-amber-500" />
+                    Ocultar automaticamente ao iniciar
+                  </Label>
+                  <p className="text-xs text-zinc-400">
+                    Sempre inicia o sistema com todos os valores financeiros ocultos por padrão.
+                  </p>
+                </div>
+                <Switch
+                  id="auto-hide"
+                  checked={autoHideOnStart}
+                  onCheckedChange={setAutoHideOnStart}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/20 p-4 space-y-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-bold text-white flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4 text-emerald-400" />
+                    Visita Guiada (Onboarding)
+                  </Label>
+                  <p className="text-xs text-zinc-400">
+                    Apaga o registro de visitas e executa o tour interativo novamente na tela Visão Geral.
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleResetTour}
+                  className="h-9 text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all duration-200"
+                >
+                  Reiniciar Visita Guiada
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

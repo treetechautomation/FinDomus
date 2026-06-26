@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { VisibilityToggle } from '@/components/onboarding/VisibilityToggle';
 
 export function AppHeader() {
   const router = useRouter();
@@ -40,6 +41,9 @@ export function AppHeader() {
         <div className="flex-1">
           {/* Can add page title here dynamically if needed */}
         </div>
+        
+        <VisibilityToggle />
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
@@ -72,3 +76,4 @@ export function AppHeader() {
     </header>
   );
 }
+

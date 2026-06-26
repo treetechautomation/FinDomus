@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
-import { cva, type VariantProps } from 'class-variance-authority'
+import { cva, type VariantProps } from 'class-variance-authority';
+import { useVisibility } from '@/providers/visibility-provider';
 
 const statCardVariants = cva(
   "border-l-4",
@@ -37,6 +38,7 @@ interface StatCardProps extends VariantProps<typeof statCardVariants> {
 
 export function StatCard({ title, value, icon: Icon, description, variant, size, className, glowColor, children }: StatCardProps) {
   const isSmall = size === 'sm';
+  const { showFinancialValues } = useVisibility();
   
   // Custom class determination for premium glows
   const glowClasses = glowColor ? {
@@ -56,6 +58,8 @@ export function StatCard({ title, value, icon: Icon, description, variant, size,
     red: "text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]"
   }[glowColor] : "text-muted-foreground";
 
+  const displayValue = showFinancialValues ? value : '••••••••••';
+
   return (
     <Card className={cn("rounded-3xl border-l-4 overflow-hidden relative group transition-all duration-300", glowClasses, className)}>
       <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
@@ -66,7 +70,7 @@ export function StatCard({ title, value, icon: Icon, description, variant, size,
         </div>
       </CardHeader>
       <CardContent className={cn(isSmall ? "pb-4 px-4" : "")}>
-        <div className={cn("font-extrabold tracking-tight text-white", isSmall ? "text-lg" : "text-3xl")}>{value}</div>
+        <div className={cn("font-extrabold tracking-tight text-white", isSmall ? "text-lg" : "text-3xl")}>{displayValue}</div>
         {description && <p className={cn("text-zinc-500 font-light mt-1", isSmall ? "text-[10px]" : "text-xs")}>{description}</p>}
         {children}
       </CardContent>

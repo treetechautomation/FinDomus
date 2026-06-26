@@ -2,6 +2,10 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/providers/auth-provider';
+import { VisibilityProvider } from '@/providers/visibility-provider';
+import { TourProvider } from '@/core/onboarding/tour-engine';
+import { TourRenderer } from '@/components/onboarding/TourRenderer';
+
 export const metadata: Metadata = {
   title: 'FinDomus - Unified Financial Platform',
   description: 'Sua plataforma unificada para gestão financeira, patrimonial e empresarial.',
@@ -21,10 +25,16 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background">
         <AuthProvider>
-          {children}
-          <Toaster />
+          <VisibilityProvider>
+            <TourProvider>
+              {children}
+              <TourRenderer />
+              <Toaster />
+            </TourProvider>
+          </VisibilityProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+
