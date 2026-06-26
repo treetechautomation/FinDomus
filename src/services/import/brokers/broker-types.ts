@@ -72,6 +72,30 @@ export interface BrokerImportResult {
 // Normalized types (CORRETORAS.3.5)
 // ==========================================
 
+export type ImportDecisionStatus = 'NEW' | 'UPDATE' | 'DUPLICATE' | 'CONFLICT' | 'IGNORE';
+
+export interface ImportDecision {
+  status: ImportDecisionStatus;
+  reason: string;
+  matchedId?: string;
+}
+
+export interface ImportDecisionSummary {
+  total: number;
+  newCount: number;
+  updateCount: number;
+  duplicateCount: number;
+  conflictCount: number;
+  ignoredCount: number;
+}
+
+export interface ImportComparisonResult {
+  positions: NormalizedBrokerPosition[];
+  income: NormalizedBrokerIncome[];
+  transactions: NormalizedBrokerTransaction[];
+  decisionSummary: ImportDecisionSummary;
+}
+
 export interface NormalizedBrokerMetadata {
   source: 'XP' | 'BTG' | 'CLEAR' | 'RICO' | 'INTER' | 'UNKNOWN';
   broker: string;
@@ -101,6 +125,7 @@ export interface NormalizedBrokerPosition {
   year: number;
   dedupeKey: string;
   raw: any;
+  decision?: ImportDecision;
 }
 
 export interface NormalizedBrokerIncome {
@@ -114,6 +139,7 @@ export interface NormalizedBrokerIncome {
   year: number;
   dedupeKey: string;
   raw: any;
+  decision?: ImportDecision;
 }
 
 export interface NormalizedBrokerTransaction {
@@ -131,6 +157,7 @@ export interface NormalizedBrokerTransaction {
   currency: string;
   dedupeKey: string;
   raw: any;
+  decision?: ImportDecision;
 }
 
 export interface NormalizedBrokerImportMetrics {
@@ -155,4 +182,5 @@ export interface NormalizedBrokerImport {
   warnings: string[];
   errors: string[];
   metrics: NormalizedBrokerImportMetrics;
+  decisionSummary?: ImportDecisionSummary;
 }

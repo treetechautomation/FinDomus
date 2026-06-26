@@ -4,6 +4,7 @@ import { parseB3BrokerXlsx } from '@/services/import/brokers/universal-xlsx-pars
 import { parseSinacorPdf } from '@/services/import/brokers/sinacor-pdf-parser';
 import { normalizeBrokerImport } from '@/services/import/brokers/normalizer';
 import { validateBrokerImport } from '@/services/import/brokers/validation-engine';
+import { evaluateImportDecisions } from '@/services/import/brokers/import-decision-engine';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const password = formData.get('password') as string | null;
+    const userId = formData.get('userId') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -59,13 +61,14 @@ export async function POST(req: NextRequest) {
       ...parsedResult.detected
     };
 
-    // 3. Normalize & Validate
-    const normalized = normalizeBrokerImport(parsedResult, file.name, undefined); // userId is undefined in preview
+    // 3. Normalize, Validate & Decide
+    const normalized = normalizeBrokerImport(parsedResult, file.name, userId || undefined);
     const validated = validateBrokerImport(normalized);
+    const withDecisions = await evaluateImportDecisions(validated, userId || 'preview');
 
     return NextResponse.json({
       success: true,
-      data: validated
+      data: withDecisions
     });
 
   } catch (error: any) {

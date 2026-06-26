@@ -5,4 +5,4 @@
 - `[x]` Ajustar component preview `corretoras-preview.tsx`
 - `[x]` Testar e validar com scripts locais (PosicaoDetalhada, movimentacao, Extrato BTG, Nota XP)
 - `[x]` Rodar npm run typecheck e build local
-- `[ ]` Commit com mensagem "feat: adiciona normalizacao e validacao universal para corretoras"
+- `[x]` Commit com mensagem "feat: adiciona normalizacao e validacao universal para corretoras"
