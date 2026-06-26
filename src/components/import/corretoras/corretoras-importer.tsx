@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/auth-provider';
 import { CorretorasPreview } from './corretoras-preview';
-import type { BrokerImportResult } from '@/services/import/brokers/broker-types';
+import type { NormalizedBrokerImport } from '@/services/import/brokers/broker-types';
 
 export function CorretorasImporter() {
   const { user } = useAuth();
@@ -24,7 +24,7 @@ export function CorretorasImporter() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfPassword, setPdfPassword] = useState('');
   const [pdfNeedsPassword, setPdfNeedsPassword] = useState(false);
-  const [importResult, setImportResult] = useState<BrokerImportResult | null>(null);
+  const [importResult, setImportResult] = useState<NormalizedBrokerImport | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -93,7 +93,7 @@ export function CorretorasImporter() {
         setImportResult(json.data);
         toast({
           title: "Arquivo Processado",
-          description: `Documento da corretora ${json.data.detected.source} lido com sucesso.`
+          description: `Documento da corretora ${json.data.metadata.source} lido com sucesso.`
         });
       } else {
         throw new Error('Resposta inválida do servidor.');

@@ -198,6 +198,8 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
         if (!row || row.length === 0 || !row[1] || row[5] === 'Saldo Diário') continue;
 
         const dateTimeStr = String(row[1]).trim();
+        if (!dateTimeStr.match(/^\d/)) continue;
+
         const dateStr = dateTimeStr.split(' ')[0];
         const category = String(row[2]).trim();
         const transactionType = String(row[3]).trim();

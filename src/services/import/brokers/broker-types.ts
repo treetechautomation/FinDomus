@@ -67,3 +67,92 @@ export interface BrokerImportResult {
   warnings?: string[];
   metrics: BrokerImportMetrics;
 }
+
+// ==========================================
+// Normalized types (CORRETORAS.3.5)
+// ==========================================
+
+export interface NormalizedBrokerMetadata {
+  source: 'XP' | 'BTG' | 'CLEAR' | 'RICO' | 'INTER' | 'UNKNOWN';
+  broker: string;
+  format: 'PDF' | 'XLSX' | 'CSV';
+  documentType: 'CUSTODY' | 'INCOME' | 'BROKERAGE_NOTE' | 'LEDGER' | 'UNKNOWN';
+  schemaKey: string | null;
+  confidence: number;
+  fileName: string;
+  year: number;
+  generatedAt: string;
+}
+
+export interface NormalizedBrokerPosition {
+  source: string;
+  broker: string;
+  documentType: string;
+  ticker: string;
+  assetType: string;
+  name: string;
+  institution: string;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  marketValue: number;
+  currency: string;
+  acquisitionDate?: string;
+  year: number;
+  dedupeKey: string;
+  raw: any;
+}
+
+export interface NormalizedBrokerIncome {
+  source: string;
+  broker: string;
+  ticker: string;
+  incomeType: string;
+  amount: number;
+  currency: string;
+  paymentDate?: string;
+  year: number;
+  dedupeKey: string;
+  raw: any;
+}
+
+export interface NormalizedBrokerTransaction {
+  source: string;
+  broker: string;
+  ticker: string;
+  operation: string;
+  quantity: number;
+  price: number;
+  grossAmount: number;
+  netAmount?: number;
+  fees: number;
+  taxes: number;
+  date: string;
+  currency: string;
+  dedupeKey: string;
+  raw: any;
+}
+
+export interface NormalizedBrokerImportMetrics {
+  positionsCount: number;
+  incomeCount: number;
+  transactionsCount: number;
+  totalMarketValue: number;
+  totalIncome: number;
+  totalTransactionsAmount: number;
+  buyCount: number;
+  sellCount: number;
+  warningsCount: number;
+  errorsCount: number;
+  processingTimeMs: number;
+}
+
+export interface NormalizedBrokerImport {
+  metadata: NormalizedBrokerMetadata;
+  positions: NormalizedBrokerPosition[];
+  income: NormalizedBrokerIncome[];
+  transactions: NormalizedBrokerTransaction[];
+  warnings: string[];
+  errors: string[];
+  metrics: NormalizedBrokerImportMetrics;
+}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { detectBrokerDocument } from '@/services/import/brokers/detector';
 import { parseB3BrokerXlsx } from '@/services/import/brokers/universal-xlsx-parser';
 import { parseSinacorPdf } from '@/services/import/brokers/sinacor-pdf-parser';
+import { normalizeBrokerImport } from '@/services/import/brokers/normalizer';
+import { validateBrokerImport } from '@/services/import/brokers/validation-engine';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,9 +59,13 @@ export async function POST(req: NextRequest) {
       ...parsedResult.detected
     };
 
+    // 3. Normalize & Validate
+    const normalized = normalizeBrokerImport(parsedResult, file.name, undefined); // userId is undefined in preview
+    const validated = validateBrokerImport(normalized);
+
     return NextResponse.json({
       success: true,
-      data: parsedResult
+      data: validated
     });
 
   } catch (error: any) {

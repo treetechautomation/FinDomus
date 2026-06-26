@@ -3,11 +3,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldCheck, AlertTriangle, Building2, TrendingUp, Landmark, Calendar, DollarSign } from 'lucide-react';
-import type { BrokerImportResult } from '@/services/import/brokers/broker-types';
+import { ShieldCheck, AlertTriangle, Building2, Landmark, Calendar, DollarSign, Activity } from 'lucide-react';
+import type { NormalizedBrokerImport } from '@/services/import/brokers/broker-types';
 
 interface Props {
-  data: BrokerImportResult;
+  data: NormalizedBrokerImport;
   onClear: () => void;
 }
 
@@ -15,10 +15,10 @@ const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function CorretorasPreview({ data, onClear }: Props) {
-  const { detected, positions, dividends, transactions, errors, warnings } = data;
+  const { metadata, positions, income, transactions, errors, warnings, metrics } = data;
 
   const hasPositions = positions && positions.length > 0;
-  const hasDividends = dividends && dividends.length > 0;
+  const hasIncome = income && income.length > 0;
   const hasTransactions = transactions && transactions.length > 0;
 
   return (
@@ -32,44 +32,66 @@ export function CorretorasPreview({ data, onClear }: Props) {
               <div className="flex items-center gap-2 mb-2">
                 <Building2 className="h-5 w-5 text-indigo-400" />
                 <Badge className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20">Preview Corretora</Badge>
-                <Badge className="bg-white/5 text-zinc-400 border-white/10">{detected.format}</Badge>
+                <Badge className="bg-white/5 text-zinc-400 border-white/10">{metadata.format}</Badge>
               </div>
               <CardTitle className="text-2xl font-bold text-white">
-                Extrato Detectado: <span className="text-indigo-400">{detected.source}</span>
+                Extrato Detectado: <span className="text-indigo-400">{metadata.source}</span>
               </CardTitle>
               <CardDescription className="text-zinc-400 mt-1">
-                {detected.reason}
+                Nome do arquivo: <span className="text-zinc-300 font-mono text-xs">{metadata.fileName}</span>
               </CardDescription>
             </div>
             <div className="bg-black/40 border border-white/5 px-4 py-3 rounded-xl flex items-center gap-3">
               <div className="text-right">
                 <span className="text-xs text-zinc-500 block">Confiança da Detecção</span>
-                <span className="text-sm font-bold text-indigo-400">{(detected.confidence * 100).toFixed(0)}%</span>
+                <span className="text-sm font-bold text-indigo-400">{(metadata.confidence * 100).toFixed(0)}%</span>
               </div>
               <div className="w-1.5 h-8 bg-indigo-500/20 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500" style={{ width: `${detected.confidence * 100}%` }} />
+                <div className="h-full bg-indigo-500" style={{ width: `${metadata.confidence * 100}%` }} />
               </div>
             </div>
           </div>
         </CardHeader>
 
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-black/25 border border-white/5 p-4 rounded-xl">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-black/25 border border-white/5 p-4 rounded-xl">
             <div>
               <span className="text-xs text-zinc-500 block">Tipo do Documento</span>
-              <span className="text-sm font-semibold text-zinc-300">{detected.documentType}</span>
+              <span className="text-sm font-semibold text-zinc-300">{metadata.documentType}</span>
             </div>
             <div>
-              <span className="text-xs text-zinc-500 block">Posições Lidas</span>
-              <span className="text-sm font-semibold text-zinc-300">{positions.length}</span>
+              <span className="text-xs text-zinc-500 block">Val. Total Custódia</span>
+              <span className="text-sm font-bold text-emerald-400">{money(metrics.totalMarketValue)}</span>
             </div>
             <div>
-              <span className="text-xs text-zinc-500 block">Proventos Lidos</span>
-              <span className="text-sm font-semibold text-zinc-300">{dividends.length}</span>
+              <span className="text-xs text-zinc-500 block">Total Proventos</span>
+              <span className="text-sm font-bold text-indigo-400">{money(metrics.totalIncome)}</span>
             </div>
             <div>
-              <span className="text-xs text-zinc-500 block">Movimentações</span>
-              <span className="text-sm font-semibold text-zinc-300">{transactions.length}</span>
+              <span className="text-xs text-zinc-500 block">Volume Operado</span>
+              <span className="text-sm font-bold text-zinc-300">{money(metrics.totalTransactionsAmount)}</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-white/5 text-xs text-zinc-400">
+            <div>
+              <span className="text-zinc-500 block block-inline">Posições Lidas:</span>{' '}
+              <span className="font-semibold text-zinc-300">{metrics.positionsCount}</span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block block-inline">Operações:</span>{' '}
+              <span className="font-semibold text-zinc-300">
+                {metrics.buyCount} Compra / {metrics.sellCount} Venda
+              </span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block block-inline">Alertas / Erros:</span>{' '}
+              <span className="font-semibold text-zinc-300">
+                {metrics.warningsCount} Avisos / {metrics.errorsCount} Erros
+              </span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block block-inline">Processamento:</span>{' '}
+              <span className="font-semibold text-zinc-300">{metrics.processingTimeMs} ms</span>
             </div>
           </div>
         </CardContent>
@@ -143,7 +165,7 @@ export function CorretorasPreview({ data, onClear }: Props) {
                       <TableCell className="text-right text-zinc-300">{money(pos.averagePrice)}</TableCell>
                       <TableCell className="text-right text-zinc-300">{money(pos.currentPrice)}</TableCell>
                       <TableCell className="text-right font-semibold text-emerald-400">{money(pos.marketValue)}</TableCell>
-                      <TableCell className="text-[10px] font-mono text-zinc-500 truncate max-w-[250px]">{pos.dedupeKey}</TableCell>
+                      <TableCell className="text-[10px] font-mono text-zinc-500 truncate max-w-[250px]" title={pos.dedupeKey}>{pos.dedupeKey}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -154,7 +176,7 @@ export function CorretorasPreview({ data, onClear }: Props) {
       )}
 
       {/* 4. Dividends Section */}
-      {hasDividends && (
+      {hasIncome && (
         <Card className="border-white/5 bg-slate-950/40 backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-2 text-indigo-400">
@@ -176,13 +198,13 @@ export function CorretorasPreview({ data, onClear }: Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dividends.map((div, idx) => (
+                  {income.map((div, idx) => (
                     <TableRow key={idx} className="border-white/5 hover:bg-white/5">
-                      <TableCell className="text-zinc-300">{div.date || '-'}</TableCell>
+                      <TableCell className="text-zinc-300">{div.paymentDate || '-'}</TableCell>
                       <TableCell className="font-bold text-white">{div.ticker}</TableCell>
-                      <TableCell className="text-zinc-300">{div.type}</TableCell>
+                      <TableCell className="text-zinc-300">{div.incomeType}</TableCell>
                       <TableCell className="text-right font-semibold text-emerald-400">{money(div.amount)}</TableCell>
-                      <TableCell className="text-[10px] font-mono text-zinc-500 truncate max-w-[250px]">{div.dedupeKey}</TableCell>
+                      <TableCell className="text-[10px] font-mono text-zinc-500 truncate max-w-[250px]" title={div.dedupeKey}>{div.dedupeKey}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -222,14 +244,14 @@ export function CorretorasPreview({ data, onClear }: Props) {
                       <TableCell className="text-zinc-300">{tx.date}</TableCell>
                       <TableCell className="font-bold text-white">{tx.ticker}</TableCell>
                       <TableCell>
-                        <Badge className={tx.operation === 'C' || tx.operation.includes('Compra') ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}>
+                        <Badge className={tx.operation === 'C' || tx.operation.toUpperCase().includes('COMPRA') ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}>
                           {tx.operation === 'C' ? 'COMPRA' : tx.operation === 'V' ? 'VENDA' : tx.operation}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-zinc-300">{tx.quantity}</TableCell>
                       <TableCell className="text-right text-zinc-300">{money(tx.price)}</TableCell>
-                      <TableCell className="text-right font-semibold text-zinc-300">{money(tx.amount)}</TableCell>
-                      <TableCell className="text-[10px] font-mono text-zinc-500 truncate max-w-[250px]">{tx.dedupeKey}</TableCell>
+                      <TableCell className="text-right font-semibold text-zinc-300">{money(tx.grossAmount)}</TableCell>
+                      <TableCell className="text-[10px] font-mono text-zinc-500 truncate max-w-[250px]" title={tx.dedupeKey}>{tx.dedupeKey}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
