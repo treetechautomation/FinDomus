@@ -120,7 +120,10 @@ export function normalizeBrokerImport(
     confidence: raw.detected.confidence,
     fileName,
     year: fileYear,
-    generatedAt: new Date().toISOString()
+    generatedAt: new Date().toISOString(),
+    layoutName: raw.detected.layoutName,
+    version: raw.detected.version,
+    totalLines: raw.detected.totalLines
   };
 
   // Validation engine will populate metrics and messages, initialize them empty

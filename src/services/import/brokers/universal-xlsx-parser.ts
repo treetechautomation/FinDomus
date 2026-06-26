@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx';
 import { BrokerImportResult, BrokerPosition, BrokerIncome, BrokerTransaction } from './broker-types';
-import { BROKER_SCHEMAS } from './broker-schemas';
+import { BROKER_LAYOUTS } from './layouts/registry';
 
 export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: string): BrokerImportResult {
+  const startTime = Date.now();
   const result: BrokerImportResult = {
     detected: {
       source: 'UNKNOWN',
@@ -10,7 +11,7 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
       format: 'XLSX',
       schemaKey,
       confidence: 1.0,
-      reason: 'Schema pre-definido.'
+      reason: 'Schema pré-definido pelo layout catálogo.'
     },
     positions: [],
     dividends: [],
@@ -24,21 +25,22 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
     }
   };
 
-  const startTime = Date.now();
-
   try {
-    const schema = BROKER_SCHEMAS[schemaKey];
-    if (!schema) {
-      throw new Error(`Esquema de corretora não encontrado: ${schemaKey}`);
+    const layout = BROKER_LAYOUTS.find(l => l.id === schemaKey);
+    if (!layout) {
+      throw new Error(`Layout/Schema de corretora não encontrado no catálogo: ${schemaKey}`);
     }
 
-    result.detected.source = schema.source;
-    result.detected.documentType = schema.documentType;
+    result.detected.source = layout.broker;
+    result.detected.documentType = layout.documentType;
+    result.detected.layoutName = layout.id;
+    result.detected.version = layout.version;
 
     const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[schema.sheetName];
+    const sheetName = layout.sheetName || workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
-      throw new Error(`Aba "${schema.sheetName}" não encontrada no arquivo.`);
+      throw new Error(`Aba "${sheetName}" não encontrada no arquivo.`);
     }
 
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
@@ -46,15 +48,60 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
       throw new Error('Nenhuma linha encontrada no documento.');
     }
 
+    result.detected.totalLines = rows.length;
+
     let year = new Date().getFullYear();
     const yearMatch = fileName.match(/(\d{4})/);
     if (yearMatch) {
       year = parseInt(yearMatch[1], 10);
     }
 
-    // 1. XP CUSTODY XLSX
-    if (schemaKey === 'XP_CUSTODY_XLSX') {
-      let currentAssetType = 'UNKNOWN';
+    // Locate the header row to dynamic check column mapping
+    const headerRowIndex = findHeaderRowIndex(rows, layout.columns);
+    const headerRow = rows[headerRowIndex] || [];
+    
+    // Resolve start row index
+    let currentStartRow = headerRowIndex + 1;
+    if (layout.startRowOffset !== undefined) {
+      currentStartRow = layout.startRowOffset;
+    }
+
+    // Number parser helper
+    const parseVal = (val: any): number => {
+      if (val === undefined || val === null || val === '-') return 0;
+      if (typeof val === 'number') return val;
+      const clean = String(val).replace(/[^\d,-]/g, '').replace(/\./g, '').replace(',', '.');
+      return parseFloat(clean) || 0;
+    };
+
+    // Date parser helper
+    const parseDateVal = (val: any): { dateStr: string; yearVal: number } => {
+      if (val === undefined || val === null) {
+        const today = new Date().toLocaleDateString('pt-BR');
+        return { dateStr: today, yearVal: year };
+      }
+      
+      // If serial Excel date
+      if (typeof val === 'number' && val > 30000 && val < 60000) {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        const jsDate = new Date(excelEpoch.getTime() + val * 86400000);
+        const day = String(jsDate.getUTCDate()).padStart(2, '0');
+        const month = String(jsDate.getUTCMonth() + 1).padStart(2, '0');
+        const yearNum = jsDate.getUTCFullYear();
+        return { dateStr: `${day}/${month}/${yearNum}`, yearVal: yearNum };
+      }
+
+      const str = String(val).trim();
+      const match = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (match) {
+        return { dateStr: str, yearVal: parseInt(match[3], 10) };
+      }
+      return { dateStr: str, yearVal: year };
+    };
+
+    // 1. DYNAMIC CUSTODY VERTICAL SECTIONS (XP CUSTODY)
+    if (layout.documentType === 'CUSTODY' && layout.sections && layout.sections.length > 0) {
+      let currentSectionIndex = -1;
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -62,76 +109,93 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
 
         const firstCell = row[0] ? String(row[0]).trim() : '';
 
-        // Detect current asset section
-        if (firstCell === 'Ações' || firstCell === 'Açoes') {
-          currentAssetType = 'ACOES';
-          continue;
+        // Check if we hit the stop anchor
+        if (
+          layout.stopRowAnchor &&
+          row.some(cell => cell && String(cell).toLowerCase().includes(layout.stopRowAnchor!.toLowerCase()))
+        ) {
+          break;
         }
-        if (firstCell === 'Tesouro Direto') {
-          currentAssetType = 'TESOURO';
-          continue;
-        }
-        if (firstCell === 'Fundos de Investimentos' || firstCell === 'Fundos') {
-          currentAssetType = 'FII';
-          continue;
-        }
-        if (firstCell === 'Renda Fixa') {
-          currentAssetType = 'RENDA_FIXA';
+
+        // Detect if row matches any of the section markers
+        const sectionMatchIdx = layout.sections.findIndex(sec => 
+          firstCell.toLowerCase() === sec.anchor.toLowerCase() ||
+          firstCell.toLowerCase().startsWith(sec.anchor.toLowerCase())
+        );
+
+        if (sectionMatchIdx !== -1) {
+          currentSectionIndex = sectionMatchIdx;
           continue;
         }
 
-        // Skip headers, totals and blanks
+        // Skip headers, totals and empty rows
         if (row.some(c => typeof c === 'string' && c.includes('% Alocação'))) continue;
         if (firstCell === '' || firstCell.toLowerCase().includes('total') || firstCell.includes('Anderson Maranhao')) {
           continue;
         }
 
-        // Stop parsing positions if we reach the provisioned dividends or secondary sections
-        if (firstCell.includes('Dividendos') || firstCell.includes('Proventos') || firstCell.includes('Custódia Remunerada')) {
-          break;
-        }
-
-        if (currentAssetType !== 'UNKNOWN') {
-          const parseVal = (val: any) => {
-            if (val === undefined || val === null || val === '-') return 0;
-            if (typeof val === 'number') return val;
-            const clean = String(val).replace(/[^\d,-]/g, '').replace(/\./g, '').replace(',', '.');
-            return parseFloat(clean) || 0;
+        if (currentSectionIndex !== -1) {
+          const section = layout.sections[currentSectionIndex];
+          
+          // Merge columns mapping with section overrides
+          const mergedColumns = {
+            ...layout.columns,
+            ...(section.columns || {})
           };
 
+          // Map indexes
+          const colIndices = buildColumnIndexMap(headerRow, mergedColumns);
+
           const tickerOrName = firstCell;
-          const marketValue = parseVal(row[1]);
+          let ticker = tickerOrName;
+          
+          if (section.tickerResolver === 'split_space') {
+            ticker = tickerOrName.split(' ')[0].trim();
+          } else if (section.tickerResolver === 'first_word') {
+            ticker = tickerOrName.split(/\s+/)[0].trim();
+          } else if (section.tickerResolver === 'direct') {
+            ticker = tickerOrName.substring(0, 10).trim();
+          }
+
+          const rawMarketValue = colIndices.marketValue !== undefined ? row[colIndices.marketValue] : undefined;
+          const marketValue = parseVal(rawMarketValue);
 
           let quantity = 1;
           let averagePrice = 0;
           let currentPrice = 0;
 
-          if (currentAssetType === 'ACOES') {
-            quantity = parseVal(row[6]);
-            averagePrice = parseVal(row[4]);
-            currentPrice = parseVal(row[5]);
-          } else if (currentAssetType === 'TESOURO') {
-            quantity = parseVal(row[4]);
-            const totalApplied = parseVal(row[3]);
-            averagePrice = quantity > 0 ? totalApplied / quantity : 0;
+          // Parse raw columns using the mapped indexes
+          const rawQty = colIndices.quantity !== undefined ? row[colIndices.quantity] : undefined;
+          const rawAvgPrice = colIndices.averagePrice !== undefined ? row[colIndices.averagePrice] : undefined;
+          const rawCurrPrice = colIndices.currentPrice !== undefined ? row[colIndices.currentPrice] : undefined;
+
+          quantity = rawQty !== undefined ? parseVal(rawQty) : 1;
+          averagePrice = rawAvgPrice !== undefined ? parseVal(rawAvgPrice) : 0;
+          currentPrice = rawCurrPrice !== undefined ? parseVal(rawCurrPrice) : 0;
+
+          // Handle custom calculations mapped to the section
+          if (section.calculate?.averagePrice === 'applied_div_quantity') {
+            averagePrice = quantity > 0 ? averagePrice / quantity : 0;
+          }
+          if (section.calculate?.currentPrice === 'market_div_quantity') {
             currentPrice = quantity > 0 ? marketValue / quantity : 0;
-          } else if (currentAssetType === 'FII' || currentAssetType === 'RENDA_FIXA') {
-            quantity = 1;
-            averagePrice = parseVal(row[5]);
-            currentPrice = marketValue;
           }
 
-          const ticker = currentAssetType === 'ACOES' ? tickerOrName.split(' ')[0] : tickerOrName.substring(0, 10);
-          const dedupeKey = `broker_position_\${userId}*XP*${year}*${ticker}*${currentAssetType}`;
+          // Safe defaults for current price
+          if (currentPrice === 0 && marketValue > 0) {
+            currentPrice = quantity > 0 ? marketValue / quantity : marketValue;
+          }
+
+          const dedupeKey = `broker_position_\${userId}*${layout.broker}*${year}*${ticker}*${section.assetType}`;
 
           result.positions.push({
-            source: 'XP',
-            broker: 'XP',
+            source: layout.broker,
+            broker: layout.broker,
             documentType: 'CUSTODY',
             ticker,
             name: tickerOrName,
-            assetType: currentAssetType,
-            institution: 'XP INVESTIMENTOS CCTVM S/A',
+            assetType: section.assetType,
+            institution: 'XP INVESTIMENTOS CCTVM S/A', // fallback
             quantity,
             averagePrice,
             currentPrice,
@@ -141,103 +205,90 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
           });
         }
       }
-    }
+    } else {
+      // 2. FLAT LAYOUT TABLE (XP LEDGER, BTG LEDGER, ETC.)
+      const colIndices = buildColumnIndexMap(headerRow, layout.columns);
 
-    // 2. XP LEDGER (MOVIMENTAÇÃO) XLSX
-    if (schemaKey === 'XP_LEDGER_XLSX') {
-      for (let i = 1; i < rows.length; i++) {
+      for (let i = currentStartRow; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || row.length === 0 || !row[0] || row[0] === 'Total') continue;
+        if (!row || row.length === 0) continue;
 
-        const dateStr = String(row[1]).trim();
-        const operationType = String(row[2]).trim();
-        const product = String(row[3]).trim();
-        const quantity = parseFloat(String(row[5])) || 0;
-        const price = parseFloat(String(row[6])) || 0;
-        const amount = parseFloat(String(row[7])) || 0;
-        const ticker = product.split(' - ')[0].trim();
+        // Skip totals and meta
+        const checkTotal = row[0] ? String(row[0]).trim() : '';
+        if (checkTotal === 'Total' || checkTotal === 'Saldo Diário') continue;
 
-        const dateParts = dateStr.split('/');
-        const rowYear = dateParts[2] ? parseInt(dateParts[2], 10) : year;
-        const isIncome = ['Dividendo', 'Juros Sobre Capital Próprio', 'Rendimento'].includes(operationType);
+        // Check if date exists and is valid
+        const rawDate = colIndices.date !== undefined ? row[colIndices.date] : undefined;
+        if (rawDate === undefined || rawDate === null) continue;
 
-        if (isIncome) {
-          const dedupeKey = `broker_income_\${userId}*XP*${rowYear}*${ticker}*${operationType}_${amount}`;
-          result.dividends.push({
-            source: 'XP',
-            broker: 'XP',
-            ticker,
-            type: operationType,
-            amount,
-            date: dateStr,
-            year: rowYear,
-            dedupeKey
-          });
-        } else {
-          const dedupeKey = `broker_tx_\${userId}*XP*${dateStr}*${ticker}*${operationType}*${quantity}*${price}_${amount}`;
-          result.transactions.push({
-            source: 'XP',
-            broker: 'XP',
-            ticker,
-            operation: operationType,
-            quantity,
-            price,
-            amount,
-            date: dateStr,
-            fees: 0,
-            dedupeKey
-          });
+        const { dateStr, yearVal } = parseDateVal(rawDate);
+        if (!dateStr || !dateStr.match(/^\d/)) continue;
+
+        // Parse fields
+        const rawOp = colIndices.operation !== undefined ? row[colIndices.operation] : '';
+        const operationType = String(rawOp).trim();
+
+        const rawProduct = colIndices.ticker !== undefined ? row[colIndices.ticker] : '';
+        const rawDesc = colIndices.description !== undefined ? row[colIndices.description] : '';
+        
+        const productString = String(rawProduct || rawDesc).trim();
+        const descriptionString = String(rawDesc).trim();
+
+        // Extract ticker from product/description string
+        let ticker = 'UNKNOWN';
+        if (productString) {
+          const tickerParts = productString.split(' - ');
+          ticker = tickerParts[0].trim();
+          // Regex fallback if ticker is too long or contains spaces
+          if (ticker.length > 8 || ticker.includes(' ')) {
+            const tickerMatch = productString.match(/\b([A-Z0-9]{4,6})\b/);
+            if (tickerMatch) {
+              ticker = tickerMatch[1];
+            }
+          }
         }
-      }
-    }
 
-    // 3. BTG LEDGER (EXTRATO) XLSX
-    if (schemaKey === 'BTG_LEDGER_XLSX') {
-      for (let i = 11; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0 || !row[1] || row[5] === 'Saldo Diário') continue;
+        const quantity = colIndices.quantity !== undefined ? parseVal(row[colIndices.quantity]) : 1;
+        const price = colIndices.averagePrice !== undefined ? parseVal(row[colIndices.averagePrice]) : 0;
+        const amount = colIndices.amount !== undefined ? parseVal(row[colIndices.amount]) : 0;
 
-        const dateTimeStr = String(row[1]).trim();
-        if (!dateTimeStr.match(/^\d/)) continue;
-
-        const dateStr = dateTimeStr.split(' ')[0];
-        const category = String(row[2]).trim();
-        const transactionType = String(row[3]).trim();
-        const description = String(row[5]).trim();
-        const amount = parseFloat(String(row[9])) || 0;
-
-        const tickerMatch = description.match(/\b([A-Z0-9]{4,6})\b/);
-        const ticker = tickerMatch ? tickerMatch[1] : 'UNKNOWN';
-
-        const dateParts = dateStr.split('/');
-        const rowYear = dateParts[2] ? parseInt(dateParts[2], 10) : year;
-
-        const isIncome = ['Rendimento', 'JSCP', 'Dividendo', 'Proventos'].some(t => 
-          description.includes(t) || transactionType.includes(t) || category.includes(t)
+        // Income detection
+        const isIncome = ['Dividendo', 'Juros Sobre Capital Próprio', 'Rendimento', 'JSCP', 'Proventos', 'Juros S/ Capital'].some(t =>
+          operationType.toLowerCase().includes(t.toLowerCase()) || 
+          descriptionString.toLowerCase().includes(t.toLowerCase())
         );
 
         if (isIncome) {
-          const type = description.includes('Juros') || description.includes('JSCP') ? 'Juros Sobre Capital Próprio' : 'Dividendo';
-          const dedupeKey = `broker_income_\${userId}*BTG*${rowYear}*${ticker}*${type}_${amount}`;
+          const matchedType = operationType.toLowerCase().includes('juros') || descriptionString.toLowerCase().includes('juros') || descriptionString.toLowerCase().includes('jscp') 
+            ? 'Juros Sobre Capital Próprio' 
+            : 'Dividendo';
+            
+          const dedupeKey = `broker_income_\${userId}*${layout.broker}*${yearVal}*${ticker}*${matchedType}_${Math.abs(amount)}`;
+          
           result.dividends.push({
-            source: 'BTG',
-            broker: 'BTG',
+            source: layout.broker,
+            broker: layout.broker,
             ticker,
-            type,
+            type: matchedType,
             amount: Math.abs(amount),
             date: dateStr,
-            year: rowYear,
+            year: yearVal,
             dedupeKey
           });
         } else {
-          const dedupeKey = `broker_tx_\${userId}*BTG*${dateStr}*${ticker}*${transactionType}*${amount}`;
+          // Regular transaction
+          const normOp = amount < 0 || operationType.toLowerCase().includes('venda') || operationType.toLowerCase().includes('resgate') ? 'V' : 'C';
+          const finalPrice = price || Math.abs(amount);
+          
+          const dedupeKey = `broker_tx_\${userId}*${layout.broker}*${dateStr}*${ticker}*${normOp}*${quantity}*${finalPrice}_${Math.abs(amount)}`;
+          
           result.transactions.push({
-            source: 'BTG',
-            broker: 'BTG',
+            source: layout.broker,
+            broker: layout.broker,
             ticker,
-            operation: amount < 0 ? 'V' : 'C',
-            quantity: 1,
-            price: Math.abs(amount),
+            operation: normOp,
+            quantity: quantity || 1,
+            price: finalPrice,
             amount: Math.abs(amount),
             date: dateStr,
             dedupeKey
@@ -247,7 +298,7 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
     }
 
   } catch (err: any) {
-    result.errors.push(`Erro XLSX parser: ${err.message}`);
+    result.errors.push(`Erro no Universal XLSX/CSV Parser: ${err.message}`);
   }
 
   result.metrics = {
@@ -258,4 +309,75 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
   };
 
   return result;
+}
+
+// Helpers
+function findHeaderRowIndex(rows: any[][], columnsConfig: Record<string, any>): number {
+  if (!columnsConfig || Object.keys(columnsConfig).length === 0) return 0;
+  
+  const maxSearch = Math.min(30, rows.length);
+  let bestRowIndex = 0;
+  let maxMatches = -1;
+
+  for (let r = 0; r < maxSearch; r++) {
+    const row = rows[r];
+    if (!row) continue;
+    
+    let matches = 0;
+    for (const key of Object.keys(columnsConfig)) {
+      const colConfig = columnsConfig[key];
+      if (!colConfig || !colConfig.aliases) continue;
+      
+      const found = row.some(cell => {
+        if (cell === undefined || cell === null) return false;
+        const cellStr = String(cell).toLowerCase().trim();
+        return colConfig.aliases.some((alias: string) => cellStr === alias.toLowerCase().trim() || cellStr.includes(alias.toLowerCase().trim()));
+      });
+      if (found) matches++;
+    }
+    
+    if (matches > maxMatches) {
+      maxMatches = matches;
+      bestRowIndex = r;
+    }
+  }
+  
+  return bestRowIndex;
+}
+
+function buildColumnIndexMap(
+  headerRow: any[],
+  columnsConfig: Record<string, any>
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  
+  for (const key of Object.keys(columnsConfig)) {
+    const colConfig = columnsConfig[key];
+    if (!colConfig) continue;
+    
+    let foundIndex = -1;
+    if (headerRow) {
+      for (let c = 0; c < headerRow.length; c++) {
+        const cell = headerRow[c];
+        if (cell === undefined || cell === null) continue;
+        const cellStr = String(cell).toLowerCase().trim();
+        const aliasMatch = colConfig.aliases.some((alias: string) => 
+          cellStr === alias.toLowerCase().trim() ||
+          cellStr.includes(alias.toLowerCase().trim())
+        );
+        if (aliasMatch) {
+          foundIndex = c;
+          break;
+        }
+      }
+    }
+    
+    if (foundIndex === -1 && colConfig.index !== undefined) {
+      foundIndex = colConfig.index;
+    }
+    
+    map[key] = foundIndex;
+  }
+  
+  return map;
 }

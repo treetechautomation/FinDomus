@@ -219,10 +219,6 @@ export function CorretorasPreview({ data, onClear }: Props) {
         <CardContent>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-black/25 border border-white/5 p-4 rounded-xl">
             <div>
-              <span className="text-xs text-zinc-500 block">Tipo do Documento</span>
-              <span className="text-sm font-semibold text-zinc-300">{metadata.documentType}</span>
-            </div>
-            <div>
               <span className="text-xs text-zinc-500 block">Val. Total Custódia</span>
               <span className="text-sm font-bold text-emerald-400">{money(metrics.totalMarketValue)}</span>
             </div>
@@ -234,27 +230,54 @@ export function CorretorasPreview({ data, onClear }: Props) {
               <span className="text-xs text-zinc-500 block">Volume Operado</span>
               <span className="text-sm font-bold text-zinc-300">{money(metrics.totalTransactionsAmount)}</span>
             </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-white/5 text-xs text-zinc-400">
             <div>
-              <span className="text-zinc-500 block block-inline">Posições Lidas:</span>{' '}
+              <span className="text-xs text-zinc-500 block">Linhas Lidas</span>
+              <span className="text-sm font-bold text-sky-400">{metadata.totalLines || '-'}</span>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Metadados de Auditoria do Layout</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-black/15 border border-white/5 p-4 rounded-xl text-xs text-zinc-400">
+              <div>
+                <span className="text-zinc-500 block mb-0.5">Instituição</span>
+                <span className="font-semibold text-zinc-200">{metadata.source}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block mb-0.5">Layout Detectado</span>
+                <span className="font-semibold text-zinc-200 font-mono">{metadata.layoutName || 'Padrão'}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block mb-0.5">Versão</span>
+                <span className="font-semibold text-zinc-200 font-mono">{metadata.version || 'v1'}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block mb-0.5">Schema ID</span>
+                <span className="font-semibold text-zinc-200 font-mono text-[10px]">{metadata.schemaKey || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block mb-0.5">Tempo Leitura</span>
+                <span className="font-semibold text-zinc-200">{metrics.processingTimeMs} ms</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block mb-0.5">Confiança</span>
+                <span className="font-semibold text-indigo-400">{(metadata.confidence * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 pt-4 border-t border-white/5 text-xs text-zinc-400">
+            <div>
+              <span className="text-zinc-500 block-inline">Posições Lidas:</span>{' '}
               <span className="font-semibold text-zinc-300">{metrics.positionsCount}</span>
             </div>
             <div>
-              <span className="text-zinc-500 block block-inline">Operações:</span>{' '}
-              <span className="font-semibold text-zinc-300">
-                {metrics.buyCount} Compra / {metrics.sellCount} Venda
-              </span>
+              <span className="text-zinc-500 block-inline">Proventos Mapeados:</span>{' '}
+              <span className="font-semibold text-zinc-300">{metrics.incomeCount}</span>
             </div>
             <div>
-              <span className="text-zinc-500 block block-inline">Alertas / Erros:</span>{' '}
-              <span className="font-semibold text-zinc-300">
-                {metrics.warningsCount} Avisos / {metrics.errorsCount} Erros
-              </span>
-            </div>
-            <div>
-              <span className="text-zinc-500 block block-inline">Processamento:</span>{' '}
-              <span className="font-semibold text-zinc-300">{metrics.processingTimeMs} ms</span>
+              <span className="text-zinc-500 block-inline">Transações Lidas:</span>{' '}
+              <span className="font-semibold text-zinc-300">{metrics.transactionsCount}</span>
             </div>
           </div>
         </CardContent>

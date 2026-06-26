@@ -5,6 +5,9 @@ export interface BrokerDetectedDocument {
   schemaKey: string | null;
   confidence: number;
   reason: string;
+  layoutName?: string;
+  version?: string;
+  totalLines?: number;
 }
 
 export interface BrokerPosition {
@@ -106,6 +109,9 @@ export interface NormalizedBrokerMetadata {
   fileName: string;
   year: number;
   generatedAt: string;
+  layoutName?: string;
+  version?: string;
+  totalLines?: number;
 }
 
 export interface NormalizedBrokerPosition {
