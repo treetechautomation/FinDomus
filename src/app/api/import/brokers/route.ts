@@ -5,12 +5,35 @@ import { parseSinacorPdf } from '@/services/import/brokers/sinacor-pdf-parser';
 import { normalizeBrokerImport } from '@/services/import/brokers/normalizer';
 import { validateBrokerImport } from '@/services/import/brokers/validation-engine';
 import { evaluateImportDecisions } from '@/services/import/brokers/import-decision-engine';
+import { persistBrokerData } from '@/services/import/brokers/broker-persister';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const contentType = req.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      const { action, userId, fileName, importData } = body;
+
+      if (action === 'confirm') {
+        if (!userId) {
+          return NextResponse.json({ error: 'ID de usuário obrigatório para confirmar importação.' }, { status: 400 });
+        }
+        if (!importData) {
+          return NextResponse.json({ error: 'Dados de importação ausentes.' }, { status: 400 });
+        }
+
+        const result = await persistBrokerData(userId, importData, fileName || 'extrato.xlsx');
+
+        return NextResponse.json(result);
+      }
+
+      return NextResponse.json({ error: 'Ação JSON não reconhecida.' }, { status: 400 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const password = formData.get('password') as string | null;

@@ -3,9 +3,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldCheck, AlertTriangle, Building2, Landmark, Calendar, DollarSign, Activity } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, Landmark, Calendar, DollarSign, Activity, Loader2, CheckCircle2 } from 'lucide-react';
 import type { NormalizedBrokerImport, ImportDecisionStatus } from '@/services/import/brokers/broker-types';
 import { useState } from 'react';
+import { useAuth } from '@/providers/auth-provider';
 
 interface Props {
   data: NormalizedBrokerImport;
@@ -17,8 +18,12 @@ const money = (v: number) =>
 
 export function CorretorasPreview({ data, onClear }: Props) {
   const { metadata, positions, income, transactions, errors, warnings, metrics } = data;
+  const { user } = useAuth();
   
   const [statusFilter, setStatusFilter] = useState<'ALL' | ImportDecisionStatus>('ALL');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [importResultId, setImportResultId] = useState<string | null>(null);
 
   const decisionSummary = data.decisionSummary || {
     total: positions.length + income.length + transactions.length,
@@ -48,6 +53,39 @@ export function CorretorasPreview({ data, onClear }: Props) {
     if (statusFilter === 'ALL') return true;
     return tx.decision?.status === statusFilter;
   });
+
+  const handleConfirm = async () => {
+    if (!user?.uid) return;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/import/brokers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'confirm',
+          userId: user.uid,
+          fileName: metadata.fileName,
+          importData: data
+        })
+      });
+
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json.error || 'Erro ao salvar dados de importação.');
+      }
+
+      if (json.success) {
+        setImportResultId(json.importId);
+        setIsCompleted(true);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro ao persistir importação.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const renderStatusBadge = (decision?: { status: string; reason: string }) => {
     if (!decision) return <Badge variant="outline">N/A</Badge>;
@@ -88,6 +126,63 @@ export function CorretorasPreview({ data, onClear }: Props) {
       </Badge>
     );
   };
+
+  if (isCompleted) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <Card className="border-emerald-500/30 bg-slate-950/60 backdrop-blur-xl relative overflow-hidden text-center py-10 px-6">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl" />
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="p-4 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400">
+              <CheckCircle2 className="h-16 w-16" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl font-bold text-white">Importação Concluída!</CardTitle>
+              <CardDescription className="text-zinc-400 mt-2">
+                Os dados do extrato da corretora <span className="text-indigo-400 font-semibold">{metadata.source}</span> foram gravados com sucesso.
+              </CardDescription>
+              {importResultId && (
+                <span className="text-xs text-zinc-600 block mt-2 font-mono">ID de Auditoria: {importResultId}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="max-w-md mx-auto mt-8 bg-black/20 border border-white/5 p-6 rounded-2xl space-y-4 text-left">
+            <h4 className="text-sm font-semibold text-zinc-300 border-b border-white/5 pb-2">Resumo da Persistência:</h4>
+            
+            <div className="space-y-2 text-sm text-zinc-400">
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="flex items-center gap-1.5">🟢 Registros Gravados (Novos)</span>
+                <span className="font-bold text-emerald-400">{decisionSummary.newCount}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="flex items-center gap-1.5">🔵 Registros Atualizados</span>
+                <span className="font-bold text-sky-400">{decisionSummary.updateCount}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="flex items-center gap-1.5">⛔ Registros Ignorados (Duplicados)</span>
+                <span className="font-bold text-yellow-400">{decisionSummary.duplicateCount}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="flex items-center gap-1.5">⚠ Conflitos Identificados (Não Gravados)</span>
+                <span className="font-bold text-rose-400">{decisionSummary.conflictCount}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="flex items-center gap-1.5">🚫 Lançamentos Inválidos (Ignorados)</span>
+                <span className="font-bold text-zinc-500">{decisionSummary.ignoredCount}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <Button onClick={onClear} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6">
+              Voltar ao Importador
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -426,15 +521,37 @@ export function CorretorasPreview({ data, onClear }: Props) {
 
       {/* 7. Action Bar */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 border border-white/5 rounded-2xl bg-slate-900/60 backdrop-blur-xl">
-        <Button variant="ghost" onClick={onClear} className="text-zinc-400 hover:text-white">
+        <Button variant="ghost" onClick={onClear} className="text-zinc-400 hover:text-white" disabled={isSubmitting}>
           Limpar e Voltar
         </Button>
-        <div className="flex items-center gap-2 text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-4 py-2 rounded-xl text-xs font-semibold">
-          <ShieldCheck className="h-4 w-4" />
-          <span>Persistência será liberada após homologação</span>
-        </div>
-        <Button disabled className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 opacity-50 cursor-not-allowed">
-          Confirmar Importação
+        
+        {errors && errors.length > 0 ? (
+          <div className="flex items-center gap-2 text-rose-400 bg-rose-500/10 border border-rose-500/20 px-4 py-2 rounded-xl text-xs font-semibold">
+            <AlertTriangle className="h-4 w-4" />
+            <span>Importação bloqueada: corrija os erros no processamento antes de prosseguir.</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl text-xs font-semibold">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Pronto para importar: {decisionSummary.newCount + decisionSummary.updateCount} registros pendentes.</span>
+          </div>
+        )}
+
+        <Button 
+          disabled={isSubmitting || (errors && errors.length > 0) || !user?.uid} 
+          onClick={handleConfirm}
+          className={`bg-indigo-600 hover:bg-indigo-700 text-white transition-all ${
+            (errors && errors.length > 0) || !user?.uid ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Persistindo...
+            </>
+          ) : (
+            'Confirmar Importação'
+          )}
         </Button>
       </div>
     </div>
