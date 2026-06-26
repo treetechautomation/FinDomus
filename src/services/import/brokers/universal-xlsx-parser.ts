@@ -86,6 +86,11 @@ export function parseB3BrokerXlsx(buffer: Buffer, schemaKey: string, fileName: s
           continue;
         }
 
+        // Stop parsing positions if we reach the provisioned dividends or secondary sections
+        if (firstCell.includes('Dividendos') || firstCell.includes('Proventos') || firstCell.includes('Custódia Remunerada')) {
+          break;
+        }
+
         if (currentAssetType !== 'UNKNOWN') {
           const parseVal = (val: any) => {
             if (val === undefined || val === null || val === '-') return 0;
