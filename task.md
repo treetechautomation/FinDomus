@@ -1,0 +1,20 @@
+- `[x]` Update `firestore.rules` with specific B3 rules
+- `[x]` Create B3 query services (`src/services/firestore/b3-investments.ts`)
+- `[x]` Create `<InvestmentB3DashboardTab />` component in `src/components/investimentos/tabs/`
+- `[x]` Integrate `<InvestmentB3DashboardTab />` inside `<InvestmentWallet />` (add tab "CARTEIRA B3")
+- `[x]` Validate, typecheck and build
+- `[x]` Present diff summary for approval before commit
+- `[x]` Commit changes
+- `[x]` Correção do parser B3 para suporte a texto contínuo e validação de relatórios anuais (2021, 2023, 2024)
+- `[x]` Implementação do parser B3 XLSX isolado (`b3-xlsx-parser.ts`) e roteamento dinâmico na API (`/api/import/b3`)
+- `[x]` Criar tipos normalizados em `broker-types.ts`
+- `[x]` Criar esquemas parametrizados em `broker-schemas.ts`
+- `[x]` Criar detector universal de documentos em `detector.ts`
+- `[x]` Criar parser universal de planilha em `universal-xlsx-parser.ts`
+- `[x]` Criar parser de notas padrão Sinacor em `sinacor-pdf-parser.ts`
+- `[x]` Criar rota de API em `src/app/api/import/brokers/route.ts`
+- `[x]` Atualizar interface client `corretoras-importer.tsx` para aceitar uploads
+- `[x]` Criar painel de visualização `corretoras-preview.tsx`
+- `[x]` Validar extração nos arquivos de teste locais (XP Custódia, XP Movimentação, BTG Extrato, Sinacor PDF)
+- `[/]` Rodar typecheck e build local de produção
+- `[ ]` Commit dos arquivos sob a mensagem "feat: cria detector universal e preview isolado de corretoras"
