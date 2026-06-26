@@ -44,7 +44,7 @@
     "firebase-admin": "^13.9.0",
     "genkit": "^1.28.0",
     "lucide-react": "^0.475.0",
-    "next": "15.5.9",
+    "next": "^15.5.19",
     "openai": "^6.37.0",
     "patch-package": "^8.0.0",
     "pdf-parse": "^2.4.5",
