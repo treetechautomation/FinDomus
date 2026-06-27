@@ -1,4 +1,4 @@
-﻿node_modules
+node_modules
 .next
 .env
 .env.local
@@ -7,3 +7,25 @@ build
 coverage
 *.log
 firebase-debug.log
+
+# Backups e temporários de desenvolvimento
+*.bak
+*.bak_*
+*.backup
+*.old
+*.orig
+backups/
+.archive-baks/
+.backup/
+
+# Arquivos temporários de auditoria/debug
+audit.json
+check-categories.js
+tsconfig.tsbuildinfo
+
+# Backups de variáveis de ambiente (SEGURANÇA CRÍTICA - contêm chaves privadas)
+.env.bak*
+.env.local.bak*
+
+# Configuração de IDE local
+opencode.json

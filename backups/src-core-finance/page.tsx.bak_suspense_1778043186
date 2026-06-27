@@ -1,5 +1,0 @@
-import EmpresasClient from './empresas-client';
-
-export default function EmpresasPage() {
-  return <EmpresasClient />;
-}

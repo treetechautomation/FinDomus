@@ -1,0 +1,984 @@
+"use client";
+
+import { useEffect, useState, useMemo } from 'react';
+import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Sparkles,
+  RefreshCw,
+  CreditCard,
+  TrendingUp,
+  Wallet,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  Filter
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+
+import {
+  getRecurringExpenses,
+  addRecurringExpense,
+  updateRecurringExpense,
+  deleteRecurringExpense,
+  type RecurringExpense
+} from '@/services/firestore/planning';
+import { getCategories, type Category } from '@/services/firestore/categories';
+import { getTransactions, addTransaction, type TransactionDTO } from '@/services/firestore/transactions';
+import { getAccounts, type Account } from '@/services/firestore/accounts';
+import { detectRecurrence, buildMerchantFingerprint } from '@/core/finance/recurrence-engine';
+import { getCurrentMonthKey } from '@/core/finance/financial-period-engine';
+
+const DEFAULT_CATEGORIES = [
+  'Assinaturas (Netflix, Spotify etc.)',
+  'Moradia (aluguel, condomínio)',
+  'Internet / Telefonia',
+  'Água',
+  'Energia',
+  'Gás',
+  'Ferramentas / Software',
+  'Academia / Bem-estar',
+  'Saúde / Plano de saúde',
+  'Seguros',
+  'Educação / Cursos',
+  'Serviços Prestados',
+  'Marketing / Ads',
+  'Outros'
+];
+
+function brl(value: number) {
+  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export default function AssinaturasClient() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [loading, setLoading] = useState(true);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+  const [transactions, setTransactions] = useState<TransactionDTO[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  
+  // Dialog State
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
+  const [selectedExpense, setSelectedExpense] = useState<RecurringExpense | null>(null);
+
+  // Form State
+  const [formName, setFormName] = useState('');
+  const [formAmount, setFormAmount] = useState('');
+  const [formCategory, setFormCategory] = useState('');
+  const [formOwner, setFormOwner] = useState<'PF' | 'PJ'>('PF');
+  const [formDayOfMonth, setFormDayOfMonth] = useState('5');
+  const [formIsActive, setFormIsActive] = useState(true);
+  
+  // Pay Dialog State
+  const [isPayDialogOpen, setIsPayDialogOpen] = useState(false);
+  const [payingExpense, setPayingExpense] = useState<RecurringExpense | null>(null);
+  const [payAccountId, setPayAccountId] = useState('');
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paying, setPaying] = useState(false);
+
+  // Tabs & Filters
+  const [activeTab, setActiveTab] = useState<'active' | 'suggestions'>('active');
+  const [ownerFilter, setOwnerFilter] = useState<'all' | 'PF' | 'PJ'>('all');
+
+  const loadData = async () => {
+    if (!user?.uid) return;
+    try {
+      setLoading(true);
+      const [expensesData, txsData, catsData, accountsData] = await Promise.all([
+        getRecurringExpenses(user.uid),
+        getTransactions(user.uid),
+        getCategories(),
+        getAccounts(user.uid)
+      ]);
+
+      setRecurringExpenses(expensesData || []);
+      setTransactions(txsData || []);
+      setAccounts(accountsData || []);
+
+      const uniqueCats = Array.from(
+        new Set([
+          ...(catsData || []).map((c: Category) => c.name),
+          ...DEFAULT_CATEGORIES
+        ])
+      ).filter(Boolean);
+      setCategories(uniqueCats);
+    } catch (err: any) {
+      console.error('Erro ao carregar assinaturas:', err);
+      toast({
+        title: 'Erro ao carregar dados',
+        description: err.message || 'Ocorreu um erro desconhecido.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.uid]);
+
+  // Totals calculations
+  const totals = useMemo(() => {
+    let pfTotal = 0;
+    let pjTotal = 0;
+    let pfCount = 0;
+    let pjCount = 0;
+
+    recurringExpenses.forEach((item) => {
+      if (!item.isActive) return;
+      if (item.owner === 'PF') {
+        pfTotal += item.amount;
+        pfCount++;
+      } else {
+        pjTotal += item.amount;
+        pjCount++;
+      }
+    });
+
+    return {
+      pfTotal,
+      pjTotal,
+      total: pfTotal + pjTotal,
+      pfCount,
+      pjCount,
+      totalCount: pfCount + pjCount
+    };
+  }, [recurringExpenses]);
+
+  // Check if paid in the current month
+  const isPaidThisMonth = (expense: RecurringExpense) => {
+    const currentMonth = getCurrentMonthKey();
+    return transactions.some(t => {
+      if (t.monthKey !== currentMonth) return false;
+      if (t.type !== 'expense') return false;
+      if (t.owner !== expense.owner) return false;
+      
+      const normTxDesc = (t.description || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const normTxMerch = (t.merchant || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const normExpName = expense.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      
+      return normTxDesc.includes(normExpName) || normTxMerch.includes(normExpName) || normExpName.includes(normTxDesc);
+    });
+  };
+
+  // IA Suggestions detection logic
+  const suggestions = useMemo(() => {
+    if (!transactions.length) return [];
+
+    // Group only expenses
+    const expenseGroups = new Map<string, TransactionDTO[]>();
+    transactions.forEach((tx) => {
+      if (tx.type !== 'expense') return;
+
+      const fingerprint = buildMerchantFingerprint(
+        tx.description || tx.merchant || '',
+        tx.category
+      );
+
+      if (!expenseGroups.has(fingerprint)) {
+        expenseGroups.set(fingerprint, []);
+      }
+      expenseGroups.get(fingerprint)?.push(tx);
+    });
+
+    const results: any[] = [];
+
+    for (const [fingerprint, items] of expenseGroups.entries()) {
+      if (items.length < 3) continue; // Minimum transactions to run detection
+
+      const analysis = detectRecurrence(items);
+
+      if (analysis.isRecurring) {
+        // Find average amount
+        const avgAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0) / items.length;
+        
+        // Find most common day of month
+        const days = items.map(t => {
+          const d = t.dateISO ? new Date(t.dateISO) : t.date ? new Date(t.date) : new Date();
+          return d.getDate();
+        });
+        const commonDay = days.sort((a,b) =>
+          days.filter(v => v===a).length - days.filter(v => v===b).length
+        ).pop() || 5;
+
+        const sample = items[0];
+        const name = sample.merchant || sample.description || 'Despesa Recorrente';
+
+        // Check if already registered
+        const isRegistered = recurringExpenses.some((re) => {
+          const normRe = re.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const normSug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          return normRe.includes(normSug) || normSug.includes(normRe);
+        });
+
+        if (!isRegistered) {
+          results.push({
+            fingerprint,
+            name,
+            amount: avgAmount,
+            category: sample.category || 'Outros',
+            dayOfMonth: commonDay,
+            confidence: analysis.recurrenceConfidence,
+            frequency: analysis.recurrenceFrequency || 'monthly',
+            owner: sample.owner || 'PF',
+            occurrences: items.length
+          });
+        }
+      }
+    }
+
+    return results.sort((a, b) => b.confidence - a.confidence);
+  }, [transactions, recurringExpenses]);
+
+  const filteredExpenses = useMemo(() => {
+    return recurringExpenses.filter((item) => {
+      if (ownerFilter === 'all') return true;
+      return item.owner === ownerFilter;
+    });
+  }, [recurringExpenses, ownerFilter]);
+
+  const filteredAccountsForPayment = useMemo(() => {
+    if (!payingExpense) return [];
+    return accounts.filter(acc => acc.owner === payingExpense.owner);
+  }, [accounts, payingExpense]);
+
+  const handleOpenCreate = () => {
+    setDialogMode('create');
+    setSelectedExpense(null);
+    setFormName('');
+    setFormAmount('');
+    setFormCategory(categories[0] || 'Outros');
+    setFormOwner('PF');
+    setFormDayOfMonth('5');
+    setFormIsActive(true);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (expense: RecurringExpense) => {
+    setDialogMode('edit');
+    setSelectedExpense(expense);
+    setFormName(expense.name);
+    setFormAmount(expense.amount.toString());
+    setFormCategory(expense.category || 'Outros');
+    setFormOwner(expense.owner);
+    setFormDayOfMonth((expense.dayOfMonth || 5).toString());
+    setFormIsActive(expense.isActive);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenPay = (expense: RecurringExpense) => {
+    setPayingExpense(expense);
+    setPayAccountId('');
+    setPayDate(new Date().toISOString().slice(0, 10));
+    setIsPayDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!user?.uid) return;
+    if (!confirm('Deseja realmente remover esta despesa recorrente?')) return;
+
+    try {
+      await deleteRecurringExpense(user.uid, id);
+      toast({
+        title: 'Removido com sucesso',
+        description: 'A despesa recorrente foi removida.',
+      });
+      loadData();
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao remover',
+        description: err.message || 'Não foi possível remover o item.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleToggleActive = async (expense: RecurringExpense) => {
+    if (!user?.uid || !expense.id) return;
+    try {
+      await updateRecurringExpense(user.uid, expense.id, {
+        isActive: !expense.isActive
+      });
+      toast({
+        title: expense.isActive ? 'Despesa desativada' : 'Despesa ativada',
+        description: `O status da recorrência foi atualizado.`,
+      });
+      loadData();
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao atualizar',
+        description: err.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.uid) return;
+
+    const numericAmount = Number(formAmount.replace(',', '.'));
+    if (!formName.trim() || isNaN(numericAmount) || numericAmount <= 0) {
+      toast({
+        title: 'Campos inválidos',
+        description: 'Preencha o nome e um valor maior que zero.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const data: RecurringExpense = {
+        name: formName.trim(),
+        amount: numericAmount,
+        category: formCategory,
+        owner: formOwner,
+        frequency: 'monthly',
+        dayOfMonth: Number(formDayOfMonth),
+        isActive: formIsActive,
+        createdAt: selectedExpense?.createdAt || new Date().toISOString(),
+      };
+
+      if (dialogMode === 'create') {
+        await addRecurringExpense(user.uid, data);
+        toast({
+          title: 'Adicionado com sucesso',
+          description: 'Nova despesa recorrente registrada.',
+        });
+      } else if (dialogMode === 'edit' && selectedExpense?.id) {
+        await updateRecurringExpense(user.uid, selectedExpense.id, data);
+        toast({
+          title: 'Atualizado com sucesso',
+          description: 'Os dados da recorrência foram salvos.',
+        });
+      }
+
+      setIsDialogOpen(false);
+      loadData();
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao salvar',
+        description: err.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleConfirmPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.uid || !payingExpense) return;
+    if (!payAccountId) {
+      toast({
+        title: 'Selecione uma conta',
+        description: 'Selecione a conta de origem do pagamento.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setPaying(true);
+      const selectedAccount = accounts.find(acc => acc.id === payAccountId);
+
+      await addTransaction(user.uid, {
+        description: payingExpense.name,
+        category: payingExpense.category || 'Outros',
+        type: 'expense',
+        amount: payingExpense.amount,
+        date: payDate,
+        owner: payingExpense.owner,
+        accountId: payAccountId,
+        companyId: payingExpense.owner === 'PJ' ? (selectedAccount?.companyId || null) : null,
+      });
+
+      toast({
+        title: 'Pagamento registrado',
+        description: `A despesa "${payingExpense.name}" de ${brl(payingExpense.amount)} foi lançada nas despesas mensais.`,
+      });
+
+      setIsPayDialogOpen(false);
+      loadData();
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao registrar pagamento',
+        description: err.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const handleQuickImport = async (suggestion: any) => {
+    if (!user?.uid) return;
+    try {
+      const data: RecurringExpense = {
+        name: suggestion.name,
+        amount: suggestion.amount,
+        category: suggestion.category,
+        owner: suggestion.owner,
+        frequency: 'monthly',
+        dayOfMonth: suggestion.dayOfMonth,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastDetectedAt: new Date().toISOString(),
+      };
+
+      await addRecurringExpense(user.uid, data);
+      toast({
+        title: 'Importado com sucesso',
+        description: `A recorrência "${suggestion.name}" foi adicionada.`,
+      });
+      loadData();
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao importar',
+        description: err.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-64 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-96 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-10 w-40 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="border-border/40 bg-background/95">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                  <div className="h-8 w-36 animate-pulse rounded bg-muted" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+            Assinaturas & Custos Fixos
+          </h1>
+          <p className="text-muted-foreground text-sm max-w-2xl">
+            Monitore suas assinaturas recorrentes (SaaS, streamings) e despesas fixas (aluguel, contas). 
+            A IA detecta automaticamente novos padrões a partir do seu extrato.
+          </p>
+        </div>
+        <Button onClick={handleOpenCreate} className="bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-[0_0_20px_rgba(219,39,119,0.25)] transition-all">
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Custos/Fixos
+        </Button>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Total Cost Card */}
+        <Card className="border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 text-pink-500/10 group-hover:text-pink-500/20 transition-colors">
+            <RefreshCw className="h-24 w-24 -mr-6 -mt-6" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-pink-400/90 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" />
+              Comprometimento Mensal Total
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold">{brl(totals.total)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Total consolidado de <span className="font-semibold text-foreground">{totals.totalCount}</span> despesas ativas.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* PF Cost Card */}
+        <Card className="border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 text-emerald-500/10 group-hover:text-emerald-500/20 transition-colors">
+            <Wallet className="h-24 w-24 -mr-6 -mt-6" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Pessoa Física (PF)
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold">{brl(totals.pfTotal)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{totals.pfCount}</span> despesas ativas sob controle pessoal.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* PJ Cost Card */}
+        <Card className="border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 text-cyan-500/10 group-hover:text-cyan-500/20 transition-colors">
+            <TrendingUp className="h-24 w-24 -mr-6 -mt-6" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
+              Pessoa Jurídica (PJ)
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold">{brl(totals.pjTotal)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{totals.pjCount}</span> despesas ativas vinculadas às empresas.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/40 pb-2">
+          <TabsList className="bg-muted/50 border border-border/40 p-1">
+            <TabsTrigger value="active" className="data-[state=active]:bg-background font-medium">
+              Minhas Recorrências
+            </TabsTrigger>
+            <TabsTrigger value="suggestions" className="data-[state=active]:bg-background font-medium flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-pink-400 animate-pulse" />
+              Sugestões da IA
+              {suggestions.length > 0 && (
+                <Badge className="bg-pink-600 hover:bg-pink-600 text-[10px] h-4 px-1.5 ml-1">
+                  {suggestions.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {activeTab === 'active' && (
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={ownerFilter} onValueChange={(v: any) => setOwnerFilter(v)}>
+                <SelectTrigger className="w-[140px] h-9 bg-background/50 border-border/40">
+                  <SelectValue placeholder="Proprietário" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                  <SelectItem value="PJ">Pessoa Jurídica (PJ)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Saved Recurrences Tab */}
+        <TabsContent value="active" className="m-0 space-y-4">
+          <Card className="border-border/40 bg-background/95">
+            <CardContent className="p-0">
+              {filteredExpenses.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
+                  <div className="rounded-full bg-pink-500/10 p-4 mb-4">
+                    <RefreshCw className="h-8 w-8 text-pink-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">Nenhuma recorrência encontrada</h3>
+                  <p className="text-sm max-w-sm mt-1 mb-4">
+                    Adicione seus gastos mensais fixos ou assinaturas como Netflix, Spotify, aluguel, etc.
+                  </p>
+                  <Button onClick={handleOpenCreate} variant="outline" className="border-pink-500/30 hover:bg-pink-500/10 hover:text-pink-400">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Registrar Primeira
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead>Valor Mensal</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead>Proprietário</TableHead>
+                        <TableHead>Mês Atual</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredExpenses.map((expense) => {
+                        const paid = isPaidThisMonth(expense);
+                        return (
+                          <TableRow key={expense.id} className="hover:bg-muted/10">
+                            <TableCell className="font-semibold text-foreground">{expense.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="border-muted bg-muted/20 font-normal">
+                                {expense.category || 'Outros'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{brl(expense.amount)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
+                                <Calendar className="h-3.5 w-3.5 text-pink-400" />
+                                Dia {expense.dayOfMonth || '-'}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={
+                                expense.owner === 'PF' 
+                                  ? 'bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                  : 'bg-cyan-500/15 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                              }>
+                                {expense.owner}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {expense.isActive ? (
+                                paid ? (
+                                  <Badge className="bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-1 w-fit font-normal">
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                    Pago
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 border-pink-500/30 text-pink-400 hover:bg-pink-500/10 text-xs px-2 flex items-center gap-1 font-semibold"
+                                    onClick={() => handleOpenPay(expense)}
+                                  >
+                                    Pagar
+                                  </Button>
+                                )
+                              ) : (
+                                <Badge variant="secondary" className="text-muted-foreground bg-muted/20">
+                                  Inativo
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={expense.isActive}
+                                  onCheckedChange={() => handleToggleActive(expense)}
+                                  className="data-[state=checked]:bg-pink-600"
+                                />
+                                <span className={`text-xs ${expense.isActive ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                                  {expense.isActive ? 'Ativo' : 'Inativo'}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleOpenEdit(expense)}
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                                  onClick={() => expense.id && handleDelete(expense.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* IA Suggestions Tab */}
+        <TabsContent value="suggestions" className="m-0 space-y-4">
+          <Card className="border-border/40 bg-background/95">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-pink-500 animate-pulse" />
+                Detecção Inteligente de Padrões
+              </CardTitle>
+              <CardDescription>
+                Nossos algoritmos analisam a frequência e os valores dos seus lançamentos passados para encontrar custos fixos e assinaturas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {suggestions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
+                  <div className="rounded-full bg-pink-500/5 p-4 mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-pink-500/50" />
+                  </div>
+                  <h3 className="text-base font-semibold text-foreground">Tudo limpo!</h3>
+                  <p className="text-sm max-w-sm mt-1">
+                    Não identificamos novos gastos recorrentes não mapeados em seu extrato financeiro.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {suggestions.map((sug, i) => (
+                    <Card key={i} className="border-border/40 bg-muted/20 relative overflow-hidden group hover:border-pink-500/30 transition-all">
+                      <div className="absolute top-0 right-0 p-3 text-pink-500/10 group-hover:text-pink-500/20 transition-colors">
+                        <Sparkles className="h-12 w-12" />
+                      </div>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="border-pink-500/30 text-pink-400 text-[10px] font-normal">
+                            Confiança: {Math.round(sug.confidence * 100)}%
+                          </Badge>
+                          <Badge className={
+                            sug.owner === 'PF' 
+                              ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15 border border-emerald-500/30 text-[10px]' 
+                              : 'bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/15 border border-cyan-500/30 text-[10px]'
+                          }>
+                            {sug.owner}
+                          </Badge>
+                        </div>
+                        <CardTitle className="text-base font-bold text-foreground mt-2 line-clamp-1">{sug.name}</CardTitle>
+                        <CardDescription className="text-xs">
+                          Detectado {sug.occurrences}x nos lançamentos
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pb-4">
+                        <div className="flex items-baseline justify-between mb-4">
+                          <span className="text-sm text-muted-foreground">Média estimada</span>
+                          <span className="text-xl font-extrabold text-foreground">{brl(sug.amount)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-3">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5 text-pink-400" />
+                            Dia {sug.dayOfMonth}
+                          </span>
+                          <span className="capitalize">{sug.category}</span>
+                        </div>
+                        <Button 
+                          onClick={() => handleQuickImport(sug)} 
+                          className="w-full mt-4 bg-muted hover:bg-pink-600 hover:text-white border border-border/40 text-xs font-medium py-1.5 transition-all"
+                          variant="ghost"
+                        >
+                          Adicionar Recorrência
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] border-border/40 bg-background supports-[backdrop-filter]:bg-background/95">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-pink-400 to-indigo-400 bg-clip-text text-transparent">
+              {dialogMode === 'create' ? 'Registrar Recorrência' : 'Editar Recorrência'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4 pt-2">
+            {/* Nome/Description */}
+            <div className="space-y-1">
+              <Label htmlFor="name">Nome da Despesa / Assinatura</Label>
+              <Input
+                id="name"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Ex: Netflix, Aluguel, Spotify, Canva"
+                className="bg-muted/20 border-border/40"
+                required
+              />
+            </div>
+
+            {/* Valor/Amount */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="amount">Valor Mensal (R$)</Label>
+                <Input
+                  id="amount"
+                  value={formAmount}
+                  onChange={(e) => setFormAmount(e.target.value)}
+                  placeholder="0,00"
+                  className="bg-muted/20 border-border/40"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="dayOfMonth">Dia do Vencimento</Label>
+                <Select value={formDayOfMonth} onValueChange={setFormDayOfMonth}>
+                  <SelectTrigger className="bg-muted/20 border-border/40">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 31 }, (_, idx) => (
+                      <SelectItem key={idx + 1} value={(idx + 1).toString()}>
+                        Dia {idx + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Categoria & Proprietário */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="category">Categoria</Label>
+                <Select value={formCategory} onValueChange={setFormCategory}>
+                  <SelectTrigger className="bg-muted/20 border-border/40">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="owner">Proprietário</Label>
+                <Select value={formOwner} onValueChange={(v: any) => setFormOwner(v)}>
+                  <SelectTrigger className="bg-muted/20 border-border/40">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                    <SelectItem value="PJ">Pessoa Jurídica (PJ)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Ativo Status Switch */}
+            <div className="flex items-center justify-between border-t border-border/40 pt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="active-status" className="font-semibold">Recorrência Ativa</Label>
+                <p className="text-xs text-muted-foreground">Incluir nos cálculos e previsões mensais.</p>
+              </div>
+              <Switch
+                id="active-status"
+                checked={formIsActive}
+                onCheckedChange={setFormIsActive}
+                className="data-[state=checked]:bg-pink-600"
+              />
+            </div>
+
+            {/* Dialog Footer */}
+            <DialogFooter className="pt-4 border-t border-border/40 gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="border-border/40 bg-muted/10 hover:bg-muted/20">
+                Cancelar
+              </Button>
+              <Button type="submit" className="bg-pink-600 hover:bg-pink-700 text-white shadow-[0_0_15px_rgba(219,39,119,0.2)]">
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Confirmation Dialog */}
+      <Dialog open={isPayDialogOpen} onOpenChange={setIsPayDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] border-border/40 bg-background supports-[backdrop-filter]:bg-background/95 animate-in fade-in zoom-in duration-250">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-pink-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-pink-500" />
+              Confirmar Pagamento
+            </DialogTitle>
+          </DialogHeader>
+          {payingExpense && (
+            <form onSubmit={handleConfirmPayment} className="space-y-4 pt-2">
+              <div className="space-y-2 rounded-lg border border-border/40 bg-muted/20 p-3.5">
+                <p className="text-sm font-semibold text-foreground">{payingExpense.name}</p>
+                <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                  <span>Valor:</span>
+                  <span className="font-bold text-foreground text-sm">{brl(payingExpense.amount)}</span>
+                </div>
+                <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                  <span>Proprietário:</span>
+                  <span className="font-medium text-foreground">{payingExpense.owner}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="payAccountId">Conta de Pagamento</Label>
+                <Select value={payAccountId} onValueChange={setPayAccountId}>
+                  <SelectTrigger className="bg-muted/20 border-border/40">
+                    <SelectValue placeholder="Selecione a conta de origem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredAccountsForPayment.map((acc) => (
+                      <SelectItem key={acc.id} value={acc.id || ''}>
+                        {acc.name} ({brl(acc.balance)})
+                      </SelectItem>
+                    ))}
+                    {filteredAccountsForPayment.length === 0 && (
+                      <div className="p-2 text-xs text-muted-foreground text-center">
+                        Nenhuma conta {payingExpense.owner} encontrada.
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="payDate">Data do Pagamento</Label>
+                <Input
+                  id="payDate"
+                  type="date"
+                  value={payDate}
+                  onChange={(e) => setPayDate(e.target.value)}
+                  className="bg-muted/20 border-border/40"
+                  required
+                />
+              </div>
+
+              <DialogFooter className="pt-4 border-t border-border/40 gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={() => setIsPayDialogOpen(false)} className="border-border/40 bg-muted/10 hover:bg-muted/20">
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={paying || filteredAccountsForPayment.length === 0} className="bg-pink-600 hover:bg-pink-700 text-white shadow-[0_0_15px_rgba(219,39,119,0.2)]">
+                  {paying ? 'Registrando...' : 'Confirmar Pagamento'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,5 +1,0 @@
-import PessoalClient from './pessoal-client';
-
-export default function PessoalPage() {
-  return <PessoalClient />;
-}
