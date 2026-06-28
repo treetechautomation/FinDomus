@@ -5,11 +5,9 @@ import {
   BarChart3,
   BookCopy,
   Building2,
-  FileText,
   LayoutDashboard,
   Settings,
   ShieldAlert,
-  Terminal,
   Target,
   TrendingUp,
   Upload,
@@ -35,10 +33,8 @@ const menuItems = [
   { href: '/investimentos', label: 'Investimentos', icon: TrendingUp },
   { href: '/passivos', label: 'Passivos', icon: ShieldAlert },
   { href: '/fiscal-contabil', label: 'Fiscal & Contábil', icon: BookCopy },
-  { href: '/imposto-de-renda', label: 'Imposto de Renda', icon: FileText },
   { href: '/importacoes', label: 'Importações', icon: Upload },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-  { href: '/console', label: 'Console', icon: Terminal },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 
@@ -90,10 +86,8 @@ export function SidebarNav() {
                           '/investimentos': 'text-green-400',
                           '/passivos': 'text-red-400',
                           '/fiscal-contabil': 'text-yellow-400',
-                          '/imposto-de-renda': 'text-orange-400',
                           '/importacoes': 'text-sky-400',
                           '/relatorios': 'text-purple-400',
-                          '/console': 'text-zinc-400',
                           '/configuracoes': 'text-gray-400',
                         }[item.href] || 'text-muted-foreground'
                   )}
