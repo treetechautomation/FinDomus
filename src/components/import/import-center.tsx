@@ -20,8 +20,8 @@ export function ImportCenter() {
           <TabsTrigger value="financeiro" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             Financeiro
           </TabsTrigger>
-          <TabsTrigger value="b3" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center justify-center gap-1.5">
-            Carteira B3 <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[9px] px-1 py-0 h-4">Breve</Badge>
+          <TabsTrigger value="b3" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            Carteira B3
           </TabsTrigger>
           <TabsTrigger value="corretoras" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             Corretoras

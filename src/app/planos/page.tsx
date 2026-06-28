@@ -19,9 +19,8 @@ export default function PlanosPage() {
     });
   }, []);
 
-  const getWhatsappLink = (plano: string) => {
-    const text = `Olá, quero assinar o FinDomus no plano ${plano}.`;
-    return `${whatsappBaseUrl}?text=${encodeURIComponent(text)}`;
+  const getCheckoutLink = (planId: string) => {
+    return `https://treetechautomation.com/checkout?productId=findomus&planId=${planId}`;
   };
 
   return (
@@ -111,7 +110,7 @@ export default function PlanosPage() {
                   asChild
                   className="w-full h-11 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold rounded-xl"
                 >
-                  <a href={getWhatsappLink('Individual')} target="_blank" rel="noopener noreferrer">
+                  <a href={getCheckoutLink('findomus-starter')} target="_blank" rel="noopener noreferrer">
                     SOLICITAR ACESSO
                   </a>
                 </Button>
@@ -173,7 +172,7 @@ export default function PlanosPage() {
                   asChild
                   className="w-full h-11 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-black font-bold rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.2)]"
                 >
-                  <a href={getWhatsappLink('Família')} target="_blank" rel="noopener noreferrer">
+                  <a href={getCheckoutLink('findomus-pro')} target="_blank" rel="noopener noreferrer">
                     SOLICITAR ACESSO
                   </a>
                 </Button>
@@ -227,7 +226,7 @@ export default function PlanosPage() {
                   asChild
                   className="w-full h-11 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold rounded-xl"
                 >
-                  <a href={getWhatsappLink('Família Premium')} target="_blank" rel="noopener noreferrer">
+                  <a href={getCheckoutLink('findomus-wealth-ai')} target="_blank" rel="noopener noreferrer">
                     SOLICITAR ACESSO
                   </a>
                 </Button>

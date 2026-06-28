@@ -401,11 +401,9 @@ export function ConfiguracoesClient() {
       </div>
 
       <Tabs defaultValue="perfil" className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="familia">Família</TabsTrigger>
-          <TabsTrigger value="empresas">Empresas</TabsTrigger>
-          <TabsTrigger value="contas">Contas</TabsTrigger>
           <TabsTrigger value="categorias">Categorias</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
           <TabsTrigger value="ia">IA</TabsTrigger>
@@ -660,70 +658,6 @@ export function ConfiguracoesClient() {
           </div>
         </TabsContent>
 
-        <TabsContent value="empresas" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Empresas (PJ)</CardTitle>
-              <CardDescription>Cadastre e gerencie suas empresas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {companies.map((company, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-                    <span className="font-medium">{company}</span>
-                    <Button variant="ghost" size="icon">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                {companies.length === 0 && (
-                  <div className="text-muted-foreground">Nenhuma empresa cadastrada ainda.</div>
-                )}
-              </div>
-              <NewCompanyInlineForm />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="contas" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Contas Bancárias</CardTitle>
-              <CardDescription>Gerencie suas contas pessoais e empresariais.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {accounts.map((account: any) => (
-                  <div key={account.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-                    <div>
-                      <p className="font-medium">{account.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {accountTypeLabel(account.type)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm font-medium">
-                        {showFinancialValues ? Number(account.balance || 0).toLocaleString('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }) : '••••••••••'}
-                      </div>
-                      <Badge variant={account.owner === 'PF' ? 'default' : 'outline'}>
-                        {account.owner === 'PF' ? 'Pessoal' : 'Empresa'}
-                      </Badge>
-                      <EditAccountDialog account={account} />
-                    </div>
-                  </div>
-                ))}
-                {accounts.length === 0 && (
-                  <div className="text-muted-foreground">Nenhuma conta cadastrada ainda.</div>
-                )}
-              </div>
-
-              <NewAccountDialog />
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="categorias" className="mt-6">
           <Card>
