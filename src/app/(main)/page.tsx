@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Banknote, Building2, Landmark, TrendingUp, Users, Sparkles } from 'lucide-react';
 import { StatCard } from '@/components/overview/stat-card';
+import { AiInsightsCard } from '@/components/dashboard/ai-insights-card';
 import dynamic from 'next/dynamic';
 import { useVisibility } from '@/providers/visibility-provider';
 import { FinancialSection } from '@/components/onboarding/FinancialSection';
@@ -279,6 +280,8 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           )}
+
+          <AiInsightsCard />
 
           <FinancialSection>
             <NetworthEvolutionChart data={netWorthHistory} />

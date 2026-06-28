@@ -341,8 +341,8 @@ export function Importer() {
       const summary = await addTransactionsBatch(user.uid, payload);
 
       toast({
-        title: "Importação concluída",
-        description: `${summary.inserted} lançamentos importados com sucesso. ${summary.skipped} duplicados pulados.`,
+        title: "Importação concluída ✨🤖",
+        description: `${summary.inserted} lançamentos importados. A IA do FinDomus categorizou e organizou as transações com sucesso.`,
       });
 
       clearStaging(); // limpa sessionStorage após sucesso

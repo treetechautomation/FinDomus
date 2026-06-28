@@ -33,7 +33,7 @@ export async function runFinancialAgent(userId: string, userQuery: string): Prom
     PERGUNTA DO USUÁRIO: "${userQuery}"
   `;
 
-  const selectedToolsRaw = await aiChat('deepseek', toolSelectionPrompt);
+  const selectedToolsRaw = await aiChat('gemini', toolSelectionPrompt);
   const toolsToUse = selectedToolsRaw.toLowerCase().split(',').map(t => t.trim());
   const toolsUsed: string[] = [];
 
@@ -78,7 +78,7 @@ export async function runFinancialAgent(userId: string, userQuery: string): Prom
     - Mantenha um tom de consultor de Wealth Management.
   `;
 
-  const finalAnswer = await aiChat('deepseek', synthesisPrompt);
+  const finalAnswer = await aiChat('gemini', synthesisPrompt);
 
   return {
     answer: finalAnswer,

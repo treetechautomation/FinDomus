@@ -1,3 +1,9 @@
-﻿export async function geminiChat(): Promise<string> {
-  throw new Error('Gemini provider ainda não foi conectado ao AI Router.');
+import { ai } from '../genkit';
+
+export async function geminiChat(prompt: string): Promise<string> {
+  const res = await ai.generate({
+    prompt,
+  });
+
+  return res.text;
 }
