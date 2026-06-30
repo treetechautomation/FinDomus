@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { PLANS } from '@/services/firestore/plans';
+import { verifyIdToken } from '@/lib/verify-id-token';
 
 export const runtime = 'nodejs';
 
@@ -13,8 +14,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let authenticatedUserId = '';
+    try {
+      const authHeader = req.headers.get('authorization');
+      const decodedToken = await verifyIdToken(authHeader);
+      authenticatedUserId = decodedToken.uid;
+    } catch (error) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { planId, email, userId, householdId } = body;
+
+    if (userId !== authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'FORBIDDEN_USER_ID_MISMATCH' },
+        { status: 403 }
+      );
+    }
 
     if (!planId || !email || !userId || !householdId) {
       return NextResponse.json(
