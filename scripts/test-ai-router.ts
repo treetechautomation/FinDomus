@@ -1,9 +1,9 @@
-﻿import { aiChat } from '../src/ai/providers';
+import { aiChat } from '../src/ai/providers';
 
 async function main() {
   const response = await aiChat(
-    'deepseek',
-    'Responda apenas: AI Router FinDomus conectado com DeepSeek.'
+    'gemini',
+    'Responda apenas: AI Router FinDomus conectado com Gemini.'
   );
 
   console.log(response);

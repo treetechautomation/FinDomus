@@ -1,11 +1,8 @@
-- [x] Criar backup do assinaturas-client.tsx
-- [x] Atualizar imports e adicionar AlertDialog no markup de assinaturas-client.tsx
-- [x] Adicionar cálculo de renda mensal no loadData e exibir 4º card de impacto orçamentário
-- [x] Adicionar botão de simulação no cabeçalho
-- [x] Refatorar handleDelete de confirm nativo para AlertDialog
-- [x] Aplicar formatCurrencyBRL e máscara de valor monetário no input
-- [x] Chamar learnTransactionCategory no handleQuickImport
-- [x] Otimizar isPaidThisMonth para rodar em O(n+m) com paidExpenseNames useMemo cache
-- [x] Adicionar badges de vencimento dinâmicos ("Hoje", "3d", "5d"...)
+- [x] Apontar chat widget para /api/chat/financial
+- [x] Redirecionar POST /api/ai/chat legado para o flow financialAdvisorFlow
+- [x] Unificar usage tracking removendo usage.ts obsoleto
+- [x] Remover tipo 'deepseek' orfão e ajustar testes
+- [x] Corrigir classify-pix com prompt de saída estruturada Zod
+- [x] Adicionar limite de cota mensal (canUseAIAdmin) à rota de insights
 - [x] Executar typecheck de verificação
 - [x] Executar build de verificação final

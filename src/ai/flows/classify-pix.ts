@@ -1,27 +1,27 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const classifyPixFlow = ai.defineFlow(
-  {
-    name: 'classifyPix',
-    inputSchema: z.object({
-      text: z.string(),
-      amount: z.number(),
-    }),
-    outputSchema: z.object({
-      type: z.enum(['income', 'transfer']),
-      confidence: z.number(),
-      reason: z.string(),
-    }),
-  },
-  async (input) => {
-    const prompt = `
-Você é um classificador financeiro.
+const PixInputSchema = z.object({
+  text: z.string(),
+  amount: z.number(),
+});
+
+const PixOutputSchema = z.object({
+  type: z.enum(['income', 'transfer']),
+  confidence: z.number(),
+  reason: z.string(),
+});
+
+const classifyPixPrompt = ai.definePrompt({
+  name: 'classifyPixPrompt',
+  input: { schema: PixInputSchema },
+  output: { schema: PixOutputSchema },
+  prompt: `Você é um classificador financeiro.
 
 Analise a transação:
 
-Texto: "${input.text}"
-Valor: ${input.amount}
+Texto: "{{input.text}}"
+Valor: {{input.amount}}
 
 Classifique como:
 - income → dinheiro vindo de fora (salário, cliente, venda)
@@ -32,18 +32,20 @@ Regras:
 - PIX recebido sem contexto → transfer
 - PIX com palavras como salário, pagamento, cliente → income
 
-Responda JSON:
-{
-  "type": "income" ou "transfer",
-  "confidence": 0 a 1,
-  "reason": "explicação curta"
-}
-`;
+Responda no formato JSON estruturado.`,
+});
 
-    const res = await ai.generate({
-      prompt,
-    });
-
-    return JSON.parse(res.text);
+export const classifyPixFlow = ai.defineFlow(
+  {
+    name: 'classifyPix',
+    inputSchema: PixInputSchema,
+    outputSchema: PixOutputSchema,
+  },
+  async (input) => {
+    const { output } = await classifyPixPrompt(input);
+    if (!output) {
+      throw new Error('Failed to classify Pix transaction.');
+    }
+    return output;
   }
 );
