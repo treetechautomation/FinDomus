@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyIdToken } from '@/lib/verify-id-token';
-import { getFinancialAIData } from '@/services/firestore/financial-ai';
+import { getFinancialAIDataAdmin } from '@/services/firestore/financial-ai.admin';
 
 export async function GET(req: Request) {
   let userId = '';
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const insightsData = await getFinancialAIData(userId);
+    const insightsData = await getFinancialAIDataAdmin(userId);
     return NextResponse.json(insightsData);
   } catch (error: any) {
     console.error('Erro na API de Insights IA:', error);
