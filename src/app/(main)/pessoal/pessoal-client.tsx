@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
 import {
   getCurrentMonthKey,
   parseMonthKey,
@@ -11,12 +14,13 @@ import {
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
-import { personalBudget } from "@/lib/data";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Users, ArrowUp, ArrowDown, Banknote } from "lucide-react";
 import { StatCard } from "@/components/overview/stat-card";
 import { getBudgets, getWealthProfile } from "@/services/firestore/planning";
-import { getTransactionsByOwnerAndMonth } from "@/services/firestore/transactions";
+import { getTransactionsByMonth } from "@/services/firestore/transactions";
+import { financialEvents } from "@/core/finance/events";
 import {
   getMonthlyClosure,
   closeMonthlyCompetence,
@@ -147,15 +151,18 @@ export default function PessoalClient() {
   const [incomePage, setIncomePage] = useState(1);
   const [loading, setLoading] = useState(true);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
+
   useEffect(() => {
     async function loadPessoalData() {
       if (!user?.uid) return;
       try {
         const currentMonthKey = getCurrentMonthKey();
-          const [budgetsResult, wealthResult] = await Promise.all([
-            getBudgets(user.uid, currentMonthKey),
-            getWealthProfile(user.uid)
-          ]);
+        const [budgetsResult, wealthResult] = await Promise.all([
+          getBudgets(user.uid, currentMonthKey),
+          getWealthProfile(user.uid)
+        ]);
 
         setBudgets(budgetsResult || []);
         setWealthProfile(wealthResult || null);
@@ -168,7 +175,7 @@ export default function PessoalClient() {
     }
 
     loadPessoalData();
-  }, [user?.uid]);
+  }, [user?.uid, refreshTrigger]);
 
   const resolvedSearchParams = {
     month: searchParams.get("month") || undefined,
@@ -183,38 +190,51 @@ export default function PessoalClient() {
       ? Number(resolvedSearchParams.month)
       : now.getMonth();
 
-    const currentYear = now.getFullYear();
+  const currentYear = now.getFullYear();
 
-    const mode =
-      resolvedSearchParams?.mode === "all"
-        ? "all"
-        : resolvedSearchParams?.mode === "month"
-          ? "month"
-          : "invoice";
+  const mode =
+    resolvedSearchParams?.mode === "all"
+      ? "all"
+      : resolvedSearchParams?.mode === "month"
+        ? "month"
+        : "invoice";
 
-    const selectedMonthKey = `${currentYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+  const selectedMonthKey = `${currentYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
 
-    useEffect(() => {
-      async function loadSelectedMonthClosure() {
-          if (!user?.uid) return;
-          const [closureResult, openingResult] = await Promise.all([
-            getMonthlyClosure(user.uid, "PF", selectedMonthKey),
-            getMonthOpening("PF", selectedMonthKey),
-          ]);
-
-          setMonthClosure(closureResult);
-          setMonthOpening(openingResult);
-      }
-
-      async function loadTransactions() {
+  useEffect(() => {
+    async function loadSelectedMonthClosure() {
         if (!user?.uid) return;
-        const result = await getTransactionsByOwnerAndMonth(user.uid, 'PF', selectedMonthKey);
-        setPersonalTransactions(result || []);
-      }
+        const [closureResult, openingResult] = await Promise.all([
+          getMonthlyClosure(user.uid, "PF", selectedMonthKey),
+          getMonthOpening("PF", selectedMonthKey),
+        ]);
 
-      loadSelectedMonthClosure();
-      loadTransactions();
-    }, [selectedMonthKey, user?.uid]);
+        setMonthClosure(closureResult);
+        setMonthOpening(openingResult);
+    }
+
+    async function loadTransactions() {
+      if (!user?.uid) return;
+      const result = await getTransactionsByMonth(user.uid, 'PF', selectedMonthKey);
+      setPersonalTransactions(result || []);
+    }
+
+    loadSelectedMonthClosure();
+    loadTransactions();
+  }, [selectedMonthKey, user?.uid, refreshTrigger]);
+
+  // Listener reativo para novos lançamentos via importador (sem F5)
+  useEffect(() => {
+    const handler = async () => {
+      if (!user?.uid) return;
+      const result = await getTransactionsByMonth(user.uid, 'PF', selectedMonthKey);
+      setPersonalTransactions(result || []);
+    };
+    financialEvents.on('transaction:created', handler);
+    return () => {
+      financialEvents.off('transaction:created', handler);
+    };
+  }, [selectedMonthKey, user?.uid]);
 
 
   if (loading) {
@@ -285,12 +305,11 @@ export default function PessoalClient() {
   const currentDay = today.getDate();
   const monthProgress = currentDay / daysInMonth;
 
-  const baseBudget = budgets.length > 0
-  ? budgets.map(b => ({
-      category: b.category,
-      planned: b.planned
-    }))
-  : personalBudget;
+  const baseBudget = budgets.map(b => ({
+    category: b.category,
+    planned: b.planned
+  }));
+  const hasBudget = baseBudget.length > 0;
 
 
 const wealthMap = Object.fromEntries(
@@ -480,6 +499,11 @@ return (
         <div className="flex items-center gap-2">
           <MonthFilter currentMonth={selectedMonth} />
           <NewTransactionDialog />
+          <Link href="/importacoes">
+            <Button variant="outline" size="sm" className="h-9 rounded-xl">
+              Importar Extrato
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -562,7 +586,75 @@ return (
           </select>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        {/* Seção de Orçamentos e Alinhamento Financeiro */}
+        <div className="grid gap-6 xl:grid-cols-2 mt-6">
+          <Card className="rounded-3xl border border-zinc-900 bg-zinc-950/20 p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Banknote className="h-5 w-5 text-cyan-400" />
+                    Orçamentos Mensais
+                  </h3>
+                  <p className="text-zinc-500 text-xs mt-1">Acompanhe seus limites de gastos por categoria.</p>
+                </div>
+                <EditBudgetDialog category="Alimentação" month={selectedMonthKey} onSuccess={handleRefresh} />
+              </div>
+
+              {!hasBudget ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-zinc-800 rounded-2xl p-4 mt-6">
+                  <p className="text-sm text-zinc-400 font-semibold">Nenhum orçamento definido para este mês</p>
+                  <p className="text-xs text-zinc-500 mt-1">Clique em "Definir orçamento" para planejar seus gastos.</p>
+                </div>
+              ) : (
+                <div className="space-y-4 mt-6">
+                  {smartBudget.map((b) => (
+                    <div key={b.category} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-zinc-300 font-medium">{b.category}</span>
+                        <span className="text-zinc-400 text-xs">
+                          {b.spent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / <span className="text-zinc-300 font-bold">{b.planned.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        </span>
+                      </div>
+                      <Progress value={Math.min(b.percent, 100)} className="h-1.5 bg-zinc-900" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card className="rounded-3xl border border-zinc-900 bg-zinc-950/20 p-6 flex flex-col justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Users className="h-5 w-5 text-amber-400" />
+                Wealth Alignment
+              </h3>
+              <p className="text-zinc-500 text-xs mt-1">Distribuição alinhada com as recomendações de construção patrimonial.</p>
+              <div className="space-y-4 mt-6">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-300">Receitas Totais:</span>
+                  <span className="text-emerald-500 font-bold">{income.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-300">Limites Totais Planejados:</span>
+                  <span className="text-zinc-400 font-semibold">{totalPlanned.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-zinc-900 pt-2">
+                  <span className="text-zinc-300">Total Utilizado:</span>
+                  <span className={`font-bold ${totalSpent > totalPlanned ? 'text-red-500' : 'text-zinc-300'}`}>
+                    {totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({totalPlanned > 0 ? ((totalSpent / totalPlanned) * 100).toFixed(1) : 0}%)
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="text-[10px] text-zinc-500 font-light border-t border-zinc-900/50 pt-3 mt-4">
+              Alinhamento automático com o perfil de investimento e planejamento financeiro central.
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2 mt-6">
           <div className="space-y-3">
             <PersonalTransactionsTable
               title="Lançamentos Recentes: Despesas"
@@ -572,8 +664,8 @@ return (
               getDisplayMerchant={getDisplayMerchant}
               formatDateBR={formatDateBR}
               cn={cn}
+              onSuccess={handleRefresh}
             />
-
             <div className="flex items-center justify-center gap-2">
               <button
                 disabled={safePage <= 1}
@@ -615,6 +707,7 @@ return (
               getDisplayMerchant={getDisplayMerchant}
               formatDateBR={formatDateBR}
               cn={cn}
+              onSuccess={handleRefresh}
             />
 
             <div className="flex items-center justify-center gap-2">

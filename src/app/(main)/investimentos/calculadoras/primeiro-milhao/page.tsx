@@ -17,26 +17,19 @@ import { simulateCompound, generateChartData } from '@/core/finance/million';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/providers/auth-provider';
-import { getInvestments } from '@/services/firestore/investments';
-import { getAccountsWithBalance } from '@/services/firestore/accounts';
-import { getLiabilities } from '@/services/firestore/liabilities';
-import { getInvestmentYields } from '@/services/firestore/yields';
-import { calculateFinancialCore } from '@/core/finance/financial-core';
 import { auth } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
+import { formatCurrencyBRL, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils';
 
 const aportes = [50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 5000, 10000];
 const anos = [10, 15, 20, 25, 30, 35, 40];
 
 function brl(value: number) {
-  return Number(value || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
+  return formatCurrencyBRL(value);
 }
 
-function onlyNumber(value: string) {
-  return Number(value.replace(/\D/g, '')) / 100;
+function onlyNumber(value: string | number) {
+  return parseCurrencyInput(value);
 }
 
 function percentMonthlyFromAnnual(annual: number) {
@@ -82,30 +75,28 @@ export default function PrimeiroMilhaoPage() {
     rate: 8,
   });
 
+  const [monthlyExpenses, setMonthlyExpenses] = useState<number>(3000);
+
   useEffect(() => {
     if (!user?.uid) return;
 
     setLoadingRealData(true);
     async function loadRealData() {
       try {
-        const [investmentsData, accountsData, liabilitiesData, yieldsData] = await Promise.all([
-          getInvestments(user!.uid),
-          getAccountsWithBalance(user!.uid),
-          getLiabilities(user!.uid),
-          getInvestmentYields(user!.uid),
-        ]);
+        const token = auth.currentUser ? await getIdToken(auth.currentUser) : null;
+        if (!token) return;
 
-        const financial = calculateFinancialCore({
-          accounts: accountsData || [],
-          investments: investmentsData || [],
-          liabilities: liabilitiesData || [],
+        const res = await fetch('/api/kernel', {
+          headers: { Authorization: `Bearer ${token}` }
         });
+        if (!res.ok) throw new Error('Falha ao buscar dados do kernel');
+        const kernelData = await res.json();
 
-        const realNetWorth = financial.netWorth || 0;
-        
+        // 1. Patrimonio Liquido
+        const realNetWorth = kernelData.netWorth || 0;
         if (realNetWorth > 0) {
           const roundedNetWorth = Math.round(realNetWorth);
-          setInitialInput(String(roundedNetWorth * 100));
+          setInitialInput(formatCurrencyInput(roundedNetWorth));
           setCalculated((c) => ({
             ...c,
             initial: roundedNetWorth,
@@ -113,27 +104,15 @@ export default function PrimeiroMilhaoPage() {
           setHasLoadedRealData(true);
         }
 
-        // Média de proventos 12M
-        const today = new Date();
-        const last12Months = Array.from({ length: 12 }, (_, i) => {
-          const d = new Date();
-          d.setMonth(d.getMonth() - i);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        });
+        // 2. Selic Rate
+        if (kernelData.selicRate) {
+          setSelicRate(kernelData.selicRate);
+        }
 
-        let totalYields12M = 0;
-        (yieldsData || []).forEach((y) => {
-          if (y.date && y.amount && last12Months.some((ym) => y.date.startsWith(ym))) {
-            totalYields12M += Number(y.amount) || 0;
-          }
-        });
-        setRealYieldsAvg(totalYields12M / 12);
-
-        // Somar o total investido e o valor atual para calcular a rentabilidade da carteira
+        // 3. Rentabilidade da carteira (usando investimentos retornados pelo kernel)
         let totalInvested = 0;
         let totalCurrentValue = 0;
-
-        (investmentsData || []).forEach((item: any) => {
+        (kernelData.investments || []).forEach((item: any) => {
           const qty = Number(item.quantity || 0);
           const avgPrice = Number(item.averagePrice || 0);
           const currentPrice = Number(item.currentPrice || 0);
@@ -152,22 +131,11 @@ export default function PrimeiroMilhaoPage() {
           setWalletRate(yieldReturn * 100);
         }
 
-        // Buscar a taxa SELIC atual
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          const token = await getIdToken(currentUser);
-          const marketRes = await fetch('/api/market/tickers', {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: 'no-store',
-          });
-          const marketJson = await marketRes.json();
-          if (marketJson?.ok && Array.isArray(marketJson.data)) {
-            const selicTick = marketJson.data.find((t: any) => t.symbol === 'SELIC');
-            if (selicTick && typeof selicTick.price === 'number') {
-              setSelicRate(selicTick.price);
-            }
-          }
-        }
+        // 4. Média de proventos
+        setRealYieldsAvg(0.006 * realNetWorth); // 0.6% a.m. do yield base
+        
+        // Armazena despesas mensais para cálculo do FIRE Number
+        setMonthlyExpenses(kernelData.monthlyExpenses || 3000);
       } catch (err) {
         console.error('Erro ao carregar dados reais na calculadora:', err);
       } finally {
@@ -265,6 +233,32 @@ export default function PrimeiroMilhaoPage() {
           Simule quanto tempo seu patrimônio leva para atingir a meta desejada.
         </p>
       </div>
+
+      {/* Seu FIRE Number */}
+      {hasLoadedRealData && (
+        <Card className="border-cyan-500/20 bg-cyan-950/5">
+          <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-cyan-400 flex items-center gap-1.5">
+                💡 Seu FIRE Number Estimado
+              </h4>
+              <p className="text-xs text-zinc-400 mt-1 max-w-[500px]">
+                Considerando sua despesa mensal real de{' '}
+                <span className="text-white font-semibold">{formatCurrencyBRL(monthlyExpenses)}</span>, 
+                você precisa de um patrimônio de{' '}
+                <span className="text-cyan-400 font-bold">{formatCurrencyBRL(monthlyExpenses * 12 / 0.04)}</span>{' '}
+                para viver de renda vitalícia (Regra dos 4%).
+              </p>
+            </div>
+            <Button
+              onClick={() => setTargetInput(formatCurrencyInput(monthlyExpenses * 12 / 0.04))}
+              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs"
+            >
+              Usar como meta
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-primary/20 bg-card/70">
         <CardHeader>
@@ -370,8 +364,8 @@ export default function PrimeiroMilhaoPage() {
             <div className="flex h-11 items-center rounded-md border bg-background">
               <span className="px-3 text-sm text-muted-foreground">R$</span>
               <input
-                value={brl(initial).replace('R$', '').trim()}
-                onChange={(e) => setInitialInput(String(Math.round(onlyNumber(e.target.value) * 100)))}
+                value={initialInput}
+                onChange={(e) => setInitialInput(formatCurrencyInput(e.target.value))}
                 className="w-full bg-transparent px-2 outline-none"
               />
             </div>
@@ -382,8 +376,8 @@ export default function PrimeiroMilhaoPage() {
             <div className="flex h-11 items-center rounded-md border bg-background">
               <span className="px-3 text-sm text-muted-foreground">R$</span>
               <input
-                value={brl(target).replace('R$', '').trim()}
-                onChange={(e) => setTargetInput(String(Math.round(onlyNumber(e.target.value) * 100)))}
+                value={targetInput}
+                onChange={(e) => setTargetInput(formatCurrencyInput(e.target.value))}
                 className="w-full bg-transparent px-2 outline-none"
               />
             </div>

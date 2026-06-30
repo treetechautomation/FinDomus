@@ -8,7 +8,15 @@ import { Label } from "@/components/ui/label";
 import { upsertBudget } from "@/services/firestore/planning";
 import { useAuth } from "@/providers/auth-provider";
 
-export function EditBudgetDialog({ category, month }: { category: string; month: string }) {
+export function EditBudgetDialog({ 
+  category, 
+  month,
+  onSuccess 
+}: { 
+  category: string; 
+  month: string;
+  onSuccess?: () => void;
+}) {
   const { user } = useAuth();
   const [value, setValue] = useState("");
 
@@ -19,7 +27,7 @@ export function EditBudgetDialog({ category, month }: { category: string; month:
       planned: Number(value),
       month
     });
-    location.reload();
+    onSuccess?.();
   }
 
   return (

@@ -1,26 +1,48 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatPercent } from "@/core/finance/formatters";
+import { formatPercent } from "@/core/finance/formatters";
+import { formatCurrencyBRL } from "@/lib/utils";
 import type { PFDRE } from "@/core/finance/dre-engine";
 import type { PFWealthReport } from "@/core/finance/wealth-engine";
 import { TrendingUp, Wallet, Landmark, ArrowUpRight, Award, Sparkles, BrainCircuit } from "lucide-react";
 
+const formatCurrency = formatCurrencyBRL;
+
 interface PfDreCardProps {
   dre: PFDRE;
   report?: PFWealthReport;
+  freedomScore?: number;
+  freedomScoreLabel?: string;
+  aiInsights?: any[];
 }
 
-export function PfDreCard({ dre, report }: PfDreCardProps) {
+export function PfDreCard({ dre, report, freedomScore, freedomScoreLabel, aiInsights }: PfDreCardProps) {
   const getPilarBRL = (pilarName: string) => {
-    switch (pilarName) {
-      case "Essenciais": return dre.essenciais;
-      case "Qualidade de Vida": return dre.qualidadeVida;
-      case "Estilo de Vida": return dre.estiloVida;
-      case "Educação": return dre.educacao;
-      case "Saúde": return dre.saude;
-      case "Construção Patrimonial": return dre.construcaoPatrimonial;
-      default: return 0;
-    }
+    const normalized = pilarName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace("de vida", "Vida")
+      .replace("patrimonial", "")
+      .replace(/\s+/g, "")
+      .trim();
+      
+    const key = 
+      normalized.includes("essencial") ? "essenciais" :
+      normalized.includes("qualidade") ? "qualidadeVida" :
+      normalized.includes("estilo") ? "estiloVida" :
+      normalized.includes("educacao") ? "educacao" :
+      normalized.includes("saude") ? "saude" :
+      normalized.includes("construcao") || normalized.includes("patrimonio") ? "construcaoPatrimonial" :
+      "outros";
+      
+    return (dre as any)[key] || 0;
   };
+
+  const score = freedomScore !== undefined ? freedomScore : (report?.score ?? 0);
+  const scoreLabel = freedomScoreLabel !== undefined ? freedomScoreLabel : (report?.scoreLabel ?? "");
+  const insightsToRender = aiInsights && aiInsights.length > 0
+    ? aiInsights.map(i => `${i.icon || '💡'} ${i.title}: ${i.description}`)
+    : (report?.insights ?? []);
 
   return (
     <Card className="rounded-3xl border border-zinc-805 bg-zinc-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300">
@@ -173,34 +195,34 @@ export function PfDreCard({ dre, report }: PfDreCardProps) {
                       cy="64" 
                       r="50" 
                       stroke={
-                        report.score >= 90 ? '#10b981' :
-                        report.score >= 70 ? '#60a5fa' :
-                        report.score >= 50 ? '#f59e0b' :
+                        score >= 90 ? '#10b981' :
+                        score >= 70 ? '#60a5fa' :
+                        score >= 50 ? '#f59e0b' :
                         '#ef4444'
                       } 
                       strokeWidth="8" 
                       fill="transparent"
                       strokeDasharray={2 * Math.PI * 50} 
-                      strokeDashoffset={2 * Math.PI * 50 - (report.score / 100) * (2 * Math.PI * 50)} 
+                      strokeDashoffset={2 * Math.PI * 50 - (score / 100) * (2 * Math.PI * 50)} 
                       strokeLinecap="round"
                       style={{ 
                         filter: `drop-shadow(0 0 6px ${
-                          report.score >= 90 ? 'rgba(16,185,129,0.2)' :
-                          report.score >= 70 ? 'rgba(96,165,250,0.2)' :
-                          report.score >= 50 ? 'rgba(245,158,11,0.2)' :
+                          score >= 90 ? 'rgba(16,185,129,0.2)' :
+                          score >= 70 ? 'rgba(96,165,250,0.2)' :
+                          score >= 50 ? 'rgba(245,158,11,0.2)' :
                           'rgba(239,68,68,0.2)'
                         })` 
                       }} 
                     />
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-3xl font-extrabold text-white">{report.score}</span>
+                    <span className="text-3xl font-extrabold text-white">{score}</span>
                     <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                      report.score >= 90 ? 'text-emerald-400' :
-                      report.score >= 70 ? 'text-blue-400' :
-                      report.score >= 50 ? 'text-amber-400' :
+                      score >= 90 ? 'text-emerald-400' :
+                      score >= 70 ? 'text-blue-400' :
+                      score >= 50 ? 'text-amber-400' :
                       'text-red-400'
-                    }`}>{report.scoreLabel}</span>
+                    }`}>{scoreLabel}</span>
                   </div>
                 </div>
                 <span className="text-xs text-zinc-400 mt-4 font-semibold text-center">Score de Saúde Financeira PF</span>
@@ -211,9 +233,9 @@ export function PfDreCard({ dre, report }: PfDreCardProps) {
                   <Sparkles className="w-4 h-4 text-[#00beea]" />
                   Insights da IA Domus
                 </h4>
-                {report.insights.length > 0 ? (
+                {insightsToRender.length > 0 ? (
                   <div className="space-y-2">
-                    {report.insights.map((insight, idx) => {
+                    {insightsToRender.map((insight, idx) => {
                       const isError = insight.includes('🚨') || insight.includes('⚠️');
                       const isSuccess = insight.includes('🎉') || insight.includes('✅');
                       

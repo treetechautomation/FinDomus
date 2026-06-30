@@ -1,5 +1,5 @@
 import { buildPFDRE } from './dre-engine';
-import { calculateFinancialCore } from './financial-core';
+import { calculateFinancialCore, calculateEmergencyReserve } from './financial-core';
 import { buildMonthlyProjection } from './liability-engine';
 import { buildForecast } from './forecast-engine';
 import { buildPFWealthAnalysis } from './wealth-engine';
@@ -39,6 +39,7 @@ export type KernelResult = {
     timeline: FreedomTimeline;
     actions: ActionPlanItem[];
   };
+  reserve: ReturnType<typeof calculateEmergencyReserve>;
   ai: any;
   computedAt: string;
   kernelVersion: number;
@@ -205,7 +206,7 @@ export function runFinancialKernel(context: KernelContext): KernelResult {
       realSurplus: averageSurplus,
     });
 
-    const actions = generateActionPlan(index, liabilities, accounts, dre);
+    const actions = generateActionPlan(index, liabilities, accounts, dre, investments);
 
     freedom = { index, timeline, actions };
     kernelCache.set('freedom', freedomHash, freedom);
@@ -244,6 +245,13 @@ export function runFinancialKernel(context: KernelContext): KernelResult {
     cacheHits++;
   }
 
+  const reserve = calculateEmergencyReserve({
+    accounts,
+    investments,
+    essentialMonthlyExpenses: (dre.essenciais || 0) + (dre.saude || 0) + (dre.educacao || 0),
+    targetMonths: 6,
+  });
+
   const end = performance.now();
 
   return {
@@ -253,6 +261,7 @@ export function runFinancialKernel(context: KernelContext): KernelResult {
     forecast,
     wealth,
     freedom,
+    reserve,
     ai,
     computedAt: new Date().toISOString(),
     kernelVersion: 1,

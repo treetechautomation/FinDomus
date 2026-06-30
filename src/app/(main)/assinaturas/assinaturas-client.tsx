@@ -27,6 +27,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import {
   getRecurringExpenses,
@@ -39,7 +49,10 @@ import { getCategories, type Category } from '@/services/firestore/categories';
 import { getTransactions, addTransaction, type TransactionDTO } from '@/services/firestore/transactions';
 import { getAccounts, type Account } from '@/services/firestore/accounts';
 import { detectRecurrence, buildMerchantFingerprint } from '@/core/finance/recurrence-engine';
-import { getCurrentMonthKey } from '@/core/finance/financial-period-engine';
+import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financial-period-engine';
+import { formatCurrencyBRL as brl, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils';
+import { learnTransactionCategory } from '@/core/finance/category-learning-engine';
+import Link from 'next/link';
 
 const DEFAULT_CATEGORIES = [
   'Assinaturas (Netflix, Spotify etc.)',
@@ -58,9 +71,6 @@ const DEFAULT_CATEGORIES = [
   'Outros'
 ];
 
-function brl(value: number) {
-  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
 
 export default function AssinaturasClient() {
   const { user } = useAuth();
@@ -79,11 +89,18 @@ export default function AssinaturasClient() {
 
   // Form State
   const [formName, setFormName] = useState('');
-  const [formAmount, setFormAmount] = useState('');
+  const [formAmountRaw, setFormAmountRaw] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formOwner, setFormOwner] = useState<'PF' | 'PJ'>('PF');
   const [formDayOfMonth, setFormDayOfMonth] = useState('5');
   const [formIsActive, setFormIsActive] = useState(true);
+  
+  // Deleting State
+  const [deletingExpense, setDeletingExpense] = useState<RecurringExpense | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Income State
+  const [monthlyIncome, setMonthlyIncome] = useState(0);
   
   // Pay Dialog State
   const [isPayDialogOpen, setIsPayDialogOpen] = useState(false);
@@ -110,6 +127,12 @@ export default function AssinaturasClient() {
       setRecurringExpenses(expensesData || []);
       setTransactions(txsData || []);
       setAccounts(accountsData || []);
+
+      const currentMonth = getCurrentMonthKey();
+      const incomeVal = (txsData || [])
+        .filter(t => isTransactionInMonth(t, currentMonth) && t.type === 'income' && t.owner === 'PF')
+        .reduce((s, t) => s + Number(t.amount || 0), 0);
+      setMonthlyIncome(incomeVal);
 
       const uniqueCats = Array.from(
         new Set([
@@ -162,20 +185,25 @@ export default function AssinaturasClient() {
     };
   }, [recurringExpenses]);
 
-  // Check if paid in the current month
-  const isPaidThisMonth = (expense: RecurringExpense) => {
+  // Check if paid in the current month (Optimized to O(n+m))
+  const paidExpenseNames = useMemo(() => {
     const currentMonth = getCurrentMonthKey();
-    return transactions.some(t => {
-      if (t.monthKey !== currentMonth) return false;
-      if (t.type !== 'expense') return false;
-      if (t.owner !== expense.owner) return false;
-      
-      const normTxDesc = (t.description || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      const normTxMerch = (t.merchant || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      const normExpName = expense.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      
-      return normTxDesc.includes(normExpName) || normTxMerch.includes(normExpName) || normExpName.includes(normTxDesc);
-    });
+    const paid = new Set<string>();
+    transactions
+      .filter(t => t.monthKey === currentMonth && t.type === 'expense')
+      .forEach(t => {
+        const norm = (t.description || t.merchant || '').toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        paid.add(norm);
+      });
+    return paid;
+  }, [transactions]);
+
+  const isPaidThisMonth = (expense: RecurringExpense) => {
+    const normExp = expense.name.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    return paidExpenseNames.has(normExp) ||
+      [...paidExpenseNames].some(name => name.includes(normExp) || normExp.includes(name));
   };
 
   // IA Suggestions detection logic
@@ -263,7 +291,7 @@ export default function AssinaturasClient() {
     setDialogMode('create');
     setSelectedExpense(null);
     setFormName('');
-    setFormAmount('');
+    setFormAmountRaw('');
     setFormCategory(categories[0] || 'Outros');
     setFormOwner('PF');
     setFormDayOfMonth('5');
@@ -275,7 +303,7 @@ export default function AssinaturasClient() {
     setDialogMode('edit');
     setSelectedExpense(expense);
     setFormName(expense.name);
-    setFormAmount(expense.amount.toString());
+    setFormAmountRaw(String(Math.round(expense.amount * 100)));
     setFormCategory(expense.category || 'Outros');
     setFormOwner(expense.owner);
     setFormDayOfMonth((expense.dayOfMonth || 5).toString());
@@ -290,16 +318,16 @@ export default function AssinaturasClient() {
     setIsPayDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!user?.uid) return;
-    if (!confirm('Deseja realmente remover esta despesa recorrente?')) return;
-
+  const handleDeleteConfirm = async () => {
+    if (!user?.uid || !deletingExpense?.id) return;
+    setDeleting(true);
     try {
-      await deleteRecurringExpense(user.uid, id);
+      await deleteRecurringExpense(user.uid, deletingExpense.id);
       toast({
         title: 'Removido com sucesso',
         description: 'A despesa recorrente foi removida.',
       });
+      setDeletingExpense(null);
       loadData();
     } catch (err: any) {
       toast({
@@ -307,6 +335,8 @@ export default function AssinaturasClient() {
         description: err.message || 'Não foi possível remover o item.',
         variant: 'destructive',
       });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -334,7 +364,7 @@ export default function AssinaturasClient() {
     e.preventDefault();
     if (!user?.uid) return;
 
-    const numericAmount = Number(formAmount.replace(',', '.'));
+    const numericAmount = parseCurrencyInput(formAmountRaw);
     if (!formName.trim() || isNaN(numericAmount) || numericAmount <= 0) {
       toast({
         title: 'Campos inválidos',
@@ -442,6 +472,14 @@ export default function AssinaturasClient() {
       };
 
       await addRecurringExpense(user.uid, data);
+
+      // Alimenta o sistema de aprendizado de categorias
+      learnTransactionCategory({
+        description: suggestion.name,
+        category: suggestion.category,
+        userId: user.uid,
+      }).catch((e) => console.error('Erro ao ensinar categoria:', e));
+
       toast({
         title: 'Importado com sucesso',
         description: `A recorrência "${suggestion.name}" foi adicionada.`,
@@ -482,6 +520,14 @@ export default function AssinaturasClient() {
     );
   }
 
+  function getDaysUntilDue(dayOfMonth: number) {
+    const today = new Date();
+    const dueDate = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
+    if (dueDate < today) dueDate.setMonth(dueDate.getMonth() + 1);
+    const diff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -495,14 +541,22 @@ export default function AssinaturasClient() {
             A IA detecta automaticamente novos padrões a partir do seu extrato.
           </p>
         </div>
-        <Button onClick={handleOpenCreate} className="bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-[0_0_20px_rgba(219,39,119,0.25)] transition-all">
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Custos/Fixos
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/?simulate=expense_reduction">
+            <Button variant="outline" size="sm" className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              <TrendingUp className="mr-1 h-4 w-4" />
+              Simular Redução
+            </Button>
+          </Link>
+          <Button onClick={handleOpenCreate} className="bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-[0_0_20px_rgba(219,39,119,0.25)] transition-all">
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Custos/Fixos
+          </Button>
+        </div>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Cost Card */}
         <Card className="border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-3 text-pink-500/10 group-hover:text-pink-500/20 transition-colors">
@@ -557,6 +611,36 @@ export default function AssinaturasClient() {
             <p className="text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">{totals.pjCount}</span> despesas ativas vinculadas às empresas.
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Impacto no Orçamento Card */}
+        <Card className={`border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group transition-all duration-300 ${
+          monthlyIncome > 0 && totals.pfTotal / monthlyIncome > 0.5 ? 'border-amber-500/30' : ''
+        }`}>
+          <div className="absolute top-0 right-0 p-3 text-amber-500/10 group-hover:text-amber-500/20 transition-colors">
+            <AlertCircle className="h-24 w-24 -mr-6 -mt-6" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Impacto no Orçamento (PF)
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold">
+              {monthlyIncome > 0 ? `${((totals.pfTotal / monthlyIncome) * 100).toFixed(1)}%` : '—'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              {monthlyIncome > 0 
+                ? `${brl(totals.pfTotal)} de ${brl(monthlyIncome)} da renda mensal`
+                : 'Importe transações para calcular o impacto.'}
+            </p>
+            {monthlyIncome > 0 && totals.pfTotal / monthlyIncome > 0.5 && (
+              <p className="text-xs text-amber-400 mt-1 font-medium">
+                ⚠️ Mais de 50% da renda comprometida com despesas fixas.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -645,6 +729,20 @@ export default function AssinaturasClient() {
                               <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
                                 <Calendar className="h-3.5 w-3.5 text-pink-400" />
                                 Dia {expense.dayOfMonth || '-'}
+                                {expense.isActive && expense.dayOfMonth && (() => {
+                                  const days = getDaysUntilDue(Number(expense.dayOfMonth));
+                                  if (days <= 3) return (
+                                    <Badge className="bg-red-500/15 text-red-400 hover:bg-red-500/15 text-[10px] h-4 px-1 ml-1">
+                                      {days === 0 ? 'Hoje' : `${days}d`}
+                                    </Badge>
+                                  );
+                                  if (days <= 7) return (
+                                    <Badge className="bg-amber-500/15 text-amber-400 hover:bg-amber-500/15 text-[10px] h-4 px-1 ml-1">
+                                      {days}d
+                                    </Badge>
+                                  );
+                                  return null;
+                                })()}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -705,7 +803,7 @@ export default function AssinaturasClient() {
                                   size="icon"
                                   variant="ghost"
                                   className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                                  onClick={() => expense.id && handleDelete(expense.id)}
+                                  onClick={() => setDeletingExpense(expense)}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -827,9 +925,9 @@ export default function AssinaturasClient() {
                 <Label htmlFor="amount">Valor Mensal (R$)</Label>
                 <Input
                   id="amount"
-                  value={formAmount}
-                  onChange={(e) => setFormAmount(e.target.value)}
-                  placeholder="0,00"
+                  value={formAmountRaw ? formatCurrencyInput(formAmountRaw) : ''}
+                  onChange={(e) => setFormAmountRaw(e.target.value.replace(/\D/g, ''))}
+                  placeholder="R$ 0,00"
                   className="bg-muted/20 border-border/40"
                   required
                 />
@@ -979,6 +1077,28 @@ export default function AssinaturasClient() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Alert */}
+      <AlertDialog open={!!deletingExpense} onOpenChange={(open) => { if (!open) setDeletingExpense(null); }}>
+        <AlertDialogContent className="border-border/40 bg-background">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover Despesa Recorrente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja realmente remover a despesa <strong>{deletingExpense?.name}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="border-border/40">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm} 
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? 'Removendo...' : 'Remover'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

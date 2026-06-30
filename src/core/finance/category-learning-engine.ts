@@ -47,6 +47,7 @@ export async function learnTransactionCategory(params: {
   category: string;
   subcategory?: string;
   type?: string;
+  userId?: string;
 }) {
   const fingerprint = buildLearningFingerprint(
     params.description
@@ -58,7 +59,8 @@ export async function learnTransactionCategory(params: {
 
   const q = query(
     collection(db, 'category_learning'),
-    where('fingerprint', '==', fingerprint)
+    where('fingerprint', '==', fingerprint),
+    where('userId', '==', params.userId || null)
   );
 
   const snap = await getDocs(q);
@@ -94,6 +96,7 @@ export async function learnTransactionCategory(params: {
       category: params.category,
       subcategory: params.subcategory || null,
       type: params.type || null,
+      userId: params.userId || null,
 
       confidence: 1,
 
@@ -108,7 +111,8 @@ export async function learnTransactionCategory(params: {
 }
 
 export async function getLearnedCategory(
-  description: string
+  description: string,
+  userId?: string
 ) {
   const fingerprint = buildLearningFingerprint(
     description
@@ -116,7 +120,8 @@ export async function getLearnedCategory(
 
   const q = query(
     collection(db, 'category_learning'),
-    where('fingerprint', '==', fingerprint)
+    where('fingerprint', '==', fingerprint),
+    where('userId', '==', userId || null)
   );
 
   const snap = await getDocs(q);

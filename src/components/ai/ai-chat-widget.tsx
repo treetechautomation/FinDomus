@@ -63,7 +63,7 @@ export function AiChatWidget() {
         throw new Error('Usuário não autenticado no Firebase.');
       }
 
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch('/api/chat/financial', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -12,6 +12,7 @@ import { getMonthlyClosures } from '@/services/firestore/monthly-closures';
 
 interface Props {
   userId: string;
+  portfolio?: ConsolidatedPortfolio;
 }
 
 const colors = ['#5ED7FF', '#5AF2C1', '#FFF85A', '#F07AF5', '#6D9DFF', '#FF9C3A', '#BCA7FF', '#FF7C7C'];
@@ -19,7 +20,7 @@ const colors = ['#5ED7FF', '#5AF2C1', '#FFF85A', '#F07AF5', '#6D9DFF', '#FF9C3A'
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export function InvestmentConsolidadoTab({ userId }: Props) {
+export function InvestmentConsolidadoTab({ userId, portfolio: propPortfolio }: Props) {
   const [portfolio, setPortfolio] = useState<ConsolidatedPortfolio | null>(null);
   const [closures, setClosures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,12 +30,18 @@ export function InvestmentConsolidadoTab({ userId }: Props) {
     if (!userId) return;
     try {
       setLoading(true);
-      const [portData, closuresData] = await Promise.all([
-        consolidatePortfolio(userId),
-        getMonthlyClosures(userId, 'PF')
-      ]);
-      setPortfolio(portData);
-      setClosures(closuresData || []);
+      if (propPortfolio) {
+        setPortfolio(propPortfolio);
+        const closuresData = await getMonthlyClosures(userId, 'PF');
+        setClosures(closuresData || []);
+      } else {
+        const [portData, closuresData] = await Promise.all([
+          consolidatePortfolio(userId),
+          getMonthlyClosures(userId, 'PF')
+        ]);
+        setPortfolio(portData);
+        setClosures(closuresData || []);
+      }
     } catch (err) {
       console.error('Erro ao carregar carteira consolidada:', err);
     } finally {
@@ -43,8 +50,16 @@ export function InvestmentConsolidadoTab({ userId }: Props) {
   };
 
   useEffect(() => {
-    loadData();
-  }, [userId]);
+    if (propPortfolio) {
+      setPortfolio(propPortfolio);
+      setLoading(false);
+      getMonthlyClosures(userId, 'PF')
+        .then(setClosures)
+        .catch(console.error);
+    } else {
+      loadData();
+    }
+  }, [userId, propPortfolio]);
 
   const toggleRow = (ticker: string) => {
     setExpandedRows(prev => ({

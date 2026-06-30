@@ -1,6 +1,7 @@
 'use client';
 
 import { getCurrentMonthKey } from '@/core/finance/financial-period-engine';
+import Link from 'next/link';
 
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -24,6 +25,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { ImportReviewTable } from '@/components/import/review/import-review-table';
 import { useAuth } from '@/providers/auth-provider';
+import { learnTransactionCategory } from '@/core/finance/category-learning-engine';
 import { auth } from '@/lib/firebase';
 
 import { parseOFX } from "@/core/finance/ofx-parser";
@@ -340,9 +342,26 @@ export function Importer() {
 
       const summary = await addTransactionsBatch(user.uid, payload);
 
+      // Aprende categorias automaticamente de forma assíncrona (não-bloqueante)
+      const categorizedItems = payload.filter(
+        (item: any) => item.category && item.category !== 'Outros' && item.description
+      );
+      for (const item of categorizedItems) {
+        learnTransactionCategory({
+          description: item.description,
+          category: item.category,
+          userId: user.uid,
+        }).catch((err) => console.error('Erro no aprendizado automático:', err));
+      }
+
       toast({
         title: "Importação concluída ✨🤖",
-        description: `${summary.inserted} lançamentos importados. A IA do FinDomus categorizou e organizou as transações com sucesso.`,
+        description: `${summary.inserted} lançamentos importados com sucesso. A IA do FinDomus categorizou e organizou as transações com sucesso.`,
+        action: (
+          <Link href="/pessoal" className="text-cyan-400 hover:text-cyan-300 font-semibold text-xs border border-zinc-800 rounded-lg px-2.5 py-1 bg-zinc-900 flex-shrink-0">
+            Ver no Pessoal
+          </Link>
+        ),
       });
 
       clearStaging(); // limpa sessionStorage após sucesso

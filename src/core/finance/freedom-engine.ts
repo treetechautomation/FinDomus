@@ -1,5 +1,5 @@
 import { type PFDRE } from './dre-engine';
-import { calculateFinancialCore } from './financial-core';
+import { calculateFinancialCore, calculateEmergencyReserve } from './financial-core';
 
 export const FREEDOM_INDEX_VERSION = 1;
 
@@ -130,11 +130,13 @@ export function calculateFreedomIndex(params: {
 
   // 3. Reserva de Emergência (15%)
   const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
-  const targetReserve = 6 * despesasMensais;
-  const emergencyReservePercent =
-    targetReserve > 0
-      ? Math.max(0, Math.min(100, (cashBalance / targetReserve) * 100))
-      : 100;
+  const reserve = calculateEmergencyReserve({
+    accounts,
+    investments,
+    essentialMonthlyExpenses: (dre.essenciais || 0) + (dre.saude || 0) + (dre.educacao || 0),
+    targetMonths: 6,
+  });
+  const emergencyReservePercent = reserve.reservePercent;
 
   // 4. Patrimônio Líquido (15%)
   const targetNetWorth = Math.max(30000, (monthlyIncome > 0 ? monthlyIncome : 3000) * 12);
@@ -265,10 +267,16 @@ export function calculateFreedomTimeline(params: {
     : 'Hoje';
 
   // 2. Data de Reserva Completa
-  const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
-  const targetReserve = 6 * despesasMensais;
+  const reserve = calculateEmergencyReserve({
+    accounts,
+    investments,
+    essentialMonthlyExpenses: (dre.essenciais || 0) + (dre.saude || 0) + (dre.educacao || 0),
+    targetMonths: 6,
+  });
+  const targetReserve = reserve.targetAmount;
+  const remainingReserve = reserve.reserveGap;
 
-  const remainingReserve = Math.max(0, targetReserve - cashBalance);
+  const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
   const surplus = params.realSurplus !== undefined && params.realSurplus > 0
     ? params.realSurplus
     : Math.max(monthlyIncome * 0.1, monthlyIncome - despesasMensais);
@@ -434,12 +442,15 @@ export function generateActionPlan(
   indexResult: FreedomIndexResult,
   liabilities: any[],
   accounts: any[],
-  dre: PFDRE
+  dre: PFDRE,
+  investments: any[] = []
 ): ActionPlanItem[] {
-  const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
-  const cashBalance = accounts
-    .filter((a) => a.owner === 'PF')
-    .reduce((sum, a) => sum + Number(a.balance || 0), 0);
+  const reserve = calculateEmergencyReserve({
+    accounts,
+    investments,
+    essentialMonthlyExpenses: (dre.essenciais || 0) + (dre.saude || 0) + (dre.educacao || 0),
+    targetMonths: 6,
+  });
 
   const actions: ActionPlanItem[] = [];
 
@@ -487,8 +498,7 @@ export function generateActionPlan(
   }
 
   // 3. Reserva Emergencial
-  const targetReserve = 6 * despesasMensais;
-  if (cashBalance < 1000) {
+  if (reserve.reserveAmount < 1000) {
     actions.push({
       title: 'Montar Reserva de Segurança Mínima',
       description: 'Guarde seus primeiros R$ 1.000 como colchão de segurança contra imprevistos básicos.',
@@ -500,12 +510,11 @@ export function generateActionPlan(
       cta: 'Fazer Aporte',
       href: '/planejamento',
     });
-  } else if (cashBalance < targetReserve) {
-    const gap = targetReserve - cashBalance;
+  } else if (reserve.reserveGap > 0) {
     actions.push({
-      title: `Alcançar meta de reserva (${(cashBalance/despesasMensais).toFixed(1)}/6 meses)`,
+      title: `Alcançar meta de reserva (${reserve.coveredMonths.toFixed(1)}/${reserve.targetMonths} meses)`,
       description: 'Guarde o excedente mensal em contas digitais ou títulos públicos com liquidez diária.',
-      impactR$: `Faltam R$ ${gap.toLocaleString('pt-BR')}`,
+      impactR$: `Faltam R$ ${reserve.reserveGap.toLocaleString('pt-BR')}`,
       impactPts: 4,
       effort: 'Médio',
       priority: 'Alta',

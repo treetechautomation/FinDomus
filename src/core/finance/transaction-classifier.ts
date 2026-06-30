@@ -1,4 +1,4 @@
-import { getDocs, collection } from 'firebase/firestore';
+import { getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getCategories, type Category } from '@/services/firestore/categories';
 import {
@@ -189,7 +189,7 @@ function isTransfer(text: string) {
 
 async function classifyByLearning(text: string, userId?: string) {
 
-  const learned = await getLearnedCategory(text);
+  const learned = await getLearnedCategory(text, userId);
 
   if (learned?.category) {
     return learned.category;
@@ -251,6 +251,21 @@ function classifyByAISync(text: string): string | null {
   if (text.includes('mercado') || text.includes('supermercado')) return 'Supermercado';
   if (text.includes('posto') || text.includes('gasolina')) return 'Transporte';
   if (text.includes('farmacia')) return 'Saúde';
+  
+  // NOVOS padrões de alta confiança (fallback)
+  if (text.includes('netflix') || text.includes('spotify') || text.includes('amazon prime')) return 'Streaming / Assinaturas';
+  if (text.includes('uber') || text.includes('99 pop')) return 'Uber / 99';
+  if (text.includes('ifood') || text.includes('rappi')) return 'Delivery';
+  if (text.includes('academia') || text.includes('smart fit')) return 'Academia';
+  if (text.includes('cinema') || text.includes('ingresso')) return 'Cinema / Teatro';
+  if (text.includes('hospital') || text.includes('clinica')) return 'Consultas médicas';
+  if (text.includes('dentista') || text.includes('odonto')) return 'Odontologia';
+  if (text.includes('seguro') || text.includes('porto seguro')) return 'Seguros';
+  if (text.includes('pedagio') || text.includes('sem parar')) return 'Pedágio';
+  if (text.includes('estacionamento') || text.includes('park')) return 'Estacionamento';
+  if (text.includes('pet') || text.includes('veterinario')) return 'Pets';
+  if (text.includes('livraria') || text.includes('livro')) return 'Livros';
+  if (text.includes('pix') && text.includes('enviado')) return 'PIX entre pessoas';
   return null;
 }
 
@@ -287,7 +302,10 @@ export async function buildClassificationContext(userId?: string): Promise<Class
       console.error('Erro ao carregar identidades no contexto:', err);
       return [];
     }),
-    getDocs(collection(db, 'category_learning')).catch(err => {
+    (userId 
+      ? getDocs(query(collection(db, 'category_learning'), where('userId', '==', userId)))
+      : getDocs(collection(db, 'category_learning'))
+    ).catch(err => {
       console.error('Erro ao carregar aprendizado no contexto:', err);
       return { docs: [] } as any;
     }),

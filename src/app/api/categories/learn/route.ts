@@ -11,9 +11,10 @@ function normalize(text: string) {
 }
 
 export async function POST(req: Request) {
+  let decodedToken;
   try {
     const authHeader = req.headers.get('authorization');
-    await verifyIdToken(authHeader);
+    decodedToken = await verifyIdToken(authHeader);
   } catch (error) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -48,6 +49,47 @@ export async function POST(req: Request) {
     await docRef.update({
       keywords: Array.from(keywords)
     });
+
+    // Também aprende por fingerprint (Sistema A)
+    const fingerprint = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\b\d{2}\/\d{2}(\/\d{2,4})?\b/g, ' ')
+      .replace(/\b\d{2}:\d{2}\b/g, ' ')
+      .replace(/\b\d{3,}\b/g, ' ')
+      .replace(/\b\d+\b/g, ' ')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (fingerprint) {
+      const learnSnap = await adminDb.collection('category_learning')
+        .where('fingerprint', '==', fingerprint)
+        .where('userId', '==', decodedToken.uid || null)
+        .get();
+
+      if (!learnSnap.empty) {
+        const existingDoc = learnSnap.docs[0];
+        const existingData = existingDoc.data();
+        await existingDoc.ref.update({
+          category,
+          learnCount: Number(existingData.learnCount || 0) + 1,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await adminDb.collection('category_learning').add({
+          fingerprint,
+          originalDescription: text,
+          category,
+          userId: decodedToken.uid || null,
+          confidence: 1,
+          learnCount: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
 
     return NextResponse.json({ ok: true });
 

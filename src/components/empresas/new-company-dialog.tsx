@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { PlusCircle } from 'lucide-react';
 
 import { addCompany } from '@/services/firestore/accounts';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -17,9 +17,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export function NewCompanyDialog() {
+export function NewCompanyDialog({ onSuccess }: { onSuccess?: () => void }) {
   const { user } = useAuth();
-  const router = useRouter();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -29,7 +29,11 @@ export function NewCompanyDialog() {
     e.preventDefault();
 
     if (!name.trim()) {
-      alert('Informe o nome da empresa.');
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Informe o nome da empresa.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -38,12 +42,21 @@ export function NewCompanyDialog() {
       if (!user?.uid) throw new Error("Usuário não autenticado.");
       await addCompany(user.uid, { name: name.trim() });
 
+      toast({
+        title: 'Empresa criada',
+        description: 'Sua empresa foi cadastrada com sucesso.',
+      });
+
       setOpen(false);
       setName('');
-      router.refresh();
+      onSuccess?.();
     } catch (error) {
       console.error('Erro ao criar empresa:', error);
-      alert('Não foi possível criar a empresa.');
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível criar a empresa.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }

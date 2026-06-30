@@ -2,11 +2,14 @@ export type FinancialAccount = {
   id?: string;
   owner?: "PF" | "PJ";
   balance?: number;
+  type?: string;
+  name?: string;
 };
 
 export type FinancialInvestment = {
   id?: string;
   type?: string;
+  name?: string;
   currentValue?: number;
   contributions?: number;
   quantity?: number;
@@ -152,5 +155,116 @@ export function calculateFinancialCore(input: FinancialCoreInput) {
     wealthScore,
     wealthStatus,
     recommendation,
+  };
+}
+
+const LIQUID_ACCOUNT_TYPES = ['checking', 'savings', 'wallet'];
+const LIQUID_INVESTMENT_CLASSES = ['Renda Fixa'];
+
+export type EmergencyReserveResult = {
+  reserveAmount: number;
+  essentialMonthlyExpenses: number;
+  coveredMonths: number;
+  targetMonths: number;
+  targetAmount: number;
+  reserveGap: number;
+  reservePercent: number;
+  liquidityAssets: {
+    accounts: Array<{ id: string; name: string; type: string; balance: number }>;
+    investments: Array<{ id: string; name: string; type: string; value: number }>;
+  };
+  excludedAssets: {
+    accounts: Array<{ id: string; name: string; type: string; balance: number; reason: string }>;
+    investments: Array<{ id: string; name: string; type: string; value: number; reason: string }>;
+  };
+  explanation: string;
+};
+
+export function calculateEmergencyReserve(params: {
+  accounts: FinancialAccount[];
+  investments: FinancialInvestment[];
+  essentialMonthlyExpenses: number;
+  targetMonths?: number;
+}): EmergencyReserveResult {
+  const targetMonths = params.targetMonths ?? 6;
+  const essentialMonthlyExpenses = params.essentialMonthlyExpenses || 0;
+  const targetAmount = essentialMonthlyExpenses * targetMonths;
+
+  // 1. Filtrar contas líquidas (não PJ)
+  const liquidAccounts = (params.accounts || [])
+    .filter(a => a.owner !== 'PJ')
+    .filter(a => LIQUID_ACCOUNT_TYPES.includes(a.type || 'checking'));
+
+  const excludedAccounts = (params.accounts || [])
+    .filter(a => a.owner !== 'PJ')
+    .filter(a => !LIQUID_ACCOUNT_TYPES.includes(a.type || 'checking'));
+
+  // 2. Filtrar investimentos com liquidez (classe Renda Fixa)
+  const liquidInvestments = (params.investments || [])
+    .filter(i => LIQUID_INVESTMENT_CLASSES.some(cls => 
+      (i.type || '').toLowerCase().includes(cls.toLowerCase())
+    ));
+
+  const excludedInvestments = (params.investments || [])
+    .filter(i => !LIQUID_INVESTMENT_CLASSES.some(cls => 
+      (i.type || '').toLowerCase().includes(cls.toLowerCase())
+    ));
+
+  // 3. Somar
+  const liquidAccountsTotal = liquidAccounts.reduce((s, a) => s + (a.balance || 0), 0);
+  const liquidInvestmentsTotal = liquidInvestments.reduce((s, i) => {
+    const val = i.currentValue ?? ((i.quantity || 0) * (i.currentPrice || 0));
+    return s + (val || 0);
+  }, 0);
+  const reserveAmount = liquidAccountsTotal + liquidInvestmentsTotal;
+
+  // 4. Calcular métricas
+  const coveredMonths = essentialMonthlyExpenses > 0 
+    ? reserveAmount / essentialMonthlyExpenses 
+    : 0;
+  const reserveGap = Math.max(0, targetAmount - reserveAmount);
+  const reservePercent = targetAmount > 0 
+    ? Math.min(100, (reserveAmount / targetAmount) * 100) 
+    : 0;
+
+  return {
+    reserveAmount,
+    essentialMonthlyExpenses,
+    coveredMonths,
+    targetMonths,
+    targetAmount,
+    reserveGap,
+    reservePercent,
+    liquidityAssets: {
+      accounts: liquidAccounts.map(a => ({ 
+        id: a.id || '', 
+        name: (a as any).name || 'Conta', 
+        type: a.type || 'checking', 
+        balance: a.balance || 0 
+      })),
+      investments: liquidInvestments.map(i => ({ 
+        id: i.id || '', 
+        name: (i as any).name || (i as any).ticker || 'Renda Fixa', 
+        type: i.type || 'Renda Fixa', 
+        value: i.currentValue ?? ((i.quantity || 0) * (i.currentPrice || 0))
+      })),
+    },
+    excludedAssets: {
+      accounts: excludedAccounts.map(a => ({ 
+        id: a.id || '', 
+        name: (a as any).name || 'Conta Excluída', 
+        type: a.type || 'checking', 
+        balance: a.balance || 0, 
+        reason: `Conta do tipo "${a.type}" não tem liquidez imediata` 
+      })),
+      investments: excludedInvestments.map(i => ({ 
+        id: i.id || '', 
+        name: (i as any).name || (i as any).ticker || 'Ativo Excluído', 
+        type: i.type || 'Ações', 
+        value: i.currentValue ?? ((i.quantity || 0) * (i.currentPrice || 0)), 
+        reason: `Investimento do tipo "${i.type}" não possui liquidez diária` 
+      })),
+    },
+    explanation: `Reserva: R$ ${reserveAmount.toFixed(2)} (contas líquidas + renda fixa). Despesas essenciais: R$ ${essentialMonthlyExpenses.toFixed(2)}/mês. Cobertura: ${coveredMonths.toFixed(1)} de ${targetMonths} meses.${reserveGap > 0 ? ` Faltam R$ ${reserveGap.toFixed(2)}.` : ' Meta atingida.'}`,
   };
 }

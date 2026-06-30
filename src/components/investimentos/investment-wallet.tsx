@@ -7,19 +7,22 @@ import Link from 'next/link';
 
 import type { Investment, Account, Liability } from '@/services/firestore/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, Sparkles, Plus, Calendar, CalendarDays, Target } from 'lucide-react';
+import { TrendingUp, Sparkles, Plus, Calendar, CalendarDays, Target, Shield } from 'lucide-react';
 import { NewYieldDialog } from './new-yield-dialog';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/overview/stat-card';
-import { getInvestmentYields, type InvestmentYield } from '@/services/firestore/yields';
-import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financial-period-engine';
-import { defaultWealthCategories } from '@/core/finance/wealth-engine';
-
-import { calculateFinancialCore } from '@/core/finance/financial-core';
+import { Card, CardContent } from '@/components/ui/card';
+import { type InvestmentYield } from '@/services/firestore/yields';
+import { type KernelResult } from '@/core/finance/kernel';
+import { calculateEmergencyReserve } from '@/core/finance/financial-core';
 import { useInvestmentMetrics } from '@/hooks/investimentos/use-investment-metrics';
 import { useInvestmentAporte } from '@/hooks/investimentos/use-investment-aporte';
 import { useAuth } from '@/providers/auth-provider';
 import { NewInvestmentDialog } from './new-investment-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { formatCurrencyBRL } from '@/lib/utils';
+import { consolidatePortfolio, type ConsolidatedPortfolio } from '@/services/investments/consolidation-engine';
+import { generateInvestmentAnalytics, type InvestmentAnalytics } from '@/core/investments/analytics/analytics-engine';
 
 const InvestmentQuestionsTab = dynamic(
   () => import('@/components/investimentos/tabs/investment-questions-tab').then((mod) => mod.InvestmentQuestionsTab),
@@ -66,8 +69,7 @@ const InvestmentAnaliseTab = dynamic(
   { ssr: false }
 );
 
-const money = (v: number) =>
-  Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const money = (v: number) => formatCurrencyBRL(v);
 
 const classes = [
   'Todos',
@@ -177,22 +179,29 @@ function normalizeInvestment(item: Investment) {
   };
 }
 
-export function InvestmentWallet({ investments, onRefresh }: { investments: Investment[]; onRefresh?: () => void }) {
+export function InvestmentWallet({ 
+  investments, 
+  yields,
+  kernel,
+  onRefresh 
+}: { 
+  investments: Investment[]; 
+  yields: InvestmentYield[];
+  kernel: KernelResult;
+  onRefresh?: () => void 
+}) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [filter, setFilter] = useState('Todos');
   const [search, setSearch] = useState('');
   const [editingTicker, setEditingTicker] = useState('');
   const [aporteValue, setAporteValue] = useState('1000');
-  const [suggestedAporte, setSuggestedAporte] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('ativos');
   const [prefillAporte, setPrefillAporte] = useState<{ type: string; amount: number } | null>(null);
   const [prefillTicker, setPrefillTicker] = useState<{ ticker: string; name?: string; type?: string; price?: number; source?: string } | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [openYieldDialog, setOpenYieldDialog] = useState(false);
-  const [yields, setYields] = useState<InvestmentYield[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [liabilities, setLiabilities] = useState<Liability[]>([]);
-  const [closures, setClosures] = useState<any[]>([]);
+  
   const [selectedProfile, setSelectedProfile] = useState<'Conservador' | 'Moderado' | 'Arrojado'>('Arrojado');
   const [goals, setGoals] = useState([
     { name: 'Ações Nacionais', value: 25 },
@@ -205,122 +214,40 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
   ]);
   const router = useRouter();
 
+  // Cachear Consolidação de Portfólio e Analytics para otimização de queries das tabs
+  const [portfolio, setPortfolio] = useState<ConsolidatedPortfolio | null>(null);
+  const [analytics, setAnalytics] = useState<InvestmentAnalytics | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid || !investments.length) return;
+    consolidatePortfolio(user.uid).then(p => {
+      setPortfolio(p);
+      const a = generateInvestmentAnalytics(p);
+      setAnalytics(a);
+    }).catch(console.error);
+  }, [user?.uid, investments]);
+
+  // Carregar metas de investimento do usuário do banco de dados
   useEffect(() => {
     if (!user?.uid) return;
-
-    async function loadWealthData() {
-      const [{ getAccountsWithBalance }, { getLiabilities }, { getInvestmentGoals }, { getMonthlyClosures }] = await Promise.all([
-          import('@/services/firestore/accounts'),
-        import('@/services/firestore/liabilities'),
-        import('@/services/firestore'),
-        import('@/services/firestore/monthly-closures'),
-      ]);
-
-      const [accountsData, liabilitiesData, goalsData, closuresData] = await Promise.all([
-        getAccountsWithBalance(user!.uid),
-        getLiabilities(user!.uid),
-        getInvestmentGoals(user!.uid),
-        getMonthlyClosures(user!.uid, 'PF'),
-      ]);
-
-      setAccounts(accountsData || []);
-      setLiabilities(liabilitiesData || []);
-      setClosures(closuresData || []);
-      
-      if (goalsData && goalsData.length > 0) {
-        setGoals(goalsData);
-      }
-    }
-
-    loadWealthData();
+    import('@/services/firestore')
+      .then(({ getInvestmentGoals }) => getInvestmentGoals(user!.uid))
+      .then((goalsData) => {
+        if (goalsData && goalsData.length > 0) {
+          setGoals(goalsData);
+        }
+      })
+      .catch(console.error);
   }, [user?.uid]);
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    getInvestmentYields(user.uid)
-      .then(setYields)
-      .catch(console.error);
-
-    import('@/services/firestore/monthly-closures')
-      .then(({ getMonthlyClosures }) => getMonthlyClosures(user.uid, 'PF'))
-      .then(setClosures)
-      .catch(console.error);
-  }, [user?.uid, investments]);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    async function calculateAporteSugerido() {
-      try {
-        const [{ getWealthProfile }, { getPersonalTransactions }] = await Promise.all([
-          import('@/services/firestore/planning'),
-          import('@/services/firestore/transactions'),
-        ]);
-
-        const [profile, txs] = await Promise.all([
-          getWealthProfile(user!.uid),
-          getPersonalTransactions(user!.uid),
-        ]);
-
-        const currentMonthKey = getCurrentMonthKey();
-        const monthTransactions = (txs || []).filter((t: any) => isTransactionInMonth(t, currentMonthKey));
-
-        const monthlyIncome = monthTransactions
-          .filter((t: any) => t.type === 'income')
-          .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-        const profileCategories = profile?.categories?.length ? profile.categories : defaultWealthCategories;
-
-        // Categoria 1: patrimonio
-        const catPatrimonio = profileCategories.find((c) => c.id === 'patrimonio') || defaultWealthCategories.find((c) => c.id === 'patrimonio');
-        // Categoria 2: independencia
-        const catIndependencia = profileCategories.find((c) => c.id === 'independencia') || defaultWealthCategories.find((c) => c.id === 'independencia');
-
-        const calculateGoalRemaining = (cat: any) => {
-          if (!cat) return 0;
-          const planned = monthlyIncome * (Number(cat.percentage || 0) / 100);
-          
-          const normalizeCategory = (name: string) => String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-          const getPlanningTransactionCategory = (transaction: any) => {
-            const LEGACY_MERCHANT_CATEGORY_MAP: Record<string, string> = {
-              guanabara: 'Alimentação',
-              supermercado: 'Alimentação',
-              mercado: 'Alimentação',
-              shell: 'Transporte',
-              ipiranga: 'Transporte',
-              gasolina: 'Transporte',
-              igreja: 'Doações',
-              dizimo: 'Doações',
-              dízimo: 'Doações',
-            };
-            const raw = String(transaction?.category || '');
-            return LEGACY_MERCHANT_CATEGORY_MAP[raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()] || raw;
-          };
-
-          const spent = monthTransactions
-            .filter((t: any) => t.type === 'expense' || t.type === 'income' || t.type === 'transfer')
-            .filter((t: any) => {
-              const txCat = normalizeCategory(getPlanningTransactionCategory(t));
-              const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
-              return goalCats.some((gc: string) => txCat.includes(gc));
-            })
-            .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
-
-          return planned - spent;
-        };
-
-        const remainingPatrimonio = calculateGoalRemaining(catPatrimonio);
-        const remainingIndependencia = calculateGoalRemaining(catIndependencia);
-
-        const totalSugerido = Math.max(0, remainingPatrimonio) + Math.max(0, remainingIndependencia);
-        setSuggestedAporte(totalSugerido);
-      } catch (err) {
-        console.error('Erro ao calcular aporte sugerido na carteira:', err);
-      }
-    }
-
-    calculateAporteSugerido();
-  }, [user?.uid, investments]);
+  // Aporte sugerido baseado na meta de construção patrimonial (DRE/Kernel)
+  const suggestedAporte = useMemo(() => {
+    const income = kernel.dre.receitaTotal || 0;
+    const patPercentage = 20;
+    const plannedPat = income * (patPercentage / 100);
+    const spentPat = kernel.dre.construcaoPatrimonial || 0;
+    return Math.max(0, plannedPat - spentPat);
+  }, [kernel]);
 
   function applyInvestmentProfile(profile: keyof typeof INVESTMENT_PROFILES) {
     setSelectedProfile(profile);
@@ -342,24 +269,24 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
 
   async function handleSaveGoals() {
     if (!user?.uid) {
-      window.alert('Usuário não autenticado.');
+      toast({ title: 'Acesso negado', description: 'Usuário não autenticado.', variant: 'destructive' });
       return;
     }
 
     const total = goals.reduce((sum, g) => sum + g.value, 0);
 
     if (total !== 100) {
-      window.alert('A soma das metas precisa ser 100%.');
+      toast({ title: 'Soma incorreta', description: 'A soma das metas precisa ser exatamente 100%.', variant: 'destructive' });
       return;
     }
 
     try {
       const { saveInvestmentGoals } = await import('@/services/firestore');
       await saveInvestmentGoals(user.uid, goals);
-      window.alert('Metas salvas com sucesso.');
+      toast({ title: 'Metas salvas', description: 'Suas metas de alocação foram atualizadas com sucesso.' });
     } catch (error) {
       console.error(error);
-      window.alert('Erro ao salvar metas.');
+      toast({ title: 'Erro ao salvar', description: 'Não foi possível salvar as metas no momento.', variant: 'destructive' });
     }
   }
 
@@ -392,12 +319,8 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     setEditingInvestment(found || null);
   }, [editingTicker, assets]);
 
-  const financialCore = useMemo(() => calculateFinancialCore({
-    accounts,
-    investments: assets,
-    liabilities,
-  }), [accounts, assets, liabilities]);
-
+  // Usar dados reais calculados centralmente pelo Kernel
+  const { financialCore } = kernel;
   const cashBalance = financialCore.cashBalance;
   const activeLiabilityBalance = financialCore.activeLiabilityBalance;
   const monthlyDebtPayment = financialCore.monthlyDebtPayment;
@@ -418,35 +341,17 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
     distribution,
   });
 
-  const monthlyLivingCost = useMemo(() => {
-    // Filtrar closures fechados de PF
-    const closedPF = closures
-      .filter((c) => c.status === 'CLOSED')
-      .sort((a, b) => b.month.localeCompare(a.month)); // Mais recentes primeiro
-
-    if (closedPF.length === 0) {
-      return {
-        amount: 6000,
-        isFallback: true,
-      };
-    }
-
-    // Pegar até os últimos 6 closures fechados
-    const recentClosures = closedPF.slice(0, 6);
-    const totalExpenses = recentClosures.reduce((sum, c) => sum + (Number(c.expenses) || 0), 0);
-    const average = totalExpenses / recentClosures.length;
-
-    return {
-      amount: average > 0 ? average : 6000,
-      isFallback: average <= 0,
-    };
-  }, [closures]);
+  const monthlyLivingCost = {
+    amount: kernel.dre.despesasOperacionais > 0 
+      ? kernel.dre.despesasOperacionais 
+      : 6000,
+    isFallback: kernel.dre.despesasOperacionais <= 0,
+  };
 
   const yieldMetrics = useMemo(() => {
     const today = new Date();
     const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
     
-    // Obter os últimos 12 meses (incluindo o atual) em formato YYYY-MM
     const last12Months = Array.from({ length: 12 }, (_, i) => {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
@@ -458,22 +363,18 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
 
     yields.forEach((y) => {
       if (!y.date || !y.amount) return;
-      
       if (y.date.startsWith(currentYearMonth)) {
         totalCurrentMonth += Number(y.amount) || 0;
       }
-      
       if (last12Months.some((ym) => y.date.startsWith(ym))) {
         totalLast12M += Number(y.amount) || 0;
       }
     });
 
     const averageMonthly = totalLast12M / 12;
-    const targetLivingCost = monthlyLivingCost.amount;
+    const targetLivingCost = kernel.dre.despesasOperacionais || 6000;
     const progressPercent = targetLivingCost > 0 ? (averageMonthly / targetLivingCost) * 100 : 0;
-    
-    // Alvo FIRE = (despesas mensais * 12) / 0.04
-    const targetNetWorth = (targetLivingCost * 12) / 0.04;
+    const targetNetWorth = kernel.freedom.timeline.targetNetWorth || (targetLivingCost * 12) / 0.04;
 
     return {
       totalCurrentMonth,
@@ -482,9 +383,19 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
       targetIndependence: targetLivingCost,
       progressPercent,
       targetNetWorth,
-      isLivingCostFallback: monthlyLivingCost.isFallback,
+      isLivingCostFallback: kernel.dre.despesasOperacionais <= 0,
     };
-  }, [yields, monthlyLivingCost]);
+  }, [yields, kernel]);
+
+  // Reserva de Emergência usando a função centralizada
+  const emergencyReserve = useMemo(() => calculateEmergencyReserve({
+    accounts: kernel.financialCore.cashBalance > 0 
+      ? [{ balance: kernel.financialCore.cashBalance, owner: 'PF', type: 'checking' }]
+      : [],
+    investments: [],
+    essentialMonthlyExpenses: kernel.dre.essenciais + (kernel.dre.saude || 0) + (kernel.dre.educacao || 0),
+    targetMonths: 6,
+  }), [kernel]);
 
   return (
     <div className="relative">
@@ -525,7 +436,8 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Grid de Cards de Estatísticas com Freedom Index e Reserva de Emergência */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
         <StatCard
           title="Proventos do Mês"
           value={money(yieldMetrics.totalCurrentMonth)}
@@ -537,21 +449,74 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
           title="Últimos 12 Meses"
           value={money(yieldMetrics.totalLast12M)}
           icon={CalendarDays}
-          description="Total acumulado nos últimos 12 meses"
+          description="Total nos últimos 12 meses"
           glowColor="purple"
         />
         <StatCard
           title="Média Mensal"
           value={money(yieldMetrics.averageMonthly)}
           icon={TrendingUp}
-          description="Média móvel dos últimos 12 meses"
+          description="Média móvel de 12 meses"
           glowColor="green"
         />
+        
+        {/* Card do Índice de Liberdade */}
+        <Card className="rounded-3xl border border-zinc-900 bg-zinc-950/20 backdrop-blur-md p-6 flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-3 opacity-10">
+            <Sparkles className="h-20 w-20 text-cyan-400" />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <svg className="w-14 h-14 transform -rotate-90">
+                <circle cx="28" cy="28" r="24" className="stroke-zinc-800/40" strokeWidth="5" fill="transparent" />
+                <circle cx="28" cy="28" r="24" stroke={kernel.freedom.index.freedomIndex >= 60 ? '#10b981' : '#f59e0b'} 
+                        strokeWidth="5" fill="transparent"
+                        strokeDasharray={2 * Math.PI * 24}
+                        strokeDashoffset={2 * Math.PI * 24 - (kernel.freedom.index.freedomIndex / 100) * (2 * Math.PI * 24)} />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-black text-white">
+                {kernel.freedom.index.freedomIndex}
+              </div>
+            </div>
+            <div>
+              <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider">Freedom Index</p>
+              <p className="text-sm font-extrabold text-white mt-0.5">{kernel.freedom.index.levelLabel}</p>
+              {kernel.freedom.index.trendPoints !== undefined && (
+                <span className="text-[10px] text-emerald-400 font-medium">▲ {kernel.freedom.index.trendPoints} pts</span>
+              )}
+            </div>
+          </div>
+          <p className="text-[10px] text-zinc-500 font-light mt-4">Nível de segurança e autonomia patrimonial</p>
+        </Card>
+
+        {/* Card da Reserva de Emergência */}
+        <Card className="rounded-3xl border border-zinc-900 bg-zinc-950/20 backdrop-blur-md p-6 flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-3 opacity-10">
+            <Shield className="h-20 w-20 text-amber-500" />
+          </div>
+          <div>
+            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              <Shield className="h-3 w-3 text-amber-400" /> Reserva Emergencial
+            </span>
+            <p className="text-lg font-black text-white mt-1">{emergencyReserve.coveredMonths.toFixed(1)} meses</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Meta: {emergencyReserve.targetMonths} meses</p>
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-1 mt-3 overflow-hidden">
+            <div
+              className="bg-amber-400 h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(emergencyReserve.reservePercent, 100)}%` }}
+            />
+          </div>
+          <p className="text-[9px] text-zinc-500 font-light mt-2.5">
+            Falta guardar: <span className="font-semibold text-zinc-300">{money(emergencyReserve.reserveGap)}</span>
+          </p>
+        </Card>
+
         <StatCard
           title="Independência Financeira"
           value={`${yieldMetrics.progressPercent.toFixed(1)}%`}
           icon={Target}
-          description={yieldMetrics.isLivingCostFallback ? "Meta estimada padrão" : "Meta baseada no seu custo de vida médio"}
+          description={yieldMetrics.isLivingCostFallback ? "Meta estimada padrão" : "Meta baseada no seu custo real"}
           glowColor="orange"
         >
           <div className="w-full bg-slate-800 rounded-full h-1.5 mt-2.5 overflow-hidden">
@@ -578,173 +543,173 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-    <TabsList className="bg-transparent border-b border-white/10 rounded-none w-full justify-start gap-1 p-0 h-auto">
-      <TabsTrigger 
-        value="ativos"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">ATIVOS</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="b3-dashboard"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">CARTEIRA B3</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="consolidado"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">CONSOLIDADO</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="analise"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">ANÁLISE</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="metas"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">METAS</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="aportar"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">APORTAR</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="proventos"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">PROVENTOS</span>
-      </TabsTrigger>
-      <TabsTrigger
-        value="calculadoras"
-        onClick={() => router.push('/investimentos/calculadoras')}
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">CALCULADORAS</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="perguntas"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">PERGUNTAS</span>
-      </TabsTrigger>
-      <TabsTrigger 
-        value="mercado"
-        className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
-      >
-        <span className="relative">MERCADO</span>
-      </TabsTrigger>
-    </TabsList>
+        <TabsList className="bg-transparent border-b border-white/10 rounded-none w-full justify-start gap-1 p-0 h-auto">
+          <TabsTrigger 
+            value="ativos"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">ATIVOS</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="b3-dashboard"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">CARTEIRA B3</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="consolidado"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">CONSOLIDADO</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="analise"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">ANÁLISE</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="metas"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">METAS</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="aportar"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">APORTAR</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="proventos"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">PROVENTOS</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="calculadoras"
+            onClick={() => router.push('/investimentos/calculadoras')}
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">CALCULADORAS</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="perguntas"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">PERGUNTAS</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="mercado"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
+          >
+            <span className="relative">MERCADO</span>
+          </TabsTrigger>
+        </TabsList>
 
-    {activeTab === 'ativos' && (
-      <TabsContent value="ativos" className="space-y-8">
-        <InvestmentAtivosTab
-          search={search}
-          setSearch={setSearch}
-          editingTicker={editingTicker}
-          setEditingTicker={setEditingTicker}
-          prefillAporte={prefillAporte}
-          prefillTicker={prefillTicker}
-          setPrefillTicker={setPrefillTicker}
-          assets={assets}
-          netWorth={netWorth}
-          wealthScore={wealthScore}
-          wealthStatus={wealthStatus}
-          activeLiabilityBalance={activeLiabilityBalance}
-          monthlyDebtPayment={monthlyDebtPayment}
-          wealthRecommendation={wealthRecommendation}
-          classes={classes}
-          filter={filter}
-          setFilter={setFilter}
-          filteredAssets={filteredAssets}
-          total={total}
-          distribution={distribution}
-          money={money}
-          getTypeLabel={getTypeLabel}
-          getTypeBadgeStyle={getTypeBadgeStyle}
-        />
-      </TabsContent>
-    )}
+        {activeTab === 'ativos' && (
+          <TabsContent value="ativos" className="space-y-8">
+            <InvestmentAtivosTab
+              search={search}
+              setSearch={setSearch}
+              editingTicker={editingTicker}
+              setEditingTicker={setEditingTicker}
+              prefillAporte={prefillAporte}
+              prefillTicker={prefillTicker}
+              setPrefillTicker={setPrefillTicker}
+              assets={assets}
+              netWorth={netWorth}
+              wealthScore={wealthScore}
+              wealthStatus={wealthStatus}
+              activeLiabilityBalance={activeLiabilityBalance}
+              monthlyDebtPayment={monthlyDebtPayment}
+              wealthRecommendation={wealthRecommendation}
+              classes={classes}
+              filter={filter}
+              setFilter={setFilter}
+              filteredAssets={filteredAssets}
+              total={total}
+              distribution={distribution}
+              money={money}
+              getTypeLabel={getTypeLabel}
+              getTypeBadgeStyle={getTypeBadgeStyle}
+            />
+          </TabsContent>
+        )}
 
-    {activeTab === 'b3-dashboard' && (
-      <TabsContent value="b3-dashboard">
-        <InvestmentB3DashboardTab userId={user?.uid || ''} />
-      </TabsContent>
-    )}
+        {activeTab === 'b3-dashboard' && (
+          <TabsContent value="b3-dashboard">
+            <InvestmentB3DashboardTab userId={user?.uid || ''} />
+          </TabsContent>
+        )}
 
-    {activeTab === 'consolidado' && (
-      <TabsContent value="consolidado">
-        <InvestmentConsolidadoTab userId={user?.uid || ''} />
-      </TabsContent>
-    )}
+        {activeTab === 'consolidado' && (
+          <TabsContent value="consolidado">
+            <InvestmentConsolidadoTab userId={user?.uid || ''} portfolio={portfolio || undefined} />
+          </TabsContent>
+        )}
 
-    {activeTab === 'analise' && (
-      <TabsContent value="analise">
-        <InvestmentAnaliseTab userId={user?.uid || ''} />
-      </TabsContent>
-    )}
+        {activeTab === 'analise' && (
+          <TabsContent value="analise">
+            <InvestmentAnaliseTab userId={user?.uid || ''} portfolio={portfolio || undefined} />
+          </TabsContent>
+        )}
 
-    {activeTab === 'metas' && (
-      <TabsContent value="metas">
-        <InvestmentGoalsTab
-          goals={goals}
-          selectedProfile={selectedProfile}
-          applyInvestmentProfile={applyInvestmentProfile}
-          setGoals={setGoals}
-          handleResetGoals={handleResetGoals}
-          handleSaveGoals={handleSaveGoals}
-        />
-      </TabsContent>
-    )}
+        {activeTab === 'metas' && (
+          <TabsContent value="metas">
+            <InvestmentGoalsTab
+              goals={goals}
+              selectedProfile={selectedProfile}
+              applyInvestmentProfile={applyInvestmentProfile}
+              setGoals={setGoals}
+              handleResetGoals={handleResetGoals}
+              handleSaveGoals={handleSaveGoals}
+            />
+          </TabsContent>
+        )}
 
-    {activeTab === 'aportar' && (
-      <TabsContent value="aportar">
-        <InvestmentAporteTab
-          aporteValue={aporteValue}
-          setAporteValue={setAporteValue}
-          aporteNumber={aporteNumber}
-          aportePlan={aportePlan}
-          colors={colors}
-          money={money}
-          getTypeBadgeStyle={getTypeBadgeStyle}
-          setPrefillAporte={setPrefillAporte}
-          suggestedAporte={suggestedAporte}
-        />
-      </TabsContent>
-    )}
+        {activeTab === 'aportar' && (
+          <TabsContent value="aportar">
+            <InvestmentAporteTab
+              aporteValue={aporteValue}
+              setAporteValue={setAporteValue}
+              aporteNumber={aporteNumber}
+              aportePlan={aportePlan}
+              colors={colors}
+              money={money}
+              getTypeBadgeStyle={getTypeBadgeStyle}
+              setPrefillAporte={setPrefillAporte}
+              suggestedAporte={suggestedAporte}
+            />
+          </TabsContent>
+        )}
 
-    {activeTab === 'proventos' && (
-      <TabsContent value="proventos">
-        <InvestmentYieldsTab
-          yields={yields}
-          userId={user?.uid || ''}
-          onRefresh={onRefresh}
-        />
-      </TabsContent>
-    )}
+        {activeTab === 'proventos' && (
+          <TabsContent value="proventos">
+            <InvestmentYieldsTab
+              yields={yields}
+              userId={user?.uid || ''}
+              onRefresh={onRefresh}
+            />
+          </TabsContent>
+        )}
 
-    {activeTab === 'perguntas' && (
-      <TabsContent value="perguntas">
-        <InvestmentQuestionsTab />
-      </TabsContent>
-    )}
+        {activeTab === 'perguntas' && (
+          <TabsContent value="perguntas">
+            <InvestmentQuestionsTab />
+          </TabsContent>
+        )}
 
-{activeTab === 'mercado' && (
-      <TabsContent value="mercado">
-        <MarketWatchTab 
-          onAddToPortfolio={(ticker, name, type, price) => {
-            setPrefillTicker({ ticker, name, type, price: price ?? undefined });
-          }}
-        />
-      </TabsContent>
-    )}
-  </Tabs>
+        {activeTab === 'mercado' && (
+          <TabsContent value="mercado">
+            <MarketWatchTab 
+              onAddToPortfolio={(ticker, name, type, price) => {
+                setPrefillTicker({ ticker, name, type, price: price ?? undefined });
+              }}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <NewInvestmentDialog
         portfolioAssets={assets}
@@ -761,6 +726,6 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
         onOpenChange={setOpenYieldDialog}
         onRefresh={onRefresh}
       />
-  </div>
-);
+    </div>
+  );
 }

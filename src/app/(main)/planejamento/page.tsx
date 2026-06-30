@@ -33,6 +33,8 @@ import { getAccountsWithBalance } from '@/services/firestore/accounts';
 import { getInvestments } from '@/services/firestore/investments';
 import { runFinancialKernel } from '@/core/finance/kernel';
 import { useAuth } from '@/providers/auth-provider';
+import { LEGACY_MERCHANT_CATEGORY_MAP } from '@/lib/constants/categories';
+import { formatCurrencyBRL } from '@/lib/utils';
 import { PlanningOverviewCards } from '@/components/planejamento/planning-overview-cards';
 import { PlanningAlertCard } from '@/components/planejamento/planning-alert-card';
 import { PlanningGoalsDiagnosisCard } from '@/components/planejamento/planning-goals-diagnosis-card';
@@ -53,9 +55,7 @@ import { PlanningGoalsManager } from '@/components/planejamento/planning-goals-m
 
 
 
-function brl(value: number) {
-  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
+const brl = formatCurrencyBRL;
 
 function normalizeText(value: string) {
   return String(value || '')
@@ -64,18 +64,6 @@ function normalizeText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
 }
-
-const LEGACY_MERCHANT_CATEGORY_MAP: Record<string, string> = {
-  guanabara: 'Alimentação',
-  supermercado: 'Alimentação',
-  mercado: 'Alimentação',
-  shell: 'Transporte',
-  ipiranga: 'Transporte',
-  gasolina: 'Transporte',
-  igreja: 'Doações',
-  dizimo: 'Doações',
-  dízimo: 'Doações',
-};
 
 function getPlanningTransactionCategory(transaction: any) {
   const raw = String(transaction?.category || '');
@@ -119,6 +107,9 @@ export default function PlanejamentoPage() {
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
     return getCurrentMonthKey();
@@ -131,30 +122,39 @@ export default function PlanejamentoPage() {
   useEffect(() => {
     async function load() {
       if (!user?.uid) return;
-      const [profile, txs, liabs, recurring, cats, accs, invs] = await Promise.all([
-        getWealthProfile(user.uid),
-        getPersonalTransactions(user.uid),
-        getLiabilities(user.uid),
-        getRecurringExpenses(user.uid),
-        getCategories(user.uid),
-        getAccountsWithBalance(user.uid),
-        getInvestments(user.uid),
-      ]);
+      setLoading(true);
+      setError(null);
+      try {
+        const [profile, txs, liabs, recurring, cats, accs, invs] = await Promise.all([
+          getWealthProfile(user.uid),
+          getPersonalTransactions(user.uid),
+          getLiabilities(user.uid),
+          getRecurringExpenses(user.uid),
+          getCategories(user.uid),
+          getAccountsWithBalance(user.uid),
+          getInvestments(user.uid),
+        ]);
 
-      if (profile?.categories?.length) {
-        const merged = profile.categories.map(withDefaultGoalCategories);
-        setCategories(merged);
+        if (profile?.categories?.length) {
+          const merged = profile.categories.map(withDefaultGoalCategories);
+          setCategories(merged);
+        }
+        setTransactions(txs || []);
+        setLiabilities(liabs || []);
+        setRecurringExpenses(recurring || []);
+        setAvailableCategories((cats || []).map((c) => c.name));
+        setAccounts(accs || []);
+        setInvestments(invs || []);
+      } catch (err) {
+        console.error(err);
+        setError("Erro ao carregar dados do planejamento.");
+      } finally {
+        setLoading(false);
       }
-      setTransactions(txs || []);
-      setLiabilities(liabs || []);
-      setRecurringExpenses(recurring || []);
-      setAvailableCategories((cats || []).map((c) => c.name));
-      setAccounts(accs || []);
-      setInvestments(invs || []);
     }
 
     load();
-  }, [user?.uid]);
+  }, [user?.uid, refreshKey]);
 
   const kernelResult = useMemo(() => {
     if (!user?.uid) return null;
@@ -182,199 +182,79 @@ export default function PlanejamentoPage() {
   const nextMonth = addMonths(selectedMonthKey, 1);
 
   const monthTransactions = transactions.filter((t: any) => {
-    return (
-      isTransactionInMonth(t, selectedMonthKey)
-    );
+    return isTransactionInMonth(t, selectedMonthKey);
   });
 
-  const monthlyIncome = monthTransactions
-    .filter((t: any) => t.type === 'income')
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const monthlyRecurring = recurringExpenses
-    .filter((r: any) => r.isActive)
-    .reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
-
-  const manualMonthlyLiabilities = liabilities
-    .filter((l: any) => Number(l.remainingBalance || 0) > 0 && !l.installmentKey)
-    .reduce((sum: number, l: any) => sum + Number(l.installmentValue || 0), 0);
-
-  const autoInstallmentGroups = new Map<string, any>();
-
-  transactions
-    .filter((t: any) => t.isInstallment && Number(t.remainingInstallments || 0) > 0)
-    .forEach((t: any) => {
-      const key = [
-        t.owner || "PF",
-        t.installmentKey || t.description,
-        t.installmentTotal || "",
-        Number(t.amount || 0).toFixed(2),
-      ].join("|");
-
-      const existing = autoInstallmentGroups.get(key);
-
-      if (!existing || Number(t.installmentCurrent || 0) > Number(existing.installmentCurrent || 0)) {
-        autoInstallmentGroups.set(key, t);
-      }
-    });
-
-  const autoMonthlyLiabilities = Array.from(autoInstallmentGroups.values())
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-
-  const autoRemainingLiabilities = Array.from(autoInstallmentGroups.values())
-    .reduce((sum: number, t: any) => sum + Number(t.amount || 0) * Number(t.remainingInstallments || 0), 0);
-
-  const monthlyLiabilities = manualMonthlyLiabilities + autoMonthlyLiabilities;
-  const totalFutureLiabilities = manualMonthlyLiabilities + autoRemainingLiabilities;
-
-  const paidInstallmentsAmount = monthTransactions
-    .filter((t: any) => t.type === 'expense' && (t.isInstallment || t.installmentKey))
-    .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
-
-  const adjustedMonthlyLiabilities = Math.max(0, monthlyLiabilities - paidInstallmentsAmount);
-
-const monthlyExpenses = monthTransactions
-    .filter((t: any) => t.type === 'expense')
-    .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0)
-        ;
-
-  const budgetOutflow = monthlyExpenses;
-  const totalOutflow = monthlyExpenses + monthlyRecurring;
-
+  const { dre, financialCore, freedom, reserve, ai, wealth } = kernelResult ?? {};
+  const monthlyIncome = dre?.receitaTotal ?? 0;
+  const monthlyExpenses = dre?.despesasOperacionais ?? 0;
+  const monthlyLiabilities = financialCore?.monthlyDebtPayment ?? 0;
+  const adjustedMonthlyLiabilities = monthlyLiabilities;
+  const totalOutflow = monthlyExpenses + monthlyLiabilities;
   const availableToInvest = monthlyIncome - totalOutflow;
 
-    const commitmentPercent = monthlyIncome > 0 ? (totalOutflow / monthlyIncome) * 100 : 100;
-  const financialHealthStatus =
-    commitmentPercent >= 80 ? "Crítico" : commitmentPercent >= 50 ? "Atenção" : "Saudável";
-  const financialHealthClass =
-    financialHealthStatus === "Crítico"
-      ? "text-red-500"
-      : financialHealthStatus === "Atenção"
-        ? "text-yellow-400"
-        : "text-emerald-500";
-  const investmentSuggestion = (() => {
-      if (availableToInvest <= 0) return null;
-
-      if (monthlyLiabilities > monthlyIncome * 0.3) {
-        return {
-          reserve: availableToInvest * 0.3,
-          invest: 0,
-          debt: availableToInvest * 0.7,
-          message: "Priorize quitar dívidas antes de investir"
-        };
-      }
-
-      if (availableToInvest < monthlyIncome * 0.2) {
-        return {
-          reserve: availableToInvest * 0.7,
-          invest: availableToInvest * 0.3,
-          debt: 0,
-          message: "Foque em segurança e reserva"
-        };
-      }
-
-      return {
-        reserve: availableToInvest * 0.4,
-        invest: availableToInvest * 0.6,
-        debt: 0,
-        message: "Boa margem — aproveite para investir"
-      };
-    })();
-
-    const financialHealthMessage =
-    monthlyIncome <= 0
-      ? "⚠️ Sem renda registrada no mês. Cadastre ou importe suas receitas para calcular sua saúde financeira."
-      : totalOutflow > monthlyIncome
-        ? "⚠️ Seu custo planejado está acima da sua renda. Revise parcelas, fixos e gastos variáveis."
-        : commitmentPercent >= 80
-          ? "⚠️ Sua renda está altamente comprometida. Evite novas dívidas e compras parceladas."
-          : commitmentPercent >= 50
-            ? "🟡 Atenção: uma parte relevante da renda já está comprometida."
-            : "✅ Seu planejamento está saudável para este mês.";
+  const financialHealthStatus = freedom?.index?.levelLabel ?? "Indisponível";
+  const financialHealthClass = 
+    (freedom?.index?.freedomIndex ?? 0) >= 60 ? "text-emerald-500" :
+    (freedom?.index?.freedomIndex ?? 0) >= 40 ? "text-yellow-400" :
+    "text-red-500";
+    
+  const investmentSuggestion = freedom?.actions ?? [];
+  const financialHealthMessage = ai?.insights?.[0]?.description ?? "Carregando diagnóstico...";
 
 
-  const budgetRows = categories.map((cat) => {
-    const planned = monthlyIncome * (Number(cat.percentage || 0) / 100);
-    const isPatrimonial = cat.id === 'patrimonio' || cat.id === 'independencia';
-
-    const spent = monthTransactions
-      .filter((t: any) => {
-        if (isPatrimonial) {
-          return t.type === 'expense' || t.type === 'income' || t.type === 'transfer';
-        }
-        return t.type === 'expense';
-      })
+  const budgetRows = (wealth?.analysis ?? []).map((item) => {
+    const planned = monthlyIncome * (item.metaPercent / 100);
+    const spent = (item.realizadoPercent / 100) * monthlyIncome;
+    
+    // Encontrar impactos associados às categorias desse pilar
+    const goalCats = (categories.find(c => c.name === item.pilar)?.categories || []).map(c => normalizeCategory(c));
+    const goalTransactions = monthTransactions
+      .filter((t: any) => t.type === 'expense')
       .filter((t: any) => {
         const txCat = normalizeCategory(getPlanningTransactionCategory(t));
-        const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
-        return goalCats.some((gc: string) => txCat.includes(gc));
-      })
-      .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0)
-      + (cat.name.toLowerCase().includes('dívida') || cat.name.toLowerCase().includes('divida')
-          ? adjustedMonthlyLiabilities
-          : 0);
+        return goalCats.some((gc: string) => txCat.includes(gc) || gc.includes(txCat));
+      });
 
-    const remaining = planned - spent;
-    const used = planned > 0 ? (spent / planned) * 100 : spent > 0 ? 100 : 0;
-
-    const status =
-        monthlyIncome <= 0 && spent > 0 ? 'Sem base' :
-        used >= 100 ? 'Estourou' :
-        used >= 80 ? 'Atenção' :
-        'Saudável';
-
+    const impacts = Object.values(
+      goalTransactions.reduce((acc: any, t: any) => {
+        const name = getPlanningTransactionCategory(t) || 'Sem categoria';
+        if (!acc[name]) acc[name] = { name, value: 0 };
+        acc[name].value += Math.abs(Number(t.amount || 0));
+        return acc;
+      }, {})
+    )
+    .sort((a: any, b: any) => b.value - a.value)
+    .slice(0, 3);
     
-      const isDebtGoal = cat.name.toLowerCase().includes('dívida') || cat.name.toLowerCase().includes('divida');
+    const used = item.metaPercent > 0 ? (item.realizadoPercent / item.metaPercent) * 100 : 0;
+    const status = item.status === 'danger' ? 'Estourou' : 
+                   item.status === 'warning' ? 'Atenção' : 'Saudável';
+                   
+    const recommendation =
+      status === 'Estourou' ? "🚨 Corte urgente — muito acima do planejado" :
+      status === 'Atenção' ? "⚠️ Atenção — risco de estourar" :
+      "✅ Excelente controle";
 
-      const goalTransactions = monthTransactions
-        .filter((t: any) => {
-          if (isPatrimonial) {
-            return t.type === 'expense' || t.type === 'income' || t.type === 'transfer';
-          }
-          return t.type === 'expense';
-        })
-        .filter((t: any) => {
-          const txCat = normalizeCategory(getPlanningTransactionCategory(t));
-          const goalCats = (cat.categories || []).map((c: string) => normalizeCategory(c));
-          return goalCats.some((gc: string) => txCat.includes(gc) || gc.includes(txCat));
-        });
+    const matchedCategory = categories.find(c => c.name === item.pilar);
+    const color = matchedCategory?.color || '#94a3b8';
 
-      const impacts = Object.values(
-        goalTransactions.reduce((acc: any, t: any) => {
-          const name = getPlanningTransactionCategory(t) || 'Sem categoria';
-          if (!acc[name]) acc[name] = { name, value: 0 };
-          acc[name].value += Math.abs(Number(t.amount || 0));
-          return acc;
-        }, {})
-      )
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 3);
-
-      const recommendation =
-        status === 'Sem base' ? "⚠️ Cadastre ou importe a renda do mês para calcular metas com precisão" :
-        used >= 120 ? "🚨 Corte urgente — muito acima do planejado" :
-        used >= 100 ? "⚠️ Estourado — reduzir gastos imediatamente" :
-        used >= 80 ? "�� Atenção — risco de estourar" :
-        used >= 50 ? "👍 Controle moderado" :
-        "✅ Excelente controle";
-
-      return {
-        ...cat,
-        planned,
-        spent,
-        remaining,
-        used,
-        status,
-        recommendation,
-        impacts,
-      };
-
+    return {
+      id: matchedCategory?.id || item.pilar.toLowerCase(),
+      name: item.pilar,
+      percentage: matchedCategory?.percentage || item.metaPercent,
+      color,
+      planned,
+      spent,
+      remaining: planned - spent,
+      used,
+      status,
+      recommendation,
+      impacts,
+    };
   });
 
-  const pressuredGoal = [...budgetRows]
-    .filter((item) => item.spent > 0)
-    .sort((a, b) => b.used - a.used)[0];
-
+  const pressuredGoal = budgetRows.find(r => r.status !== 'Saudável');
   const biggestGoalExpense = [...budgetRows]
     .filter((item) => item.spent > 0)
     .sort((a, b) => b.spent - a.spent)[0];
@@ -452,70 +332,7 @@ const monthlyExpenses = monthTransactions
   }
 
   function suggestGoalsAutomatically() {
-    setCategories([
-      {
-        id: 'essenciais',
-        name: 'Essenciais',
-        percentage: 50,
-        color: '#38bdf8',
-        categories: [
-          'Moradia (aluguel, condomínio)',
-          'Aluguel',
-          'Condomínio',
-          'Energia',
-          'Água',
-          'Gás',
-          'Internet',
-          'Telefone',
-          'Transporte',
-          'Combustível',
-          'Supermercado',
-          'Farmácia',
-          'Impostos',
-        ],
-      },
-      {
-        id: 'qualidade',
-        name: 'Qualidade de vida',
-        percentage: 20,
-        color: '#34d399',
-        categories: [
-          'Alimentação',
-          'Restaurante',
-          'Lazer',
-          'Pet',
-          'Academia',
-          'Saúde',
-          'Plano de saúde',
-          'Viagem',
-          'Livros',
-          'Compras',
-          'Assinaturas (Netflix, Spotify etc.)',
-        ],
-      },
-      {
-        id: 'investimentos',
-        name: 'Investimentos e patrimônio',
-        percentage: 20,
-        color: '#facc15',
-        categories: [
-          'Investimentos (aporte)',
-          'Reserva de emergência',
-        ],
-      },
-      {
-        id: 'dividas',
-        name: 'Dívidas e juros',
-        percentage: 10,
-        color: '#f87171',
-        categories: [
-          'Dívidas / Empréstimos',
-          'Juros',
-          'Financeiro / Pagamentos',
-        ],
-      },
-    ]);
-
+    setCategories(defaultWealthCategories.map(c => ({...c})));
     setSavedMessage('Metas sugeridas automaticamente. Revise e salve.');
   }
 
@@ -538,6 +355,37 @@ const monthlyExpenses = monthTransactions
     }
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse p-6">
+        <div>
+          <div className="h-8 bg-zinc-900 rounded-lg w-64" />
+          <div className="h-4 bg-zinc-900 rounded-lg w-96 mt-2" />
+        </div>
+        <div className="h-10 bg-zinc-900 rounded-lg w-72 mt-6" />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6 mt-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-24 bg-zinc-900 rounded-xl" />
+          ))}
+        </div>
+        <div className="h-44 bg-zinc-900 rounded-xl mt-6" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center border border-zinc-900 bg-zinc-950/20 rounded-3xl p-6">
+        <AlertTriangle className="h-12 w-12 text-red-500 mb-4 animate-bounce" />
+        <h3 className="text-lg font-bold text-white">Ops, algo deu errado</h3>
+        <p className="text-sm text-zinc-500 mt-2 max-w-md">{error}</p>
+        <Button onClick={() => setRefreshKey(k => k + 1)} className="mt-6 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white rounded-xl px-6 py-2">
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -550,45 +398,46 @@ const monthlyExpenses = monthTransactions
       <Tabs defaultValue="orcamento" className="space-y-6">
         <TabsList>
           <TabsTrigger value="visao">Visão geral</TabsTrigger>
-            <TabsTrigger value="orcamento">Orçamento doméstico</TabsTrigger>
+          <TabsTrigger value="orcamento">Orçamento doméstico</TabsTrigger>
           <TabsTrigger value="metas">Minhas metas</TabsTrigger>
         </TabsList>
         <TabsContent value="visao" className="space-y-6">
-            <PlanningOverviewCards
-              monthlyIncome={monthlyIncome}
-              totalOutflow={totalOutflow}
-              monthlyRecurring={monthlyRecurring}
-              monthlyLiabilities={monthlyLiabilities}
-              financialHealthClass={financialHealthClass}
-              financialHealthStatus={financialHealthStatus}
-              commitmentPercent={commitmentPercent}
-              brl={brl}
-            />
+          <PlanningOverviewCards
+            monthlyIncome={monthlyIncome}
+            monthlyExpenses={monthlyExpenses}
+            monthlyLiabilities={monthlyLiabilities}
+            freedomIndex={freedom?.index?.freedomIndex ?? 0}
+            freedomLevel={freedom?.index?.levelLabel ?? ""}
+            freedomIcon={freedom?.index?.levelIcon ?? "🌱"}
+            reserve={reserve ?? null}
+            brl={brl}
+          />
 
-            <PlanningAlertCard message={financialHealthMessage} />
-            <PlanningGoalsDiagnosisCard
-              message={goalDiagnosisMessage}
-              pressuredGoal={pressuredGoal}
-              biggestGoalExpense={biggestGoalExpense}
-              riskyGoalsCount={riskyGoalsCount}
-                brl={brl}
-              />
+          <PlanningAlertCard 
+            insights={ai?.insights ?? []} 
+            freedomIndex={freedom?.index?.freedomIndex ?? 0}
+          />
+          
+          <PlanningGoalsDiagnosisCard
+            message={goalDiagnosisMessage}
+            pressuredGoal={pressuredGoal}
+            biggestGoalExpense={biggestGoalExpense}
+            riskyGoalsCount={riskyGoalsCount}
+            brl={brl}
+          />
+          
+          {pressuredGoal && (
             <PlanningGoalRecommendationCard
               pressuredGoal={pressuredGoal}
-                brl={brl}
-              />
-              <PlanningInvestmentOpportunityCard
-                investmentSuggestion={investmentSuggestion}
-                availableToInvest={availableToInvest}
-                brl={brl}
-                />
-
-
-
-
+              brl={brl}
+            />
+          )}
+          
+          <PlanningInvestmentOpportunityCard
+            actions={freedom?.actions ?? []}
+            brl={brl}
+          />
         </TabsContent>
-
-
 
         <TabsContent value="orcamento" className="space-y-6">
           <div className="flex flex-wrap items-end gap-4">
@@ -618,19 +467,19 @@ const monthlyExpenses = monthTransactions
               </div>
             </div>
           </div>
-            <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-              <BudgetExpensesChartCard
-                expensesChartData={expensesChartData}
-                plannedChartData={plannedChartData}
-                budgetRows={budgetRows}
-                brl={brl}
-              />
-              <BudgetSummaryCard
-                budgetRows={budgetRows}
-                monthlyIncome={monthlyIncome}
-                totalOutflow={budgetOutflow}
-                brl={brl}
-              />
+          <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+            <BudgetExpensesChartCard
+              expensesChartData={expensesChartData}
+              plannedChartData={plannedChartData}
+              budgetRows={budgetRows}
+              brl={brl}
+            />
+            <BudgetSummaryCard
+              budgetRows={budgetRows}
+              monthlyIncome={monthlyIncome}
+              totalOutflow={monthlyExpenses}
+              brl={brl}
+            />
           </div>
         </TabsContent>
 

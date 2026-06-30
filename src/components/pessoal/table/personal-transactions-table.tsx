@@ -36,6 +36,7 @@ type Props = {
   formatDateBR: (value: any) => string;
 
   cn: (...classes: any[]) => string;
+  onSuccess?: () => void;
 };
 
 export function PersonalTransactionsTable({
@@ -44,6 +45,7 @@ export function PersonalTransactionsTable({
   getDisplayMerchant,
   formatDateBR,
   cn,
+  onSuccess,
 }: Props) {
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
@@ -196,6 +198,7 @@ export function PersonalTransactionsTable({
 
                     <EditTransactionButton
                       transaction={t}
+                      onSuccess={onSuccess}
                     />
                   </TableCell>
                 </TableRow>

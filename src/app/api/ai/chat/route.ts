@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyIdToken } from '@/lib/verify-id-token';
-import { runFinancialAgent } from '@/ai/agents/financial-agent';
+import { financialAdvisorFlow } from '@/ai/flows/financial-advisor';
 import { canUseAIAdmin, registerAIUsageAdmin } from '@/core/ai/usage.admin';
 
 export async function POST(req: Request) {
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       }, { status: 403 });
     }
 
-    const agentResponse = await runFinancialAgent(userId, message);
+    const agentResponse = await financialAdvisorFlow({ userId, question: message });
 
     await registerAIUsageAdmin(userId);
 

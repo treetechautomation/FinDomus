@@ -43,6 +43,7 @@ import { generateInvestmentAnalytics, type InvestmentAnalytics, type RawIncomeIn
 
 interface Props {
   userId: string;
+  portfolio?: ConsolidatedPortfolio;
 }
 
 const colors = ['#06b6d4', '#6366f1', '#f59e0b', '#ec4899', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444'];
@@ -50,7 +51,7 @@ const colors = ['#06b6d4', '#6366f1', '#f59e0b', '#ec4899', '#3b82f6', '#10b981'
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export function InvestmentAnaliseTab({ userId }: Props) {
+export function InvestmentAnaliseTab({ userId, portfolio: propPortfolio }: Props) {
   const [portfolio, setPortfolio] = useState<ConsolidatedPortfolio | null>(null);
   const [rawIncomes, setRawIncomes] = useState<RawIncomeInput[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,8 +89,28 @@ export function InvestmentAnaliseTab({ userId }: Props) {
   };
 
   useEffect(() => {
-    loadData();
-  }, [userId]);
+    if (propPortfolio) {
+      setPortfolio(propPortfolio);
+      setLoading(false);
+      Promise.all([
+        getB3Income(userId),
+        getBrokerIncome(userId),
+        getInvestmentYields(userId)
+      ]).then(([b3Inc, brokerInc, manualYields]) => {
+        const mergedIncomes: RawIncomeInput[] = [
+          ...b3Inc.map(y => ({ ticker: y.ticker, amount: y.amount, year: Number(y.year) })),
+          ...brokerInc.map(y => ({ ticker: y.ticker, amount: y.amount, year: Number(y.year) })),
+          ...manualYields.map(y => {
+            const year = y.date ? new Date(y.date).getFullYear() : new Date().getFullYear();
+            return { ticker: y.ticker, amount: y.amount, year };
+          })
+        ];
+        setRawIncomes(mergedIncomes);
+      }).catch(console.error);
+    } else {
+      loadData();
+    }
+  }, [userId, propPortfolio]);
 
   // Compute analytics
   const analytics = useMemo<InvestmentAnalytics | null>(() => {

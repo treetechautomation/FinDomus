@@ -8,8 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Building2, ArrowUp, ArrowDown, Banknote, FileText, Calendar, ChevronLeft, ChevronRight, ArrowLeftRight } from "lucide-react";
 import { StatCard } from "@/components/overview/stat-card";
 import { getTaxObligations } from "@/services/firestore/fiscal";
-import { getTransactionsByOwnerAndMonth } from "@/services/firestore/transactions";
+import { getTransactionsByMonth } from "@/services/firestore/transactions";
 import { getAccountsWithBalance, getCompanies } from "@/services/firestore/accounts";
+import { buildDRE } from '@/core/finance/dre-engine';
+import { formatCurrencyBRL } from '@/lib/utils';
 import { useAuth } from "@/providers/auth-provider";
 import {
   getMonthlyClosure,
@@ -30,12 +32,7 @@ type EmpresasPageProps = {
   }>;
 };
 
-function money(value: number) {
-  return Number(value || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
+const money = formatCurrencyBRL;
 
 function parseDate(value?: string) {
   if (!value) return null;
@@ -96,6 +93,7 @@ export default function EmpresasClient() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [obligations, setObligations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     async function loadEmpresasData() {
@@ -123,7 +121,7 @@ export default function EmpresasClient() {
     }
 
     loadEmpresasData();
-  }, []);
+  }, [user?.uid, refreshTrigger]);
 
   const resolvedSearchParams = {
     companyId: searchParams.get('companyId') || undefined,
@@ -135,6 +133,7 @@ export default function EmpresasClient() {
     ? new Date(`${resolvedSearchParams.month}-01T00:00:00`)
     : new Date();
 
+  // TODO: unificar tipos de data com as helpers do financial-period-engine
   const selectedMonth = monthKey(selectedMonthDate);
   const prevMonth = monthKey(addMonths(selectedMonthDate, -1));
   const nextMonth = monthKey(addMonths(selectedMonthDate, 1));
@@ -149,13 +148,13 @@ export default function EmpresasClient() {
     
     async function loadTransactions() {
       if (!user?.uid) return;
-      const result = await getTransactionsByOwnerAndMonth(user.uid, 'PJ', selectedMonth);
+      const result = await getTransactionsByMonth(user.uid, 'PJ', selectedMonth);
       setTransactions(result || []);
     }
 
     loadSelectedMonthClosure();
     loadTransactions();
-  }, [selectedMonth, user?.uid]);
+  }, [selectedMonth, user?.uid, refreshTrigger]);
 
   if (loading) {
     return (
@@ -173,6 +172,24 @@ export default function EmpresasClient() {
 
   const selectedCompanyId = resolvedSearchParams.companyId ?? companies[0]?.id ?? "";
   const selectedCompany = companies.find((company: any) => company.id === selectedCompanyId);
+
+  if (companies.length === 0) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Empresas</h1>
+        <Card className="border-zinc-900 bg-zinc-950/20 rounded-3xl p-6">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Building2 className="h-12 w-12 text-zinc-500 mb-4" />
+            <h2 className="text-lg font-semibold text-white mb-2">Nenhuma empresa cadastrada</h2>
+            <p className="text-sm text-zinc-500 mb-6 max-w-sm">
+              Cadastre sua primeira empresa para gerenciar contas PJ, extratos, DRE e obrigações fiscais.
+            </p>
+            <NewCompanyDialog onSuccess={() => setRefreshTrigger(k => k + 1)} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
     async function handleCloseMonth() {
       if (!user?.uid) return;
@@ -232,43 +249,21 @@ export default function EmpresasClient() {
       : null;
 
     const snapshotDRE = closedSnapshot?.dre || null;
+    const dre = snapshotDRE ?? buildDRE(companyTransactions);
 
-    const dreReceitaBruta = snapshotDRE?.receitaBruta ?? companyTransactions
-      .filter((transaction: any) => transaction.type === "income")
-      .reduce((sum: number, transaction: any) => sum + Number(transaction.amount || 0), 0);
-
-    const dreImpostos = snapshotDRE?.impostos ?? companyTransactions
-      .filter((transaction: any) => {
-        return (
-          transaction.type === "expense" &&
-          String(transaction.category || "").toLowerCase().includes("imposto")
-        );
-      })
-      .reduce((sum: number, transaction: any) => sum + Math.abs(Number(transaction.amount || 0)), 0);
-
-    const dreDespesasOperacionais = snapshotDRE?.despesas ?? companyTransactions
-      .filter((transaction: any) => {
-        return (
-          transaction.type === "expense" &&
-          !String(transaction.category || "").toLowerCase().includes("imposto")
-        );
-      })
-      .reduce((sum: number, transaction: any) => sum + Math.abs(Number(transaction.amount || 0)), 0);
+    const {
+      receitaBruta: dreReceitaBruta,
+      impostos: dreImpostos,
+      receitaLiquida: dreReceitaLiquida,
+      despesas: dreDespesasOperacionais,
+      lucroOperacional: dreLucroOperacional,
+      lucroLiquido: dreLucroLiquido,
+    } = dre;
 
     const dreResultadoFinanceiro = 0;
-
-    const dreReceitaLiquida = snapshotDRE?.receitaLiquida ?? (dreReceitaBruta - dreImpostos);
-
-    const dreLucroOperacional = snapshotDRE?.lucroOperacional ?? (dreReceitaLiquida - dreDespesasOperacionais);
-
-    const dreLucroLiquido = snapshotDRE?.lucroLiquido ?? (dreLucroOperacional + dreResultadoFinanceiro);
-
-    const dreMargemLiquida = dreReceitaBruta > 0
-      ? (dreLucroLiquido / dreReceitaBruta) * 100
-      : 0;
+    const dreMargemLiquida = dreReceitaBruta > 0 ? (dreLucroLiquido / dreReceitaBruta) * 100 : 0;
 
     const revenue = closedSnapshot?.kpis?.income ?? (dreReceitaBruta + dreResultadoFinanceiro);
-
     const expenses = closedSnapshot?.kpis?.expenses ?? (dreImpostos + dreDespesasOperacionais);
 
     const pendingTaxes = companyObligations
@@ -338,7 +333,7 @@ export default function EmpresasClient() {
           {companies.length > 0 && (
             <CompanyFilter companies={companies} selectedCompanyId={selectedCompanyId} />
           )}
-          <NewCompanyDialog />
+          <NewCompanyDialog onSuccess={() => setRefreshTrigger(k => k + 1)} />
         </div>
       </div>
 
@@ -507,7 +502,12 @@ export default function EmpresasClient() {
             <Calendar className="h-5 w-5 text-muted-foreground" />
             Obrigações Fiscais da Empresa
           </CardTitle>
-          <CardDescription>Pendências fiscais em aberto: {money(pendingTaxes)}</CardDescription>
+          <CardDescription>
+            Pendências fiscais em aberto: {money(pendingTaxes)}
+            <Link href="/fiscal-contabil" className="ml-2 text-cyan-400 text-xs hover:underline">
+              Gerenciar obrigações →
+            </Link>
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {companyObligations.map((item: any) => (

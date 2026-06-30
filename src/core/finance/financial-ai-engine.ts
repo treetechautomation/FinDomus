@@ -136,19 +136,23 @@ export function getFinancialAIInsights(params: {
 
   let healthScore = 100;
 
-  if (liabilitiesTotal > 50000) {
-    healthScore -= 25;
-  }
+  if (kernelOutputs) {
+    healthScore = Math.round(kernelOutputs.freedomIndex.freedomIndex);
+  } else {
+    if (liabilitiesTotal > 50000) {
+      healthScore -= 25;
+    }
 
-  if (projectedBalance < 0) {
-    healthScore -= 35;
-  }
+    if (projectedBalance < 0) {
+      healthScore -= 35;
+    }
 
-  if (recurringMonthly > 15000) {
-    healthScore -= 15;
-  }
+    if (recurringMonthly > 15000) {
+      healthScore -= 15;
+    }
 
-  healthScore = Math.max(0, Math.min(100, healthScore));
+    healthScore = Math.max(0, Math.min(100, healthScore));
+  }
 
   const insights: FinancialAIInsight[] = [];
 

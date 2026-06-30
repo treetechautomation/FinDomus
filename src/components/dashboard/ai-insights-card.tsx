@@ -137,6 +137,13 @@ export function AiInsightsCard() {
                   ? 'Existem alguns pontos de atenção no fluxo futuro, mas a saúde geral é positiva.'
                   : 'Projeção futura de caixa negativo ou passivos altos detectados.'}
             </p>
+            <div 
+              className="text-[10px] text-zinc-500 mt-2.5 flex items-center gap-1.5 bg-zinc-900/60 border border-white/5 rounded-full px-3 py-1 w-fit cursor-help"
+              title="Seu Health Score é sincronizado com o Freedom Index (que avalia 7 pilares de autonomia financeira)."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Sincronizado com Freedom Index
+            </div>
           </div>
         </div>
 

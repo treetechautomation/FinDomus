@@ -13,15 +13,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 type EditTransactionDialogProps = {
-open: boolean;
-onOpenChange: (open: boolean) => void;
-transaction: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transaction: any;
+  onSuccess?: () => void;
 };
 
 export function EditTransactionDialog({
   open,
   onOpenChange,
   transaction,
+  onSuccess,
 }: EditTransactionDialogProps) {
   const [form, setForm] = useState(transaction);
 
@@ -37,7 +39,7 @@ export function EditTransactionDialog({
     });
 
     onOpenChange(false);
-    window.location.reload(); // simples e seguro por agora
+    onSuccess?.();
   };
 
   return (

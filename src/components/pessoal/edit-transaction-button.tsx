@@ -12,9 +12,10 @@ import { learnTransactionCategory } from "@/core/finance/category-learning-engin
 
 type Props = {
   transaction: any;
+  onSuccess?: () => void;
 };
 
-export function EditTransactionButton({ transaction }: Props) {
+export function EditTransactionButton({ transaction, onSuccess }: Props) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState(transaction.description || "");
   const [category, setCategory] = useState(transaction.category || "");
@@ -49,7 +50,7 @@ export function EditTransactionButton({ transaction }: Props) {
       await learnCategory();
 
       setOpen(false);
-      window.location.reload();
+      onSuccess?.();
     } finally {
       setSaving(false);
     }

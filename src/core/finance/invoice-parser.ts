@@ -197,7 +197,19 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
 
     return enrichInstallment(
       {
-        ...classifyTransactionWithContext(rawText, amount > 0 ? -Math.abs(amount) : amount, context),
+        ...(() => {
+          const classified = classifyTransactionWithContext(rawText, amount > 0 ? -Math.abs(amount) : amount, context);
+          // Fallback: se o classificador retornou "Outros", tenta keywords genéricas
+          if (classified.category === 'Outros') {
+            const text = rawText.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (text.includes('netflix')) classified.category = 'Streaming / Assinaturas';
+            else if (text.includes('uber')) classified.category = 'Uber / 99';
+            else if (text.includes('ifood')) classified.category = 'Delivery';
+            else if (text.includes('amazon')) classified.category = 'Compras';
+            else if (text.includes('apple')) classified.category = 'Compras';
+          }
+          return classified;
+        })(),
         date,
       },
       rawText

@@ -1,8 +1,11 @@
-- `[x]` Criar tipos normalizados em `broker-types.ts`
-- `[x]` Criar normalizador em `normalizer.ts`
-- `[x]` Criar motor de validação em `validation-engine.ts`
-- `[x]` Ajustar rota `/api/import/brokers/route.ts`
-- `[x]` Ajustar component preview `corretoras-preview.tsx`
-- `[x]` Testar e validar com scripts locais (PosicaoDetalhada, movimentacao, Extrato BTG, Nota XP)
-- `[x]` Rodar npm run typecheck e build local
-- `[x]` Commit com mensagem "feat: adiciona normalizacao e validacao universal para corretoras"
+- [x] Criar backup do assinaturas-client.tsx
+- [x] Atualizar imports e adicionar AlertDialog no markup de assinaturas-client.tsx
+- [x] Adicionar cálculo de renda mensal no loadData e exibir 4º card de impacto orçamentário
+- [x] Adicionar botão de simulação no cabeçalho
+- [x] Refatorar handleDelete de confirm nativo para AlertDialog
+- [x] Aplicar formatCurrencyBRL e máscara de valor monetário no input
+- [x] Chamar learnTransactionCategory no handleQuickImport
+- [x] Otimizar isPaidThisMonth para rodar em O(n+m) com paidExpenseNames useMemo cache
+- [x] Adicionar badges de vencimento dinâmicos ("Hoje", "3d", "5d"...)
+- [x] Executar typecheck de verificação
+- [x] Executar build de verificação final

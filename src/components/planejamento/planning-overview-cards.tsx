@@ -1,76 +1,94 @@
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sparkles, Shield, Banknote, Target, TrendingUp } from 'lucide-react';
 
-type PlanningOverviewCardsProps = {
+type Props = {
   monthlyIncome: number;
-  totalOutflow: number;
-  monthlyRecurring: number;
+  monthlyExpenses: number;
   monthlyLiabilities: number;
-  financialHealthClass: string;
-  financialHealthStatus: string;
-  commitmentPercent: number;
-  brl: (value: number) => string;
+  freedomIndex: number;
+  freedomLevel: string;
+  freedomIcon: string;
+  reserve: any;
+  brl: (v: number) => string;
 };
 
 export function PlanningOverviewCards({
   monthlyIncome,
-  totalOutflow,
-  monthlyRecurring,
+  monthlyExpenses,
   monthlyLiabilities,
-  financialHealthClass,
-  financialHealthStatus,
-  commitmentPercent,
+  freedomIndex,
+  freedomLevel,
+  freedomIcon,
+  reserve,
   brl,
-}: PlanningOverviewCardsProps) {
-  const plannedBalance = monthlyIncome - totalOutflow;
+}: Props) {
+  const plannedBalance = monthlyIncome - monthlyExpenses - monthlyLiabilities;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-      <Card className="border-primary/40 bg-card/70">
-        <CardHeader>
-          <CardDescription>Receita do mês</CardDescription>
-          <CardTitle className="text-2xl text-primary">{brl(monthlyIncome)}</CardTitle>
+      <Card className="border-cyan-500/20 bg-zinc-950/20 backdrop-blur-md">
+        <CardHeader className="p-4 space-y-1">
+          <CardDescription className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+            Receita do Mês
+          </CardDescription>
+          <CardTitle className="text-xl font-extrabold text-white mt-1">{brl(monthlyIncome)}</CardTitle>
         </CardHeader>
       </Card>
 
-      <Card className="border-red-500/40 bg-card/70">
-        <CardHeader>
-          <CardDescription>Total comprometido</CardDescription>
-          <CardTitle className="text-2xl text-red-400">{brl(totalOutflow)}</CardTitle>
+      <Card className="border-red-500/20 bg-zinc-950/20 backdrop-blur-md">
+        <CardHeader className="p-4 space-y-1">
+          <CardDescription className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-red-400 rotate-180" />
+            Despesas do Mês
+          </CardDescription>
+          <CardTitle className="text-xl font-extrabold text-red-400 mt-1">{brl(monthlyExpenses)}</CardTitle>
         </CardHeader>
       </Card>
 
-      <Card className="border-yellow-500/40 bg-card/70">
-        <CardHeader>
-          <CardDescription>Fixos recorrentes</CardDescription>
-          <CardTitle className="text-2xl text-yellow-400">{brl(monthlyRecurring)}</CardTitle>
+      <Card className="border-orange-500/20 bg-zinc-950/20 backdrop-blur-md">
+        <CardHeader className="p-4 space-y-1">
+          <CardDescription className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+            <Banknote className="h-3.5 w-3.5 text-orange-400" />
+            Parcelas do Mês
+          </CardDescription>
+          <CardTitle className="text-xl font-extrabold text-orange-400 mt-1">{brl(monthlyLiabilities)}</CardTitle>
         </CardHeader>
       </Card>
 
-      <Card className="border-orange-500/40 bg-card/70">
-        <CardHeader>
-          <CardDescription>Parcelas</CardDescription>
-          <CardTitle className="text-2xl text-orange-400">{brl(monthlyLiabilities)}</CardTitle>
-        </CardHeader>
-      </Card>
-
-      <Card className="border-emerald-500/40 bg-card/70">
-        <CardHeader>
-          <CardDescription>Saldo planejado</CardDescription>
-          <CardTitle className={plannedBalance >= 0 ? 'text-2xl text-emerald-500' : 'text-2xl text-red-500'}>
+      <Card className="border-emerald-500/20 bg-zinc-950/20 backdrop-blur-md">
+        <CardHeader className="p-4 space-y-1">
+          <CardDescription className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+            <Target className="h-3.5 w-3.5 text-emerald-400" />
+            Saldo Planejado
+          </CardDescription>
+          <CardTitle className={`text-xl font-extrabold mt-1 ${plannedBalance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
             {brl(plannedBalance)}
           </CardTitle>
         </CardHeader>
       </Card>
 
-      <Card className="border-primary/40 bg-card/70">
-        <CardHeader>
-          <CardDescription>Saúde financeira</CardDescription>
-          <CardTitle className={`text-2xl ${financialHealthClass}`}>
-            {financialHealthStatus}
+      <Card className="border-purple-500/20 bg-zinc-950/20 backdrop-blur-md">
+        <CardHeader className="p-4 space-y-1">
+          <CardDescription className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5 text-purple-400" />
+            Reserva Emergencial
+          </CardDescription>
+          <CardTitle className="text-xl font-extrabold text-purple-400 mt-1">
+            {reserve ? `${reserve.coveredMonths.toFixed(1)} meses` : 'N/D'}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {commitmentPercent.toFixed(1)}% da renda comprometida
-          </p>
+        </CardHeader>
+      </Card>
+
+      <Card className="border-amber-500/20 bg-zinc-950/20 backdrop-blur-md">
+        <CardHeader className="p-4 space-y-1">
+          <CardDescription className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+            Freedom Index
+          </CardDescription>
+          <CardTitle className="text-xl font-extrabold text-amber-400 mt-1">
+            {freedomIndex} <span className="text-xs font-normal text-zinc-400">{freedomLevel} {freedomIcon}</span>
+          </CardTitle>
         </CardHeader>
       </Card>
     </div>
