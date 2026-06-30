@@ -1,4 +1,5 @@
 import { type PFDRE } from './dre-engine';
+import { calculateFinancialCore } from './financial-core';
 
 export const FREEDOM_INDEX_VERSION = 1;
 
@@ -16,6 +17,11 @@ export type FreedomTimelineMilestone = {
   description: string;
   completed: boolean;
   icon: string;
+  explainability?: {
+    enginesUsed: string[];
+    variablesUsed: Record<string, { value: number | string; source: string }>;
+    formula: string;
+  };
 };
 
 export type FreedomTimeline = {
@@ -47,6 +53,8 @@ export type FreedomIndexResult = {
   level: FreedomLevel;
   levelLabel: string;
   levelIcon: string;
+  trendPoints?: number;
+  wealthScore: number;
   breakdown: {
     debtPayoffPercent: number;
     incomeFreedomPercent: number;
@@ -74,15 +82,26 @@ export function calculateFreedomIndex(params: {
   investments: any[];
   liabilities: any[];
   dre: PFDRE;
-  netWorth: number;
-  monthlyIncome: number;
+  realDividendYield?: number;
+  realDiversificationScore?: number;
+  previousFreedomIndex?: number;
 }): FreedomIndexResult {
   const accounts = params.accounts || [];
   const investments = params.investments || [];
   const liabilities = params.liabilities || [];
   const dre = params.dre || { receitaTotal: 0, despesasOperacionais: 0, taxaAcumulacao: 0 };
-  const netWorth = params.netWorth || 0;
-  const monthlyIncome = params.monthlyIncome || 0;
+
+  // Centralized calculations of financial core (Net Worth, Active Liabilities, etc.)
+  const core = calculateFinancialCore({
+    accounts,
+    investments,
+    liabilities,
+  });
+
+  const netWorth = core.netWorth;
+  const cashBalance = core.cashBalance;
+  const totalInvestments = core.investmentValue;
+  const monthlyIncome = dre.receitaTotal || 0;
 
   // 1. Quitação de Dívidas (25%)
   let totalInstallments = 0;
@@ -100,10 +119,7 @@ export function calculateFreedomIndex(params: {
       : 100;
 
   // 2. Comprometimento de Renda (20%)
-  const monthlyDebtPayment = liabilities
-    .filter((l) => Number(l.remainingInstallments || l.totalInstallments - l.currentInstallment || 0) > 0)
-    .reduce((sum, l) => sum + Number(l.installmentValue || 0), 0);
-
+  const monthlyDebtPayment = core.monthlyDebtPayment;
   let incomeFreedomPercent = 100;
   if (monthlyIncome > 0) {
     const ratio = monthlyDebtPayment / monthlyIncome;
@@ -115,9 +131,6 @@ export function calculateFreedomIndex(params: {
   // 3. Reserva de Emergência (15%)
   const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
   const targetReserve = 6 * despesasMensais;
-  const cashBalance = accounts
-    .filter((a) => a.owner === 'PF')
-    .reduce((sum, a) => sum + Number(a.balance || 0), 0);
   const emergencyReservePercent =
     targetReserve > 0
       ? Math.max(0, Math.min(100, (cashBalance / targetReserve) * 100))
@@ -135,26 +148,19 @@ export function calculateFreedomIndex(params: {
   const investmentRatePercent = Math.max(0, Math.min(100, (taxaAcumulacao / 30) * 100));
 
   // 6. Renda Passiva (10%)
-  const totalInvestments = investments.reduce((sum, item) => {
-    let value = 0;
-    if (item.currentValue !== undefined && item.currentValue !== null) {
-      value = Number(item.currentValue);
-    } else if (item.quantity && item.currentPrice) {
-      value = Number(item.quantity) * Number(item.currentPrice);
-    }
-    return sum + (isNaN(value) ? 0 : value);
-  }, 0);
-  // Estimando yield conservador de 0.6% a.m. (~7.4% a.a. real)
-  const monthlyPassiveIncome = totalInvestments * 0.006;
+  const monthlyYield = params.realDividendYield !== undefined
+    ? (params.realDividendYield / 100) / 12
+    : 0.006;
+  const monthlyPassiveIncome = totalInvestments * monthlyYield;
   const passiveIncomePercent = Math.max(
     0,
     Math.min(100, (monthlyPassiveIncome / despesasMensais) * 100)
   );
 
   // 7. Diversificação (5%)
-  const numInvestments = investments.length;
-  const diversificationNormalized =
-    numInvestments >= 5 ? 100 : numInvestments >= 3 ? 70 : numInvestments > 0 ? 40 : 0;
+  const diversificationNormalized = params.realDiversificationScore !== undefined
+    ? params.realDiversificationScore
+    : (investments.length >= 5 ? 100 : investments.length >= 3 ? 70 : investments.length > 0 ? 40 : 0);
 
   // Cálculo Geral Ponderado com proteção para usuário novo
   const hasNoData = accounts.length === 0 && investments.length === 0 && liabilities.length === 0 && dre.receitaTotal === 0;
@@ -195,11 +201,17 @@ export function calculateFreedomIndex(params: {
     levelIcon = '🌿';
   }
 
+  const trendPoints = params.previousFreedomIndex !== undefined && !hasNoData
+    ? freedomIndex - params.previousFreedomIndex
+    : undefined;
+
   return {
     freedomIndex,
     level,
     levelLabel,
     levelIcon,
+    trendPoints,
+    wealthScore: core.wealthScore,
     breakdown: {
       debtPayoffPercent: Math.round(debtPayoffPercent),
       incomeFreedomPercent: Math.round(incomeFreedomPercent),
@@ -218,14 +230,22 @@ export function calculateFreedomTimeline(params: {
   liabilities: any[];
   dre: PFDRE;
   monthlyIncome: number;
-  netWorth: number;
+  realSurplus?: number;
 }): FreedomTimeline {
   const accounts = params.accounts || [];
   const investments = params.investments || [];
   const liabilities = params.liabilities || [];
   const dre = params.dre || { receitaTotal: 0, despesasOperacionais: 0, taxaAcumulacao: 0 };
   const monthlyIncome = params.monthlyIncome || 0;
-  const netWorth = params.netWorth || 0;
+
+  const core = calculateFinancialCore({
+    accounts,
+    investments,
+    liabilities,
+  });
+
+  const cashBalance = core.cashBalance;
+  const totalInvestments = core.investmentValue;
 
   const baseDate = new Date();
 
@@ -247,12 +267,12 @@ export function calculateFreedomTimeline(params: {
   // 2. Data de Reserva Completa
   const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
   const targetReserve = 6 * despesasMensais;
-  const cashBalance = accounts
-    .filter((a) => a.owner === 'PF')
-    .reduce((sum, a) => sum + Number(a.balance || 0), 0);
 
   const remainingReserve = Math.max(0, targetReserve - cashBalance);
-  const surplus = Math.max(monthlyIncome * 0.1, monthlyIncome - despesasMensais); // Garante 10% de surplus teórico
+  const surplus = params.realSurplus !== undefined && params.realSurplus > 0
+    ? params.realSurplus
+    : Math.max(monthlyIncome * 0.1, monthlyIncome - despesasMensais);
+  
   const monthsToReserve = surplus > 0 ? Math.ceil(remainingReserve / surplus) : 12;
 
   const reserveDateObj = addMonthsToDate(
@@ -265,16 +285,6 @@ export function calculateFreedomTimeline(params: {
 
   // 3. Data de Liberdade Financeira (4% rule)
   const targetNetWorth = despesasMensais * 12 / 0.04;
-  const totalInvestments = investments.reduce((sum, item) => {
-    let value = 0;
-    if (item.currentValue !== undefined && item.currentValue !== null) {
-      value = Number(item.currentValue);
-    } else if (item.quantity && item.currentPrice) {
-      value = Number(item.quantity) * Number(item.currentPrice);
-    }
-    return sum + (isNaN(value) ? 0 : value);
-  }, 0);
-  
   const totalAssets = cashBalance + totalInvestments;
 
   let monthsToFreedom = 0;
@@ -310,6 +320,13 @@ export function calculateFreedomTimeline(params: {
       description: 'Seu ponto de partida atual no FinDomus.',
       completed: true,
       icon: '🚀',
+      explainability: {
+        enginesUsed: ['financial-core'],
+        variablesUsed: {
+          patrimonioLiquido: { value: totalAssets, source: 'financial-core:calculateFinancialCore()' },
+        },
+        formula: 'Patrimônio Líquido atual do usuário',
+      },
     },
     {
       label: 'Quitação de Cartões',
@@ -317,6 +334,13 @@ export function calculateFreedomTimeline(params: {
       description: 'Fim dos juros abusivos de rotativo ou faturas de cartão.',
       completed: initialCards.length === 0,
       icon: '💳',
+      explainability: {
+        enginesUsed: ['liability-engine'],
+        variablesUsed: {
+          mesesRestantesCartao: { value: maxInitialCardMonths, source: 'liabilities[].totalInstallments - liabilities[].currentInstallment' },
+        },
+        formula: 'Data da última parcela do cartão de maior duração',
+      },
     },
     {
       label: 'Fim de Todas as Dívidas',
@@ -324,6 +348,13 @@ export function calculateFreedomTimeline(params: {
       description: 'Amortização completa de todos os financiamentos e passivos.',
       completed: liabilities.length === 0,
       icon: '🎉',
+      explainability: {
+        enginesUsed: ['liability-engine'],
+        variablesUsed: {
+          mesesRestantesDividas: { value: maxRemainingMonths, source: 'liabilities[].totalInstallments - liabilities[].currentInstallment' },
+        },
+        formula: 'Data da última parcela do passivo de maior duração',
+      },
     },
     {
       label: 'Reserva de Emergência',
@@ -331,6 +362,15 @@ export function calculateFreedomTimeline(params: {
       description: 'Acúmulo equivalente a 6 meses de gastos operacionais.',
       completed: cashBalance >= targetReserve,
       icon: '🛡️',
+      explainability: {
+        enginesUsed: ['freedom-engine', 'forecast-engine'],
+        variablesUsed: {
+          reservaRequerida: { value: targetReserve, source: 'dre.despesasOperacionais * 6' },
+          sobraFinanceiraMensal: { value: surplus, source: 'forecast-engine ou cálculo de surplus base' },
+          saldoDisponivel: { value: cashBalance, source: 'accounts balance' },
+        },
+        formula: 'mesesRestantes = (reservaRequerida - saldoDisponivel) / sobraFinanceiraMensal',
+      },
     },
     {
       label: 'Primeiros Investimentos',
@@ -338,6 +378,13 @@ export function calculateFreedomTimeline(params: {
       description: 'Alocação inicial de capital além da liquidez diária.',
       completed: investments.length > 0,
       icon: '📈',
+      explainability: {
+        enginesUsed: ['freedom-engine'],
+        variablesUsed: {
+          carteiraInvestimentos: { value: totalInvestments, source: 'investments[].currentValue' },
+        },
+        formula: 'Primeira alocação em carteira de ativos além do saldo de liquidez imediata',
+      },
     },
     {
       label: 'Metade do Caminho (50%)',
@@ -345,6 +392,14 @@ export function calculateFreedomTimeline(params: {
       description: 'Ativos rendendo o suficiente para pagar 50% do seu custo de vida.',
       completed: totalAssets >= targetNetWorth * 0.5,
       icon: '🏆',
+      explainability: {
+        enginesUsed: ['freedom-engine', 'million'],
+        variablesUsed: {
+          metaNetWorth50Percent: { value: targetNetWorth * 0.5, source: '(dre.despesasOperacionais * 12 / 0.04) * 0.5' },
+          taxaRendimentoSimulada: { value: '8% a.a.', source: 'Média de mercado para juros compostos' },
+        },
+        formula: 'Projeção de juros compostos com aportes baseados na sobra financeira',
+      },
     },
     {
       label: 'Liberdade Financeira (100%)',
@@ -352,6 +407,14 @@ export function calculateFreedomTimeline(params: {
       description: 'Renda passiva estimada cobrindo 100% dos seus gastos essenciais.',
       completed: totalAssets >= targetNetWorth,
       icon: '🏡',
+      explainability: {
+        enginesUsed: ['freedom-engine', 'retirement'],
+        variablesUsed: {
+          metaNetWorth100Percent: { value: targetNetWorth, source: 'dre.despesasOperacionais * 12 / 0.04 (Regra dos 4%)' },
+          tempoTotalMeses: { value: maxRemainingMonths + monthsToReserve + monthsToFreedom, source: 'liability-engine + freedom-engine' },
+        },
+        formula: 'Ativos Totais acumulando juros compostos + sobra mensal atingem a Regra dos 4%',
+      },
     },
   ];
 
@@ -373,7 +436,6 @@ export function generateActionPlan(
   accounts: any[],
   dre: PFDRE
 ): ActionPlanItem[] {
-  const index = indexResult.freedomIndex;
   const despesasMensais = dre.despesasOperacionais > 0 ? dre.despesasOperacionais : 3000;
   const cashBalance = accounts
     .filter((a) => a.owner === 'PF')
@@ -500,4 +562,40 @@ export function generateActionPlan(
   }
 
   return actions.slice(0, 4); // Retorna até as 4 mais urgentes
+}
+
+export function estimatePreviousFreedomIndex(closure: any): number {
+  if (!closure) return 0;
+  if (closure.snapshot?.freedomIndex !== undefined) {
+    return closure.snapshot.freedomIndex;
+  }
+  
+  // Reconstrução a partir do snapshot
+  const netWorth = closure.snapshot?.netWorth?.value || closure.balance || 0;
+  const accountsBalance = closure.snapshot?.assets?.accountsBalance || 0;
+  const investmentsValue = closure.snapshot?.assets?.investmentsValue || 0;
+  const totalLiabilities = closure.snapshot?.netWorth?.totalLiabilities || 0;
+  const monthlyIncome = closure.income || 0;
+  
+  const mockDRE: PFDRE = {
+    receitaTotal: monthlyIncome,
+    essenciais: 0,
+    qualidadeVida: 0,
+    estiloVida: 0,
+    educacao: 0,
+    saude: 0,
+    construcaoPatrimonial: 0,
+    outros: 0,
+    despesasOperacionais: closure.expenses || 0,
+    saldoRestante: monthlyIncome - (closure.expenses || 0),
+    taxaAcumulacao: 0,
+  };
+
+  return calculateFreedomIndex({
+    accounts: [{ balance: accountsBalance, owner: 'PF' }],
+    investments: [{ currentValue: investmentsValue }],
+    liabilities: [{ remainingBalance: totalLiabilities, totalInstallments: 1, currentInstallment: 0, installmentValue: 0 }],
+    dre: mockDRE,
+    previousFreedomIndex: undefined,
+  }).freedomIndex;
 }

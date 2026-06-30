@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 
 import type { Investment, Account, Liability } from '@/services/firestore/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -504,6 +505,13 @@ export function InvestmentWallet({ investments, onRefresh }: { investments: Inve
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/?simulate=new_investment">
+            <Button
+              className="rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 text-xs font-bold h-9 px-4 flex items-center gap-1.5"
+            >
+              Simular Aporte
+            </Button>
+          </Link>
           <Button
             onClick={() => setOpenYieldDialog(true)}
             className="rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold h-9 px-4 flex items-center gap-1.5"

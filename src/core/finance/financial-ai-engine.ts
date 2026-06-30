@@ -3,6 +3,9 @@ import {
   buildMerchantFingerprint,
   detectRecurrence,
 } from '@/core/finance/recurrence-engine';
+import { type FreedomIndexResult, type FreedomTimeline } from './freedom-engine';
+import { type PFWealthReport } from './wealth-engine';
+import { type PFDRE } from './dre-engine';
 
 export type FinancialAIInsight = {
   type:
@@ -38,12 +41,25 @@ export function getFinancialAIInsights(params: {
   liabilities?: any[];
   recurringExpenses?: any[];
   taxObligations?: any[];
+  accounts?: any[];
+  investments?: any[];
+  kernelOutputs?: {
+    freedomIndex: FreedomIndexResult;
+    freedomTimeline: FreedomTimeline;
+    wealthReport: PFWealthReport;
+    forecastOutput: any[];
+    dreReport: PFDRE;
+    projections: Record<string, number>;
+  };
 }) : FinancialAIResult {
 
   const transactions = params.transactions || [];
   const liabilities = params.liabilities || [];
   const recurringExpenses = params.recurringExpenses || [];
   const taxObligations = params.taxObligations || [];
+  const accounts = params.accounts || [];
+  const investments = params.investments || [];
+  const kernelOutputs = params.kernelOutputs;
 
   const merchantGroups = new Map<string, any[]>();
 
@@ -136,6 +152,87 @@ export function getFinancialAIInsights(params: {
 
   const insights: FinancialAIInsight[] = [];
 
+  // --- Proactive Alerts and Opportunities from Kernel Outputs ---
+  if (kernelOutputs) {
+    const fIndex = kernelOutputs.freedomIndex;
+    const fTimeline = kernelOutputs.freedomTimeline;
+
+    // 1. Emergency Reserve vulnerability
+    if (fIndex.breakdown.emergencyReservePercent < 50) {
+      insights.push({
+        type: 'alert',
+        title: 'Alerta: Reserva de Segurança Baixa',
+        description: `Sua reserva de emergência cobre apenas ${(fIndex.breakdown.emergencyReservePercent * 6 / 100).toFixed(1)} dos 6 meses recomendados. Considere segurar novos gastos.`,
+        confidence: 0.95,
+      });
+    }
+
+    // 2. High debt warning
+    if (fIndex.breakdown.incomeFreedomPercent < 70) {
+      insights.push({
+        type: 'alert',
+        title: 'Alerta: Comprometimento de Caixa Elevado',
+        description: `As parcelas de empréstimos/cartão comprometem mais de 30% da sua receita. Evite contrair novos passivos parcelados.`,
+        confidence: 0.92,
+      });
+    }
+
+    // 3. Early debt payoff opportunity
+    const totalCash = accounts.filter((a: any) => a.owner === 'PF').reduce((sum, a) => sum + (a.balance || 0), 0);
+    const highestInterestDebt = liabilities.filter(l => Number(l.remainingBalance || 0) > 0)
+      .sort((a, b) => (b.installmentValue || 0) - (a.installmentValue || 0))[0];
+    if (highestInterestDebt && totalCash > Number(highestInterestDebt.remainingBalance || 0) * 0.5) {
+      insights.push({
+        type: 'behavior',
+        title: 'Oportunidade de Amortização',
+        description: `Você tem saldo líquido acumulado em conta para quitar/amortizar 50%+ da dívida "${highestInterestDebt.name}" de imediato e economizar juros reais.`,
+        confidence: 0.90,
+      });
+    }
+
+    // 4. Reserve Timeline projection
+    if (fTimeline.monthsToReserve > 0 && fTimeline.monthsToReserve < 60) {
+      insights.push({
+        type: 'forecast',
+        title: 'Previsão de Reserva Completa',
+        description: `Mantendo a taxa média de superávit de R$ ${fTimeline.targetNetWorth / 12 * 0.15}, você completará sua reserva em ${fTimeline.monthsToReserve} meses.`,
+        confidence: 0.88,
+      });
+    }
+
+    // 5. High Cash Drag (Dinheiro parado sem render)
+    const totalInvestments = investments.reduce((sum, i) => sum + (i.currentValue || 0), 0);
+    if (totalCash > 5000 && totalCash > totalInvestments) {
+      insights.push({
+        type: 'behavior',
+        title: 'Alerta de Caixa Ocioso (Cash Drag)',
+        description: `Seu saldo em conta corrente (R$ ${totalCash.toLocaleString('pt-BR')}) é maior que sua carteira de investimentos. Seu dinheiro está perdendo poder de compra para a inflação.`,
+        confidence: 0.89,
+      });
+    }
+
+    // 6. Portfolio Diversification warning
+    if (fIndex.breakdown.diversificationNormalized < 30) {
+      insights.push({
+        type: 'alert',
+        title: 'Alerta: Baixa Diversificação de Ativos',
+        description: `Sua pontuação de diversificação de investimentos está em ${fIndex.breakdown.diversificationNormalized}%. Recomendamos expandir a alocação em classes descorrelacionadas (ex: Ações Internacionais, FIIs).`,
+        confidence: 0.91,
+      });
+    }
+
+    // 7. Accrued Deficit warning
+    if (kernelOutputs.dreReport && kernelOutputs.dreReport.saldoRestante < 0) {
+      insights.push({
+        type: 'alert',
+        title: 'Alerta: Balanço Mensal Negativo',
+        description: `Suas despesas mensais operacionais ultrapassaram suas receitas registradas neste mês. Revise o orçamento doméstico com urgência.`,
+        confidence: 0.96,
+      });
+    }
+  }
+
+  // Fallback / legacy insights
   if (recurringResults.length) {
     insights.push({
       type: 'recurrence',

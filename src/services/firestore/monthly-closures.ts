@@ -12,13 +12,14 @@ import {
 import { db } from '@/lib/firebase';
 import { resolveUserHouseholdId } from './users';
 
-import { buildDRE } from "@/core/finance/dre-engine";
+import { buildDRE, buildPFDRE } from "@/core/finance/dre-engine";
 import { buildMonthSnapshot } from "@/core/finance/month-closure-engine";
 import { getAccountsWithBalance } from "@/services/firestore/accounts";
 import { getTaxObligations } from "@/services/firestore/fiscal";
 import { getLiabilities } from "@/services/firestore/liabilities";
 import { getTransactionsByOwnerAndMonth } from '@/services/firestore/transactions';
 import { getInvestments } from '@/services/firestore/investments';
+import { runFinancialKernel } from '@/core/finance/kernel';
 
 export type MonthlyClosureStatus = "OPEN" | "CLOSED" | "REOPENED";
 
@@ -280,6 +281,32 @@ export async function closeMonthlyCompetence(
     totalAssets: closingAccountBalance + totalInvestments,
     totalLiabilities,
   };
+
+  if (owner === 'PF') {
+    try {
+      const kernelResult = runFinancialKernel({
+        accounts,
+        investments,
+        liabilities,
+        transactions: monthTransactions,
+        recurringExpenses: [],
+        taxObligations: obligations.filter((o: any) => o.owner === owner),
+        wealthProfile: null,
+        monthlyClosures: [],
+        investmentAnalytics: null,
+      });
+      snapshot.freedomIndex = kernelResult.freedom.index.freedomIndex;
+      snapshot.freedomSnapshot = {
+        index: kernelResult.freedom.index.freedomIndex,
+        level: kernelResult.freedom.index.level,
+        breakdown: kernelResult.freedom.index.breakdown,
+        timeline: kernelResult.freedom.timeline,
+        computedAt: kernelResult.computedAt,
+      };
+    } catch (err) {
+      console.error('[closeMonthlyCompetence] Error calculating freedomIndex for snapshot', err);
+    }
+  }
 
   const closurePayload: MonthlyClosure = {
     userId,

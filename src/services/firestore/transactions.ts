@@ -18,6 +18,7 @@ import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date
 import { assertMonthOpen } from "@/services/firestore/month-guard";
 import { upsertLiabilityFromInstallmentTransaction, reverseLiabilityPaymentByTransactionId } from "@/services/firestore/liabilities";
 import { resolveUserHouseholdId } from './users';
+import { financialEvents } from '@/core/finance/events';
 
 export type TransactionDTO = {
   id?: string;
@@ -159,6 +160,13 @@ export async function addTransaction(userId: string, data: TransactionDTO) {
 
   const docRef = await addDoc(collection(db, 'transactions'), normalized);
 
+  financialEvents.emit({
+    type: 'transaction:created',
+    payload: { transactionId: docRef.id, owner: normalized.owner, amount: normalized.amount },
+    timestamp: new Date().toISOString(),
+    source: 'addTransaction',
+  });
+
   if (
     normalized.isInstallment === true &&
     normalized.installmentCurrent !== null && normalized.installmentCurrent !== undefined &&
@@ -277,6 +285,12 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
 
   if (toInsert.length) {
     await batch.commit();
+    financialEvents.emit({
+      type: 'transaction:created',
+      payload: { count: toInsert.length },
+      timestamp: new Date().toISOString(),
+      source: 'addTransactionsBatch',
+    });
   }
 
   const summaryTargets = new Set(
@@ -461,6 +475,13 @@ export async function deleteTransaction(userId: string, transactionId: string) {
     }
 
     await deleteDoc(ref);
+
+    financialEvents.emit({
+      type: 'transaction:deleted',
+      payload: { transactionId, owner: data.owner },
+      timestamp: new Date().toISOString(),
+      source: 'deleteTransaction',
+    });
 
     // Regenera o sumário mensal
     const month = data.competenceMonthKey || data.monthKey;

@@ -29,6 +29,9 @@ import { getWealthProfile, saveWealthProfile, getRecurringExpenses } from '@/ser
 import { getPersonalTransactions } from '@/services/firestore/transactions';
 import { getCategories } from '@/services/firestore/categories';
 import { getLiabilities } from '@/services/firestore/liabilities';
+import { getAccountsWithBalance } from '@/services/firestore/accounts';
+import { getInvestments } from '@/services/firestore/investments';
+import { runFinancialKernel } from '@/core/finance/kernel';
 import { useAuth } from '@/providers/auth-provider';
 import { PlanningOverviewCards } from '@/components/planejamento/planning-overview-cards';
 import { PlanningAlertCard } from '@/components/planejamento/planning-alert-card';
@@ -107,6 +110,8 @@ function normalizeCategory(name: string) {
 
 export default function PlanejamentoPage() {
   const { user } = useAuth();
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [investments, setInvestments] = useState<any[]>([]);
   const [categories, setCategories] = useState<WealthCategory[]>(defaultWealthCategories);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [liabilities, setLiabilities] = useState<any[]>([]);
@@ -115,6 +120,10 @@ export default function PlanejamentoPage() {
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
 
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    return getCurrentMonthKey();
+  });
+
   const total = useMemo(() => getDistributionTotal(categories), [categories]);
   const insight = useMemo(() => getWealthInsight(categories), [categories]);
   const canSave = total === 100;
@@ -122,12 +131,14 @@ export default function PlanejamentoPage() {
   useEffect(() => {
     async function load() {
       if (!user?.uid) return;
-      const [profile, txs, liabs, recurring, cats] = await Promise.all([
+      const [profile, txs, liabs, recurring, cats, accs, invs] = await Promise.all([
         getWealthProfile(user.uid),
         getPersonalTransactions(user.uid),
         getLiabilities(user.uid),
         getRecurringExpenses(user.uid),
         getCategories(user.uid),
+        getAccountsWithBalance(user.uid),
+        getInvestments(user.uid),
       ]);
 
       if (profile?.categories?.length) {
@@ -138,16 +149,28 @@ export default function PlanejamentoPage() {
       setLiabilities(liabs || []);
       setRecurringExpenses(recurring || []);
       setAvailableCategories((cats || []).map((c) => c.name));
+      setAccounts(accs || []);
+      setInvestments(invs || []);
     }
 
     load();
   }, [user?.uid]);
 
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    return getCurrentMonthKey();
-  });
-
-
+  const kernelResult = useMemo(() => {
+    if (!user?.uid) return null;
+    return runFinancialKernel({
+      accounts,
+      investments,
+      liabilities,
+      transactions,
+      recurringExpenses,
+      taxObligations: [],
+      wealthProfile: { categories },
+      monthlyClosures: [],
+      investmentAnalytics: null,
+      baseMonth: selectedMonth,
+    });
+  }, [user?.uid, accounts, investments, liabilities, transactions, recurringExpenses, categories, selectedMonth]);
 
   const selectedMonthKey = selectedMonth;
 

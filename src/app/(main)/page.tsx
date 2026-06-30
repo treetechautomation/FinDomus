@@ -44,7 +44,7 @@ import { getInvestments } from '@/services/firestore/investments';
 import { getLiabilities } from '@/services/firestore/liabilities';
 import { buildPFDRE } from '@/core/finance/dre-engine';
 import { buildPFWealthAnalysis } from '@/core/finance/wealth-engine';
-import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financial-period-engine';
+import { getCurrentMonthKey, isTransactionInMonth, addMonths } from '@/core/finance/financial-period-engine';
 import { useAuth } from '@/providers/auth-provider';
 
 // Copiloto da Liberdade Financeira
@@ -54,11 +54,11 @@ import { NextBestAction } from '@/components/dashboard/next-best-action';
 import { NextActionsList } from '@/components/dashboard/next-actions-list';
 import { InsightCarousel } from '@/components/dashboard/insight-carousel';
 import { getFinancialAIInsights } from '@/core/finance/financial-ai-engine';
-import {
-  calculateFreedomIndex,
-  calculateFreedomTimeline,
-  generateActionPlan,
-} from '@/core/finance/freedom-engine';
+import { useFinancialKernel } from '@/hooks/use-financial-kernel';
+import { type KernelContext } from '@/core/finance/kernel';
+import { consolidatePortfolio } from '@/services/investments/consolidation-engine';
+import { generateInvestmentAnalytics } from '@/core/investments/analytics/analytics-engine';
+import { ScenarioComparator } from '@/components/simulations/scenario-comparator';
 
 function DreRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
   const { showFinancialValues } = useVisibility();
@@ -116,12 +116,20 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<any>(null);
   const [netWorthHistory, setNetWorthHistory] = useState<any[]>([]);
-  const [wealthReport, setWealthReport] = useState<any>(null);
-  const [freedomData, setFreedomData] = useState<any>(null);
-  const [aiInsights, setAiInsights] = useState<any[]>([]);
+  const [context, setContext] = useState<KernelContext | null>(null);
+  const { result: kernel } = useFinancialKernel(context);
   const [hasNoData, setHasNoData] = useState<boolean>(false);
   const { showFinancialValues } = useVisibility();
   const { startTour, completedTours, dismissedTours } = useTour();
+
+  const freedomData = kernel ? {
+    index: kernel.freedom.index,
+    timeline: kernel.freedom.timeline,
+    actions: kernel.freedom.actions,
+  } : null;
+
+  const wealthReport = kernel?.wealth || null;
+  const aiInsights = kernel?.ai?.insights || [];
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -172,65 +180,25 @@ export default function DashboardPage() {
       getInvestments(user.uid),
       getLiabilities(user.uid),
       getRecurringExpenses(user.uid),
+      consolidatePortfolio(user.uid),
+      getMonthlyClosures(user.uid, 'PF'),
     ])
-      .then(([txs, profile, accounts, investments, liabilities, recurringExpenses]) => {
+      .then(([txs, profile, accounts, investments, liabilities, recurringExpenses, portfolio, closures]) => {
         const isUserEmpty = (txs || []).length === 0 && (accounts || []).length === 0 && (investments || []).length === 0;
         setHasNoData(isUserEmpty);
 
-        const currentMonthKey = getCurrentMonthKey();
-        const filteredTransactions = (txs || []).filter((t: any) => isTransactionInMonth(t, currentMonthKey));
-        const drePF = buildPFDRE(filteredTransactions);
-        const report = buildPFWealthAnalysis(drePF, profile);
-        setWealthReport(report);
+        const investmentAnalytics = generateInvestmentAnalytics(portfolio);
 
-        // Copiloto Insights IA
-        const aiData = getFinancialAIInsights({
+        setContext({
+          accounts,
+          investments,
+          liabilities,
           transactions: txs,
-          liabilities,
           recurringExpenses,
-        });
-        setAiInsights(aiData.insights);
-
-        // Cálculo de Net Worth manual consistente com dashboard-real
-        const totalAccounts = accounts
-          .filter((a: any) => a.owner === 'PF')
-          .reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
-        const totalInvestments = investments.reduce((sum: number, item: any) => {
-          let value = 0;
-          if (item.currentValue !== undefined && item.currentValue !== null) {
-            value = Number(item.currentValue);
-          } else if (item.quantity && item.currentPrice) {
-            value = Number(item.quantity) * Number(item.currentPrice);
-          }
-          return sum + (isNaN(value) ? 0 : value);
-        }, 0);
-        const totalLiabilities = liabilities.reduce((sum: number, item: any) => sum + Number(item.remainingBalance || 0), 0);
-        const netWorthValue = totalAccounts + totalInvestments - totalLiabilities;
-
-        const fIndex = calculateFreedomIndex({
-          accounts,
-          investments,
-          liabilities,
-          dre: drePF,
-          netWorth: netWorthValue,
-          monthlyIncome: drePF.receitaTotal,
-        });
-
-        const fTimeline = calculateFreedomTimeline({
-          accounts,
-          investments,
-          liabilities,
-          dre: drePF,
-          monthlyIncome: drePF.receitaTotal,
-          netWorth: netWorthValue,
-        });
-
-        const fActionList = generateActionPlan(fIndex, liabilities, accounts, drePF);
-
-        setFreedomData({
-          index: fIndex,
-          timeline: fTimeline,
-          actions: fActionList,
+          taxObligations: [],
+          wealthProfile: profile,
+          monthlyClosures: closures,
+          investmentAnalytics,
         });
       })
       .catch(console.error);
@@ -321,6 +289,11 @@ export default function DashboardPage() {
           {/* Linha do Tempo Estendida */}
           {freedomData && (
             <FreedomTimeline timeline={freedomData.timeline} />
+          )}
+
+          {/* Simulador de Cenários Lado a Lado */}
+          {context && kernel && (
+            <ScenarioComparator context={context} baseline={kernel} />
           )}
         </TabsContent>
 

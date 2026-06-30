@@ -11,6 +11,7 @@ import {
 
 import { db } from "@/lib/firebase";
 import { resolveUserHouseholdId } from "./users";
+import { financialEvents } from "@/core/finance/events";
 
 export type Budget = {
   id?: string;
@@ -77,13 +78,22 @@ export async function upsertBudget(userId: string, data: {
 }) {
   if (!userId) throw new Error("userId required");
   const householdId = await resolveUserHouseholdId(userId);
-  return addDoc(collection(db, "budgets"), {
+  const docRef = await addDoc(collection(db, "budgets"), {
     ...data,
     userId,
     householdId,
     owner: "PF",
     createdAt: new Date().toISOString(),
   });
+
+  financialEvents.emit({
+    type: "planning:updated",
+    payload: { userId },
+    timestamp: new Date().toISOString(),
+    source: "upsertBudget",
+  });
+
+  return docRef;
 }
 
 export async function getWealthProfile(userId: string): Promise<WealthProfile | null> {
@@ -113,6 +123,14 @@ export async function saveWealthProfile(
       householdId,
       updatedAt: new Date().toISOString(),
     });
+
+    financialEvents.emit({
+      type: "planning:updated",
+      payload: { userId },
+      timestamp: new Date().toISOString(),
+      source: "saveWealthProfile:update",
+    });
+
     return existing.id;
   }
 
@@ -122,6 +140,13 @@ export async function saveWealthProfile(
     categories,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+  });
+
+  financialEvents.emit({
+    type: "planning:updated",
+    payload: { userId },
+    timestamp: new Date().toISOString(),
+    source: "saveWealthProfile:create",
   });
 
   return docRef.id;
@@ -141,11 +166,20 @@ export async function getRecurringExpenses(userId: string): Promise<RecurringExp
 export async function addRecurringExpense(userId: string, data: RecurringExpense) {
   if (!userId) throw new Error("userId required");
   const householdId = await resolveUserHouseholdId(userId);
-  return addDoc(collection(db, "recurring_expenses"), {
+  const docRef = await addDoc(collection(db, "recurring_expenses"), {
     ...data,
     userId,
     householdId,
   });
+
+  financialEvents.emit({
+    type: "recurring:updated",
+    payload: { id: docRef.id },
+    timestamp: new Date().toISOString(),
+    source: "addRecurringExpense",
+  });
+
+  return docRef;
 }
 
 export async function updateRecurringExpense(
@@ -153,10 +187,27 @@ export async function updateRecurringExpense(
   id: string,
   data: Partial<RecurringExpense>
 ) {
-  // Nota: Idealmente verificaríamos se o ID pertence ao userId aqui ou via Security Rules
-  return updateDoc(doc(db, "recurring_expenses", id), data);
+  const result = await updateDoc(doc(db, "recurring_expenses", id), data);
+
+  financialEvents.emit({
+    type: "recurring:updated",
+    payload: { id },
+    timestamp: new Date().toISOString(),
+    source: "updateRecurringExpense",
+  });
+
+  return result;
 }
 
 export async function deleteRecurringExpense(userId: string, id: string) {
-  return deleteDoc(doc(db, "recurring_expenses", id));
+  const result = await deleteDoc(doc(db, "recurring_expenses", id));
+
+  financialEvents.emit({
+    type: "recurring:updated",
+    payload: { id },
+    timestamp: new Date().toISOString(),
+    source: "deleteRecurringExpense",
+  });
+
+  return result;
 }

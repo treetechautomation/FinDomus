@@ -1,8 +1,9 @@
-import { addDoc, collection, doc, getDocs, updateDoc, query, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDocs, updateDoc, query, where, deleteDoc } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
 import type { Investment } from "@/services/firestore/types";
 import { resolveUserHouseholdId } from "./users";
+import { financialEvents } from "@/core/finance/events";
 export type { Investment } from '@/services/firestore/types';
 
 export async function getInvestments(userId: string): Promise<Investment[]> {
@@ -63,6 +64,13 @@ export async function addInvestment(userId: string, data: {
         updatedAt: new Date().toISOString(),
       });
 
+      financialEvents.emit({
+        type: "investment:updated",
+        payload: { investmentId: existing.id },
+        timestamp: new Date().toISOString(),
+        source: "addInvestment:update",
+      });
+
       return existing.id;
     }
   }
@@ -73,6 +81,13 @@ export async function addInvestment(userId: string, data: {
     householdId,
     ticker,
     createdAt: new Date().toISOString(),
+  });
+
+  financialEvents.emit({
+    type: "investment:created",
+    payload: { investmentId: docRef.id },
+    timestamp: new Date().toISOString(),
+    source: "addInvestment:create",
   });
 
   return docRef.id;
@@ -88,5 +103,25 @@ export async function updateInvestment(
   await updateDoc(ref, {
     ...data,
     updatedAt: new Date().toISOString(),
+  });
+
+  financialEvents.emit({
+    type: "investment:updated",
+    payload: { investmentId },
+    timestamp: new Date().toISOString(),
+    source: "updateInvestment",
+  });
+}
+
+export async function deleteInvestment(userId: string, investmentId: string) {
+  if (!userId) throw new Error("userId required");
+  const ref = doc(db, "investments", investmentId);
+  await deleteDoc(ref);
+
+  financialEvents.emit({
+    type: "investment:deleted",
+    payload: { investmentId },
+    timestamp: new Date().toISOString(),
+    source: "deleteInvestment",
   });
 }

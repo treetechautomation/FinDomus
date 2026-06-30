@@ -1,0 +1,14 @@
+- [x] Criar engine de simulação síncrona (`src/core/finance/simulation-engine.ts`)
+- [x] Criar otimizador financeiro (`src/core/finance/optimizer.ts`)
+- [x] Criar gerador de plano de liberdade automático (`src/core/finance/auto-plan-generator.ts`)
+- [x] Criar flow Genkit do Assessor Conversacional (`src/ai/flows/financial-advisor.ts`)
+- [x] Criar rota de API para o chat do Assessor (`src/app/api/chat/financial/route.ts`)
+- [x] Adicionar explainability nos milestones de timeline em `src/core/finance/freedom-engine.ts`
+- [x] Criar componente visual ScenarioComparator (`src/components/simulations/scenario-comparator.tsx`)
+- [x] Atualizar timeline interativa no dashboard (`src/components/dashboard/freedom-timeline.tsx`)
+- [x] Ampliar alertas inteligentes comparando deltas em `src/core/finance/financial-ai-engine.ts`
+- [x] Integrar ScenarioComparator e painel de simulação em `src/app/(main)/page.tsx`
+- [x] Habilitar link de simulação de amortização em `src/app/(main)/passivos/page.tsx`
+- [x] Habilitar link de simulação de aporte em `src/app/(main)/investimentos/page.tsx`
+- [x] Executar typecheck de verificação
+- [x] Executar build de verificação final

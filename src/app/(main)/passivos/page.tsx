@@ -22,6 +22,7 @@ import {
   buildProjectionTimeline,
 } from '@/core/finance/liability-engine';
 import { NewLiabilityDialog } from "@/components/passivos/new-liability-dialog";
+import Link from "next/link";
 
 export default function PassivosPage() {
   const { user } = useAuth();
@@ -185,6 +186,13 @@ export default function PassivosPage() {
               <div className="text-sm text-muted-foreground flex justify-between">
                 <span>Saldo devedor:</span> 
                 <span className="font-medium text-card-foreground">{Number(item.remainingBalance || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-800/10">
+                <Link href={`/?simulate=payoff_debt&id=${item.id}`}>
+                  <button className="w-full text-center py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-xs font-bold text-cyan-400 transition-all">
+                    Simular Amortização
+                  </button>
+                </Link>
               </div>
             </CardContent>
           </Card>

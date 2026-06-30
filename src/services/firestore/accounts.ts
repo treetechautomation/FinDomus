@@ -12,6 +12,7 @@ import {
 
 import { db } from "@/lib/firebase";
 import { resolveUserHouseholdId } from "./users";
+import { financialEvents } from "@/core/finance/events";
 
 import type {
   Account,
@@ -81,6 +82,13 @@ export async function addAccount(userId: string, data: {
     createdAt: data.createdAt ?? new Date().toISOString(),
   });
 
+  financialEvents.emit({
+    type: "account:updated",
+    payload: { accountId: docRef.id },
+    timestamp: new Date().toISOString(),
+    source: "addAccount",
+  });
+
   return docRef.id;
 }
 
@@ -133,10 +141,24 @@ export async function updateAccount(
     ...data,
     updatedAt: new Date().toISOString(),
   });
+
+  financialEvents.emit({
+    type: "account:updated",
+    payload: { accountId },
+    timestamp: new Date().toISOString(),
+    source: "updateAccount",
+  });
 }
 
 export async function deleteAccount(userId: string, accountId: string) {
   if (!userId) throw new Error("userId required");
   const ref = doc(db, "accounts", accountId);
   await deleteDoc(ref);
+
+  financialEvents.emit({
+    type: "account:updated",
+    payload: { accountId },
+    timestamp: new Date().toISOString(),
+    source: "deleteAccount",
+  });
 }

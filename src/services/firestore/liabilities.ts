@@ -15,6 +15,7 @@ import { db } from "@/lib/firebase";
 import { assertMonthOpen } from "@/services/firestore/month-guard";
 import type { Liability, LiabilityPayment } from "@/services/firestore/types";
 import { resolveUserHouseholdId } from "./users";
+import { financialEvents } from "@/core/finance/events";
 
 export type { Liability } from "@/services/firestore/types";
 
@@ -47,6 +48,13 @@ export async function addLiability(userId: string, data: {
     createdAt: new Date().toISOString(),
   });
 
+  financialEvents.emit({
+    type: "liability:created",
+    payload: { liabilityId: docRef.id },
+    timestamp: new Date().toISOString(),
+    source: "addLiability",
+  });
+
   return docRef.id;
 }
 
@@ -57,12 +65,26 @@ export async function updateLiability(userId: string, liabilityId: string, data:
     ...data,
     updatedAt: new Date().toISOString(),
   });
+
+  financialEvents.emit({
+    type: "liability:updated",
+    payload: { liabilityId },
+    timestamp: new Date().toISOString(),
+    source: "updateLiability",
+  });
 }
 
 export async function deleteLiability(userId: string, liabilityId: string) {
   if (!userId) throw new Error("userId required");
   const ref = doc(db, "liabilities", liabilityId);
   await deleteDoc(ref);
+
+  financialEvents.emit({
+    type: "liability:deleted",
+    payload: { liabilityId },
+    timestamp: new Date().toISOString(),
+    source: "deleteLiability",
+  });
 }
 
 export async function upsertLiabilityFromInstallmentTransaction(userId: string, transaction: any) {
