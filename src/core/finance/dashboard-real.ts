@@ -112,7 +112,7 @@ export async function getDashboardReal(userId: string) {
     investments,
   ] = await Promise.all([
     getAccountsWithBalance(userId),
-    getTaxObligations(),
+    getTaxObligations(userId),
     getLiabilities(userId),
     getTransactionsByMonthList(userId, 'PF', lastSixMonths),
     getTransactionsByMonthList(userId, 'PJ', lastSixMonths),

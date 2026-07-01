@@ -16,26 +16,29 @@ function formatDateOFX(value: any) {
 }
 
 export async function GET(req: NextRequest) {
+  let rows: any[] = [];
+  let owner = 'PF';
   try {
     const authHeader = req.headers.get('authorization');
-    await verifyIdToken(authHeader);
+    const decoded = await verifyIdToken(authHeader);
+    const userId = decoded.uid;
+
+    owner = req.nextUrl.searchParams.get('owner') || 'PF';
+
+    const snap = await adminDb.collection('transactions')
+      .where('userId', '==', userId)
+      .where('owner', '==', owner)
+      .get();
+
+    rows = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
   } catch (error) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
   try {
-    const owner =
-      req.nextUrl.searchParams.get('owner') || 'PF';
-
-    const snap = await adminDb.collection('transactions').get();
-
-    const rows = snap.docs
-      .map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }))
-      .filter((t: any) => t.owner === owner);
-
     const body = rows
       .map((t: any) => {
         const type =

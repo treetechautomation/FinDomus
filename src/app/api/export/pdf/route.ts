@@ -3,21 +3,26 @@ import { adminDb } from '@/lib/firebase-admin';
 import { verifyIdToken } from '@/lib/verify-id-token';
 
 export async function GET(req: NextRequest) {
+  let rows: any[] = [];
+  let owner = 'PF';
   try {
     const authHeader = req.headers.get('authorization');
-    await verifyIdToken(authHeader);
+    const decoded = await verifyIdToken(authHeader);
+    const userId = decoded.uid;
+
+    owner = req.nextUrl.searchParams.get('owner') || 'PF';
+
+    const snap = await adminDb.collection('transactions')
+      .where('userId', '==', userId)
+      .where('owner', '==', owner)
+      .get();
+
+    rows = snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as any) }))
+      .slice(0, 500);
   } catch (error) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
-
-  const owner = req.nextUrl.searchParams.get('owner') || 'PF';
-
-  const snap = await adminDb.collection('transactions').get();
-
-  const rows = snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as any) }))
-    .filter((t: any) => t.owner === owner)
-    .slice(0, 500);
 
   const html = `
     <html>

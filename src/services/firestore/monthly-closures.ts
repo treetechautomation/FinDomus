@@ -182,7 +182,7 @@ export async function closeMonthlyCompetence(
   const [transactions, accounts, obligations, liabilities, investments] = await Promise.all([
     getTransactionsByOwnerAndMonth(userId, owner, month),
     getAccountsWithBalance(userId),
-    getTaxObligations(),
+    getTaxObligations(userId),
     getLiabilities(userId),
     getInvestments(userId),
   ]);

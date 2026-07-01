@@ -138,7 +138,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const snapshot = await adminDb.collection('investments').get();
+    const snapshot = await adminDb.collection('investments')
+      .where('quantity', '>', 0)
+      .get();
     const investments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Investment[];
 
     const candidates = investments.filter(

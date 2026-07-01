@@ -107,7 +107,7 @@ export default function EmpresasClient() {
         ] = await Promise.all([
           getCompanies(user.uid),
           getAccountsWithBalance(user.uid),
-          getTaxObligations(),
+          getTaxObligations(user.uid),
         ]);
 
         setCompanies(companiesResult || []);

@@ -4,6 +4,8 @@ import {
   doc,
   getDocs,
   updateDoc,
+  query,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -29,11 +31,15 @@ export type Receivable = {
 };
 
 export async function getTaxObligations(
+  userId: string,
   companyId?: string
 ): Promise<TaxObligation[]> {
-  const snap = await getDocs(
-    collection(db, "tax_obligations")
+  if (!userId) throw new Error("userId required");
+  const q = query(
+    collection(db, "tax_obligations"),
+    where("userId", "==", userId)
   );
+  const snap = await getDocs(q);
 
   const data = snap.docs.map((doc) => ({
     id: doc.id,
@@ -45,16 +51,21 @@ export async function getTaxObligations(
     : data;
 }
 
-export async function addTaxObligation(data: {
-  companyId: string;
-  name: string;
-  dueDate: string;
-  value: number;
-}) {
+export async function addTaxObligation(
+  userId: string,
+  data: {
+    companyId: string;
+    name: string;
+    dueDate: string;
+    value: number;
+  }
+) {
+  if (!userId) throw new Error("userId required");
   const docRef = await addDoc(
     collection(db, "tax_obligations"),
     {
       ...data,
+      userId,
       status: "pending",
       createdAt: new Date().toISOString(),
     }
@@ -72,11 +83,15 @@ export async function markTaxAsPaid(id: string) {
 }
 
 export async function getReceivables(
+  userId: string,
   companyId?: string
 ): Promise<Receivable[]> {
-  const snap = await getDocs(
-    collection(db, "receivables")
+  if (!userId) throw new Error("userId required");
+  const q = query(
+    collection(db, "receivables"),
+    where("userId", "==", userId)
   );
+  const snap = await getDocs(q);
 
   const data = snap.docs.map((doc) => ({
     id: doc.id,
@@ -88,16 +103,21 @@ export async function getReceivables(
     : data;
 }
 
-export async function addReceivable(data: {
-  companyId: string;
-  description: string;
-  dueDate: string;
-  value: number;
-}) {
+export async function addReceivable(
+  userId: string,
+  data: {
+    companyId: string;
+    description: string;
+    dueDate: string;
+    value: number;
+  }
+) {
+  if (!userId) throw new Error("userId required");
   const docRef = await addDoc(
     collection(db, "receivables"),
     {
       ...data,
+      userId,
       status: "pending",
       createdAt: new Date().toISOString(),
     }

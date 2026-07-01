@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PlusCircle } from 'lucide-react';
 
 import { addTaxObligation } from '@/services/firestore/fiscal';
+import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,6 +31,7 @@ type Company = {
 
 export function AddTaxObligationDialog({ companies }: { companies: Company[] }) {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [companyId, setCompanyId] = useState('');
@@ -56,7 +58,7 @@ export function AddTaxObligationDialog({ companies }: { companies: Company[] }) 
     try {
       setSaving(true);
 
-      await addTaxObligation({
+      await addTaxObligation(user?.uid || '', {
         companyId,
         name: name.trim(),
         dueDate,

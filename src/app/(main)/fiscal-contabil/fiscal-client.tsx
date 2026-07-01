@@ -22,7 +22,7 @@ export default function FiscalClient() {
       if (!user?.uid) return;
       try {
         const [obligationsResult, companiesResult] = await Promise.all([
-          getTaxObligations(),
+          getTaxObligations(user.uid),
           getCompanies(user.uid),
         ]);
 

@@ -1,6 +1,10 @@
-- [x] Backup de `tour-registry.ts`, `src/app/(main)/page.tsx` e `src/app/globals.css`
-- [x] Atualizar `tour-registry.ts` com as ~60 descriptions, referências cruzadas e o `CHAT_IA_TOUR`
-- [x] Adicionar os 3 target IDs no dashboard `src/app/(main)/page.tsx`
-- [x] Adicionar a classe `.overflow-hidden-tour-active` em `src/app/globals.css`
+- [x] Backup de todos os arquivos afetados pela refatoração
+- [x] Implementar `getHistoricalTransactions` em `transactions.ts`
+- [x] Substituir chamada em `src/services/firestore/financial-ai.ts`
+- [x] Substituir chamada em `src/app/(main)/page.tsx`
+- [x] Substituir chamada em `src/app/(main)/relatorios/page.tsx`
+- [x] Substituir chamada em `src/app/(main)/investimentos/page.tsx`
+- [x] Substituir chamada em `src/app/(main)/planejamento/page.tsx`
+- [x] Substituir chamada em `src/app/(main)/assinaturas/assinaturas-client.tsx`
 - [x] Rodar typecheck de validação
 - [x] Rodar build de produção para validação final

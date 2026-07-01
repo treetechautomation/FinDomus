@@ -75,11 +75,11 @@ export async function createAccountIdentity(
   );
 }
 
-export async function getAccountIdentities(userId?: string) {
-
+export async function getAccountIdentities(userId: string) {
+  if (!userId) throw new Error("userId required");
   const q = query(
     collection(db, 'account_identities'),
-    ...(userId ? [where('userId', '==', userId)] : []),
+    where('userId', '==', userId),
     orderBy('createdAt', 'desc')
   );
 

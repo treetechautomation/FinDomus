@@ -217,6 +217,7 @@ async function classifyInternalTransfer(
   userId?: string
 ) {
 
+  if (!userId) return null;
   const identities =
     await getAccountIdentities(userId);
 
@@ -299,7 +300,7 @@ export async function buildClassificationContext(userId?: string): Promise<Class
       console.error('Erro ao carregar categorias no contexto:', err);
       return [];
     }),
-    getAccountIdentities(userId).catch(err => {
+    (userId ? getAccountIdentities(userId) : Promise.resolve([])).catch(err => {
       console.error('Erro ao carregar identidades no contexto:', err);
       return [];
     }),
