@@ -26,7 +26,7 @@ import {
   type WealthCategory,
 } from '@/core/finance/wealth-engine';
 import { getWealthProfile, saveWealthProfile, getRecurringExpenses } from '@/services/firestore/planning';
-import { getPersonalTransactions } from '@/services/firestore/transactions';
+import { getHistoricalTransactions } from '@/services/firestore/transactions';
 import { getCategories } from '@/services/firestore/categories';
 import { getLiabilities } from '@/services/firestore/liabilities';
 import { getAccountsWithBalance } from '@/services/firestore/accounts';
@@ -127,7 +127,7 @@ export default function PlanejamentoPage() {
       try {
         const [profile, txs, liabs, recurring, cats, accs, invs] = await Promise.all([
           getWealthProfile(user.uid),
-          getPersonalTransactions(user.uid),
+          getHistoricalTransactions(user.uid, { owner: 'PF' }),
           getLiabilities(user.uid),
           getRecurringExpenses(user.uid),
           getCategories(user.uid),

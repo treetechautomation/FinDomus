@@ -37,7 +37,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatCurrency } from '@/core/finance/formatters';
 import { getDashboardReal } from '@/core/finance/dashboard-real';
 import { getMonthlyClosures } from '@/services/firestore/monthly-closures';
-import { getPersonalTransactions } from '@/services/firestore/transactions';
+import { getHistoricalTransactions } from '@/services/firestore/transactions';
 import { getWealthProfile, getRecurringExpenses } from '@/services/firestore/planning';
 import { getAccountsWithBalance } from '@/services/firestore/accounts';
 import { getInvestments } from '@/services/firestore/investments';
@@ -174,7 +174,7 @@ export default function DashboardPage() {
       .catch(console.error);
 
     Promise.all([
-      getPersonalTransactions(user.uid),
+      getHistoricalTransactions(user.uid, { owner: 'PF' }),
       getWealthProfile(user.uid),
       getAccountsWithBalance(user.uid),
       getInvestments(user.uid),

@@ -104,7 +104,9 @@ export async function getTransactions(userId: string): Promise<TransactionDTO[]>
   if (!userId) return [];
   const q = query(
     collection(db, 'transactions'),
-    where('userId', '==', userId)
+    where('userId', '==', userId),
+    orderBy('date', 'desc'),
+    limit(200)
   );
   const snap = await getDocs(q);
 
@@ -127,6 +129,40 @@ export async function getTransactions(userId: string): Promise<TransactionDTO[]>
 export async function getPersonalTransactions(userId: string) {
   const data = await getTransactions(userId);
   return data.filter((item) => item.owner === 'PF');
+}
+
+export async function getHistoricalTransactions(
+  userId: string,
+  options?: { owner?: 'PF' | 'PJ' }
+): Promise<TransactionDTO[]> {
+  if (!userId) return [];
+
+  const q = query(
+    collection(db, 'transactions'),
+    where('userId', '==', userId),
+    orderBy('date', 'desc')
+  );
+
+  const snap = await getDocs(q);
+
+  const list = snap.docs.map((doc) => {
+    const data = doc.data() as Partial<TransactionDTO>;
+    return {
+      id: doc.id,
+      ...data,
+      type: data.type || 'expense',
+      amount: Number(data.amount || 0),
+      description: data.description || '',
+      owner: data.owner || 'PF',
+      companyId: data.companyId ?? null,
+      competenceMonthKey: data.competenceMonthKey || data.monthKey,
+    } as TransactionDTO;
+  });
+
+  if (options?.owner) {
+    return list.filter((item) => item.owner === options.owner);
+  }
+  return list;
 }
 
 export async function addTransaction(userId: string, data: TransactionDTO) {
@@ -363,7 +399,8 @@ export async function getTransactionsByOwnerAndMonth(
   const q = query(
     collection(db, 'transactions'),
     where('userId', '==', userId),
-    where('owner', '==', owner)
+    where('owner', '==', owner),
+    where('monthKey', '==', monthKey)
   );
 
   const snap = await getDocs(q);

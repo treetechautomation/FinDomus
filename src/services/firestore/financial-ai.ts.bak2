@@ -1,5 +1,5 @@
 import { getFinancialAIInsights } from '@/core/finance/financial-ai-engine';
-import { getTransactions } from '@/services/firestore/transactions';
+import { getHistoricalTransactions } from '@/services/firestore/transactions';
 import { getLiabilities } from '@/services/firestore/liabilities';
 import { getRecurringExpenses, getWealthProfile } from '@/services/firestore/planning';
 import { getAccountsWithBalance } from '@/services/firestore/accounts';
@@ -19,7 +19,7 @@ export async function getFinancialAIData(userId: string) {
     wealthProfile,
     portfolio,
   ] = await Promise.all([
-    getTransactions(userId),
+    getHistoricalTransactions(userId),
     getLiabilities(userId),
     getRecurringExpenses(userId),
     getAccountsWithBalance(userId),

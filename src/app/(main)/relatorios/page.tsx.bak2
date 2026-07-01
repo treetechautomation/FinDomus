@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/providers/auth-provider";
-import { getPersonalTransactions } from "@/services/firestore/transactions";
+import { getHistoricalTransactions } from "@/services/firestore/transactions";
 import { buildPFDRE } from "@/core/finance/dre-engine";
 import { getCurrentMonthKey, getLastMonths, formatMonthLabel, isTransactionInMonth } from "@/core/finance/financial-period-engine";
 import { PfDreCard } from "@/components/relatorios/pf-dre-card";
@@ -64,7 +64,7 @@ export default function RelatoriosPage() {
     if (!user?.uid) return;
     setLoading(true);
     Promise.all([
-      getPersonalTransactions(user.uid),
+      getHistoricalTransactions(user.uid, { owner: 'PF' }),
       getWealthProfile(user.uid),
       getAccountsWithBalance(user.uid),
       getInvestments(user.uid),

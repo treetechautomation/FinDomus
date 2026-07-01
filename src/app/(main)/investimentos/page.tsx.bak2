@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getInvestments, type Investment } from "@/services/firestore/investments";
 import { getAccountsWithBalance } from "@/services/firestore/accounts";
 import { getLiabilities } from "@/services/firestore/liabilities";
-import { getPersonalTransactions } from "@/services/firestore/transactions";
+import { getHistoricalTransactions } from "@/services/firestore/transactions";
 import { getRecurringExpenses, getWealthProfile } from "@/services/firestore/planning";
 import { getMonthlyClosures } from "@/services/firestore/monthly-closures";
 import { getInvestmentYields, type InvestmentYield } from "@/services/firestore/yields";
@@ -50,7 +50,7 @@ export default function InvestimentosPage() {
       getInvestments(user.uid),
       getAccountsWithBalance(user.uid),
       getLiabilities(user.uid),
-      getPersonalTransactions(user.uid),
+      getHistoricalTransactions(user.uid, { owner: 'PF' }),
       getRecurringExpenses(user.uid),
       getWealthProfile(user.uid),
       getMonthlyClosures(user.uid, 'PF'),

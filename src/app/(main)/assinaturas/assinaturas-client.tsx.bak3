@@ -46,7 +46,7 @@ import {
   type RecurringExpense
 } from '@/services/firestore/planning';
 import { getCategories, type Category } from '@/services/firestore/categories';
-import { getTransactions, addTransaction, type TransactionDTO } from '@/services/firestore/transactions';
+import { getHistoricalTransactions, addTransaction, type TransactionDTO } from '@/services/firestore/transactions';
 import { getAccounts, type Account } from '@/services/firestore/accounts';
 import { detectRecurrence, buildMerchantFingerprint } from '@/core/finance/recurrence-engine';
 import { getCurrentMonthKey, isTransactionInMonth } from '@/core/finance/financial-period-engine';
@@ -119,7 +119,7 @@ export default function AssinaturasClient() {
       setLoading(true);
       const [expensesData, txsData, catsData, accountsData] = await Promise.all([
         getRecurringExpenses(user.uid),
-        getTransactions(user.uid),
+        getHistoricalTransactions(user.uid),
         getCategories(),
         getAccounts(user.uid)
       ]);

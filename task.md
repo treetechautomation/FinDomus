@@ -1,10 +1,5 @@
-- [x] Backup de todos os arquivos afetados pela refatoração
-- [x] Implementar `getHistoricalTransactions` em `transactions.ts`
-- [x] Substituir chamada em `src/services/firestore/financial-ai.ts`
-- [x] Substituir chamada em `src/app/(main)/page.tsx`
-- [x] Substituir chamada em `src/app/(main)/relatorios/page.tsx`
-- [x] Substituir chamada em `src/app/(main)/investimentos/page.tsx`
-- [x] Substituir chamada em `src/app/(main)/planejamento/page.tsx`
-- [x] Substituir chamada em `src/app/(main)/assinaturas/assinaturas-client.tsx`
+- [x] Backup dos arquivos antes da reversão
+- [x] Restaurar `transactions.ts` para o estado estável original
+- [x] Reverter chamadores para usar `getTransactions` / `getPersonalTransactions`
 - [x] Rodar typecheck de validação
 - [x] Rodar build de produção para validação final
