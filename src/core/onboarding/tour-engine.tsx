@@ -23,6 +23,7 @@ interface TourContextType {
   dismissedTours: string[];
   resetTours: () => void;
   syncProgress: () => Promise<void>;
+  isReady: boolean;
 }
 
 const TourContext = createContext<TourContextType | undefined>(undefined);
@@ -37,6 +38,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [completedTours, setCompletedTours] = useState<string[]>([]);
   const [dismissedTours, setDismissedTours] = useState<string[]>([]);
+  const [isReady, setIsReady] = useState<boolean>(false);
 
   // Synchronize storage and state once the user is authenticated
   const syncProgress = useCallback(async () => {
@@ -61,12 +63,16 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, [user?.uid]);
 
   useEffect(() => {
-    if (user?.uid) {
-      syncProgress();
-    } else {
-      setCompletedTours(tourStorage.getCompletedTours());
-      setDismissedTours(tourStorage.getDismissedTours());
+    async function init() {
+      if (user?.uid) {
+        await syncProgress();
+      } else {
+        setCompletedTours(tourStorage.getCompletedTours());
+        setDismissedTours(tourStorage.getDismissedTours());
+      }
+      setIsReady(true);
     }
+    init();
   }, [user?.uid, syncProgress]);
 
   const currentStep = activeTour ? activeTour.steps[currentStepIndex] : null;
@@ -84,54 +90,37 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, [activeTour, currentStepIndex, completedTours, dismissedTours, user?.uid]);
 
   const updateTargetRect = useCallback(() => {
-    if (!currentStep) {
+    if (!currentStep || !currentStep.target) {
       setTargetRect(null);
       return;
     }
 
-    // If the step is cross-page and the user is not on the correct route, do not try to select the element yet.
     if (currentStep.route && pathname !== currentStep.route) {
-      setTargetRect(null);
-      return;
-    }
-
-    if (!currentStep.target) {
       setTargetRect(null);
       return;
     }
 
     const element = document.querySelector(currentStep.target);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-      
-      // Delay to allow smooth scrolling to finish
-      setTimeout(() => {
-        const rect = element.getBoundingClientRect();
-        setTargetRect(rect);
-      }, 150);
-    } else {
-      setTargetRect(null);
+      setTargetRect(element.getBoundingClientRect());
     }
   }, [currentStep, pathname]);
 
-  // Recalculate target position on resize/scroll/route change
+  // Recalculate target position on resize/scroll
   useEffect(() => {
     if (currentStep) {
       updateTargetRect();
-      const timer = setTimeout(updateTargetRect, 400);
-
       window.addEventListener('resize', updateTargetRect);
       window.addEventListener('scroll', updateTargetRect, true);
 
       return () => {
-        clearTimeout(timer);
         window.removeEventListener('resize', updateTargetRect);
         window.removeEventListener('scroll', updateTargetRect, true);
       };
     } else {
       setTargetRect(null);
     }
-  }, [currentStep, pathname, updateTargetRect]);
+  }, [currentStep, updateTargetRect]);
 
   const startTour = useCallback((tourId: string) => {
     const tour = tourRegistry[tourId];
@@ -199,6 +188,70 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeTour, currentStepIndex, pathname, router]);
 
+  // Wait intelligently for target element in active step
+  useEffect(() => {
+    if (!activeTour || !currentStep) {
+      setTargetRect(null);
+      return;
+    }
+
+    if (currentStep.route && pathname !== currentStep.route) {
+      setTargetRect(null);
+      return;
+    }
+
+    if (!currentStep.target) {
+      setTargetRect(null);
+      console.log("Tour iniciado");
+      console.log(activeTour);
+      console.log(currentStep);
+      console.log(currentStep.target);
+      return;
+    }
+
+    console.log("Tour iniciado");
+    console.log(activeTour);
+    console.log(currentStep);
+    console.log(currentStep.target);
+
+    let isCancelled = false;
+    const startTime = Date.now();
+
+    function checkElement() {
+      if (isCancelled) return;
+
+      const element = document.querySelector(currentStep!.target);
+      if (element) {
+        console.log("Target encontrado");
+        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        
+        // Delay to allow smooth scrolling to finish
+        setTimeout(() => {
+          if (isCancelled) return;
+          const rect = element.getBoundingClientRect();
+          setTargetRect(rect);
+        }, 150);
+      } else {
+        console.log("Target não encontrado");
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 8000) {
+          requestAnimationFrame(() => {
+            setTimeout(checkElement, 200);
+          });
+        } else {
+          console.warn(`Target não encontrado após 8 segundos: ${currentStep!.target}. Pulando passo.`);
+          nextStep();
+        }
+      }
+    }
+
+    checkElement();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeTour, currentStep, pathname, nextStep]);
+
   const resetTours = useCallback(() => {
     tourStorage.resetAllTours(user?.uid);
     setCompletedTours([]);
@@ -225,6 +278,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         dismissedTours,
         resetTours,
         syncProgress,
+        isReady,
       }}
     >
       {children}

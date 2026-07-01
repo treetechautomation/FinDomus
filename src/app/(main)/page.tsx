@@ -120,7 +120,7 @@ export default function DashboardPage() {
   const { result: kernel } = useFinancialKernel(context);
   const [hasNoData, setHasNoData] = useState<boolean>(false);
   const { showFinancialValues } = useVisibility();
-  const { startTour, completedTours, dismissedTours } = useTour();
+  const { startTour, completedTours, dismissedTours, isReady } = useTour();
 
   const freedomData = kernel ? {
     index: kernel.freedom.index,
@@ -206,7 +206,7 @@ export default function DashboardPage() {
 
   // Autostart do tour na primeira visita ao dashboard
   useEffect(() => {
-    if (dashboard) {
+    if (dashboard && isReady) {
       const isMainTourSeen = completedTours.includes(MAIN_TOUR_ID) || dismissedTours.includes(MAIN_TOUR_ID);
       if (!isMainTourSeen) {
         const timer = setTimeout(() => {
@@ -215,7 +215,7 @@ export default function DashboardPage() {
         return () => clearTimeout(timer);
       }
     }
-  }, [dashboard, completedTours, dismissedTours, startTour]);
+  }, [dashboard, completedTours, dismissedTours, startTour, isReady]);
 
   if (!dashboard) {
     return <DashboardSkeleton />;
