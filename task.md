@@ -12,3 +12,4 @@
 - [x] Correção 7 — Badge colorido por tipo de conta no contas/page.tsx
 - [x] Correção 8 — Link para simulações e botão "Simular Conta" no contas/page.tsx
 - [x] Correção 9 — Máscara monetária centesimal real no input de saldo do edit-account-dialog.tsx
+- [x] FP.19 — Paleta Monocromática Refinada (Substituição de teal por primary, bordas tonais e badges de owner consistentes)
