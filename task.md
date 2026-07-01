@@ -1,9 +1,6 @@
-- [ ] Criar a função getBankAvatar() e atualizar estilos na visualização de contas (`contas/page.tsx`)
-- [ ] Estilizar os cards de métricas superiores (Saldo, Reserva, Freedom Index) (`contas/page.tsx`)
-- [ ] Estilizar os headers dos contêineres PF/PJ (`contas/page.tsx`)
-- [ ] Estilizar os cards de linha de conta individuais (`contas/page.tsx`)
-- [ ] Adicionar estado vazio premium (`contas/page.tsx`)
-- [ ] Estilizar o gatilho de Adicionar Conta (`new-account-dialog.tsx`)
-- [ ] Estilizar o gatilho de Editar Conta (`edit-account-dialog.tsx`)
-- [ ] Executar typecheck de validação
-- [ ] Executar build de produção para homologar
+- [x] Backup de `tour-registry.ts`, `src/app/(main)/page.tsx` e `src/app/globals.css`
+- [x] Atualizar `tour-registry.ts` com as ~60 descriptions, referências cruzadas e o `CHAT_IA_TOUR`
+- [x] Adicionar os 3 target IDs no dashboard `src/app/(main)/page.tsx`
+- [x] Adicionar a classe `.overflow-hidden-tour-active` em `src/app/globals.css`
+- [x] Rodar typecheck de validação
+- [x] Rodar build de produção para validação final

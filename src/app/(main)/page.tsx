@@ -264,7 +264,7 @@ export default function DashboardPage() {
       {/* Abas dinâmicas de Divulgação Progressiva */}
       <Tabs defaultValue="copiloto" className="w-full space-y-6 focus-visible:outline-none">
         <div className="border-b border-zinc-900/40 pb-1">
-          <TabsList className="grid w-full grid-cols-3 bg-zinc-950 border border-zinc-900/60 rounded-2xl p-1 h-auto max-w-[500px]">
+          <TabsList id="tour-step-dashboard-actions" className="grid w-full grid-cols-3 bg-zinc-950 border border-zinc-900/60 rounded-2xl p-1 h-auto max-w-[500px]">
             <TabsTrigger value="copiloto" className="rounded-xl py-2.5 font-bold text-xs uppercase tracking-wider">Copiloto</TabsTrigger>
             <TabsTrigger value="patrimonio" className="rounded-xl py-2.5 font-bold text-xs uppercase tracking-wider">Patrimônio</TabsTrigger>
             <TabsTrigger value="caixa" className="rounded-xl py-2.5 font-bold text-xs uppercase tracking-wider">Caixa & DRE</TabsTrigger>
@@ -300,7 +300,7 @@ export default function DashboardPage() {
         {/* Aba 2: Patrimônio */}
         <TabsContent value="patrimonio" className="space-y-6 focus-visible:outline-none animate-in fade-in duration-300">
           {dashboard.netWorth && (
-            <div className="space-y-6">
+            <div id="tour-step-dashboard-summary" className="space-y-6">
               <Card id="tour-step-dashboard" className="rounded-3xl border border-slate-800/40 bg-slate-950/70 backdrop-blur-md shadow-[0_0_50px_rgba(6,182,212,0.02)] transition-all duration-300 overflow-hidden relative group">
                 <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/[0.02] to-transparent pointer-events-none" />
                 <CardHeader className="pb-2">
@@ -437,9 +437,11 @@ export default function DashboardPage() {
                 </Card>
               )}
 
-              <FinancialSection>
-                <NetworthEvolutionChart data={netWorthHistory} />
-              </FinancialSection>
+              <div id="tour-step-dashboard-chart">
+                <FinancialSection>
+                  <NetworthEvolutionChart data={netWorthHistory} />
+                </FinancialSection>
+              </div>
 
               <FinancialSection>
                 <ConsolidatedBalance data={dashboard.allocation} />

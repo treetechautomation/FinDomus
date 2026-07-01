@@ -103,3 +103,7 @@
 .market-ticker-track:hover {
   animation-play-state: paused;
 }
+
+.overflow-hidden-tour-active {
+  overflow: hidden !important;
+}
