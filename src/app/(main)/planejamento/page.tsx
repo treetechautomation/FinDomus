@@ -402,16 +402,18 @@ export default function PlanejamentoPage() {
           <TabsTrigger value="metas">Minhas metas</TabsTrigger>
         </TabsList>
         <TabsContent value="visao" className="space-y-6">
-          <PlanningOverviewCards
-            monthlyIncome={monthlyIncome}
-            monthlyExpenses={monthlyExpenses}
-            monthlyLiabilities={monthlyLiabilities}
-            freedomIndex={freedom?.index?.freedomIndex ?? 0}
-            freedomLevel={freedom?.index?.levelLabel ?? ""}
-            freedomIcon={freedom?.index?.levelIcon ?? "🌱"}
-            reserve={reserve ?? null}
-            brl={brl}
-          />
+          <div id="tour-step-plan-profile">
+            <PlanningOverviewCards
+              monthlyIncome={monthlyIncome}
+              monthlyExpenses={monthlyExpenses}
+              monthlyLiabilities={monthlyLiabilities}
+              freedomIndex={freedom?.index?.freedomIndex ?? 0}
+              freedomLevel={freedom?.index?.levelLabel ?? ""}
+              freedomIcon={freedom?.index?.levelIcon ?? "🌱"}
+              reserve={reserve ?? null}
+              brl={brl}
+            />
+          </div>
 
           <PlanningAlertCard 
             insights={ai?.insights ?? []} 
@@ -433,10 +435,12 @@ export default function PlanejamentoPage() {
             />
           )}
           
-          <PlanningInvestmentOpportunityCard
-            actions={freedom?.actions ?? []}
-            brl={brl}
-          />
+          <div id="tour-step-plan-simulator">
+            <PlanningInvestmentOpportunityCard
+              actions={freedom?.actions ?? []}
+              brl={brl}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="orcamento" className="space-y-6">
@@ -467,7 +471,7 @@ export default function PlanejamentoPage() {
               </div>
             </div>
           </div>
-          <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+          <div id="tour-step-plan-orcamento" className="grid gap-6 xl:grid-cols-[380px_1fr]">
             <BudgetExpensesChartCard
               expensesChartData={expensesChartData}
               plannedChartData={plannedChartData}
@@ -484,7 +488,7 @@ export default function PlanejamentoPage() {
         </TabsContent>
 
           <TabsContent value="metas" className="space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+            <div id="tour-step-plan-metas" className="grid gap-6 xl:grid-cols-[380px_1fr]">
               <PlanningGoalsChartCard
                 total={total}
                 categories={categories}
@@ -503,7 +507,7 @@ export default function PlanejamentoPage() {
                 canSave={canSave}
                 saving={saving}
               />
-          </div>
+            </div>
 
           <Card className={canSave ? 'border-emerald-500/30' : 'border-amber-500/40'}>
             <CardHeader>

@@ -548,7 +548,7 @@ export default function AssinaturasClient() {
               Simular Redução
             </Button>
           </Link>
-          <Button onClick={handleOpenCreate} className="bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-[0_0_20px_rgba(219,39,119,0.25)] transition-all">
+          <Button id="tour-step-assinaturas-adicionar" onClick={handleOpenCreate} className="bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-[0_0_20px_rgba(219,39,119,0.25)] transition-all">
             <Plus className="mr-2 h-4 w-4" />
             Novo Custos/Fixos
           </Button>
@@ -558,7 +558,7 @@ export default function AssinaturasClient() {
       {/* Metrics Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Cost Card */}
-        <Card className="border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
+        <Card id="tour-step-assinaturas-total" className="border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-3 text-pink-500/10 group-hover:text-pink-500/20 transition-colors">
             <RefreshCw className="h-24 w-24 -mr-6 -mt-6" />
           </div>
@@ -615,7 +615,7 @@ export default function AssinaturasClient() {
         </Card>
 
         {/* Impacto no Orçamento Card */}
-        <Card className={`border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group transition-all duration-300 ${
+        <Card id="tour-step-assinaturas-impacto" className={`border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group transition-all duration-300 ${
           monthlyIncome > 0 && totals.pfTotal / monthlyIncome > 0.5 ? 'border-amber-500/30' : ''
         }`}>
           <div className="absolute top-0 right-0 p-3 text-amber-500/10 group-hover:text-amber-500/20 transition-colors">
@@ -699,7 +699,7 @@ export default function AssinaturasClient() {
                   </Button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div id="tour-step-assinaturas-calendario" className="overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow className="hover:bg-transparent">

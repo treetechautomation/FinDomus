@@ -534,6 +534,7 @@ export function Importer() {
                   </div>
                 )}
                 <div 
+                  id="tour-step-import-upload"
                   {...getRootProps()} 
                   className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
                     isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
@@ -587,6 +588,7 @@ export function Importer() {
                 {file && (
                   <div className="flex gap-2">
                     <Button 
+                      id="tour-step-import-ofx"
                       className="flex-1" 
                       onClick={processFile} 
                       disabled={isProcessing || (pdfNeedsPassword && !pdfPassword)}
@@ -603,6 +605,15 @@ export function Importer() {
             </Card>
 
             <div className="space-y-4">
+              <Card id="tour-step-import-rules">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-bold">Regras de Classificação (IA)</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground">
+                  A IA do FinDomus aprende com suas classificações. Sempre que você atualiza a categoria de um lançamento, criamos regras automáticas para simplificar seus próximos envios.
+                </CardContent>
+              </Card>
+
               <Alert>
                 <ShieldCheck className="h-4 w-4" />
                 <AlertTitle>Privacidade Garantida</AlertTitle>

@@ -1,15 +1,9 @@
-- [x] Backup dos arquivos kernel.admin.ts e financial-advisor.ts
-- [x] Atualizar `src/services/firestore/kernel.admin.ts` para retornar os campos do KernelContext bruto (transactions, recurringExpenses, wealthProfile...)
-- [x] Refatorar `src/ai/flows/financial-advisor.ts` para expurgar services client-side e usar loadKernelContextAdmin
-- [x] Executar typecheck de verificação
-- [x] Executar build de verificação final
-- [x] Correção 1 — Select de tipo na criação no new-account-dialog.tsx
-- [x] Correção 2 — alert() → useToast no new-account-dialog.tsx
-- [x] Correção 3 — router.refresh() → callback onSuccess no new-account-dialog.tsx, edit-account-dialog.tsx e contas/page.tsx
-- [x] Correção 4 — Card Reserva de Emergência no contas/page.tsx
-- [x] Correção 5 — Card Impacto no Freedom Index com círculo progressivo SVG no contas/page.tsx
-- [x] Correção 6 — Filtrar account_identities por userId e atualizar chamadas no transaction-classifier.ts e configuracoes-client.tsx
-- [x] Correção 7 — Badge colorido por tipo de conta no contas/page.tsx
-- [x] Correção 8 — Link para simulações e botão "Simular Conta" no contas/page.tsx
-- [x] Correção 9 — Máscara monetária centesimal real no input de saldo do edit-account-dialog.tsx
-- [x] FP.19 — Paleta Monocromática Refinada (Substituição de teal por primary, bordas tonais e badges de owner consistentes)
+- [ ] Criar a função getBankAvatar() e atualizar estilos na visualização de contas (`contas/page.tsx`)
+- [ ] Estilizar os cards de métricas superiores (Saldo, Reserva, Freedom Index) (`contas/page.tsx`)
+- [ ] Estilizar os headers dos contêineres PF/PJ (`contas/page.tsx`)
+- [ ] Estilizar os cards de linha de conta individuais (`contas/page.tsx`)
+- [ ] Adicionar estado vazio premium (`contas/page.tsx`)
+- [ ] Estilizar o gatilho de Adicionar Conta (`new-account-dialog.tsx`)
+- [ ] Estilizar o gatilho de Editar Conta (`edit-account-dialog.tsx`)
+- [ ] Executar typecheck de validação
+- [ ] Executar build de produção para homologar

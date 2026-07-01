@@ -71,7 +71,7 @@ export default function PassivosPage() {
 </div>
         </div>
 
-      <Card>
+      <Card id="tour-step-passivos-resumo">
         <CardHeader>
             <CardTitle>Resumo dos Passivos</CardTitle>
         </CardHeader>
@@ -98,7 +98,7 @@ export default function PassivosPage() {
         </CardContent>
       </Card>
       
-        <Card>
+        <Card id="tour-step-passivos-previsao">
           <CardHeader>
             <CardTitle>Previsão dos Próximos Meses</CardTitle>
             <CardDescription>
@@ -146,7 +146,7 @@ export default function PassivosPage() {
         </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {activeLiabilities.map((item) => {
+        {activeLiabilities.map((item, index) => {
               const remainingInstallments = getRemainingInstallments(item);
             const progress = Number(item.totalInstallments || 0) > 0 ? (Number(item.currentInstallment || 0) / Number(item.totalInstallments || 0)) * 100 : 0;
               const progressColor =
@@ -160,7 +160,7 @@ export default function PassivosPage() {
             const endLabel = endDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
 
             return (
-          <Card key={item.id}>
+          <Card key={item.id} id={index === 0 ? "tour-step-passivos-item" : undefined}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-lg">
                 {item.name}
@@ -174,7 +174,7 @@ export default function PassivosPage() {
             <CardContent className="space-y-4">
               <div>
                 <div className="flex justify-between items-end mb-1">
-                  <span className="text-lg font-bold text-negative">
+                   <span className="text-lg font-bold text-negative">
                     {item.installmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
                   <span className="text-sm font-medium text-muted-foreground">
@@ -189,7 +189,7 @@ export default function PassivosPage() {
               </div>
               <div className="pt-2 border-t border-slate-800/10">
                 <Link href={`/?simulate=payoff_debt&id=${item.id}`}>
-                  <button className="w-full text-center py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-xs font-bold text-cyan-400 transition-all">
+                  <button id={index === 0 ? "tour-step-passivos-simular" : undefined} className="w-full text-center py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-xs font-bold text-cyan-400 transition-all">
                     Simular Amortização
                   </button>
                 </Link>

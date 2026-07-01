@@ -173,6 +173,7 @@ export default function RelatoriosPage() {
         </div>
 
         <Button
+          id="tour-step-report-exportar"
           onClick={() => window.print()}
           className="bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white rounded-xl px-4 py-2 text-xs flex items-center gap-1.5 font-semibold"
         >
@@ -181,7 +182,7 @@ export default function RelatoriosPage() {
         </Button>
       </div>
 
-      <Card>
+      <Card id="tour-step-report-filtro">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <CardTitle>Filtros</CardTitle>
@@ -236,7 +237,7 @@ export default function RelatoriosPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : reportType === "pessoal-dre" ? (
-        <div className="grid gap-6">
+        <div id="tour-step-report-dre" className="grid gap-6">
           <PfDreCard 
             dre={drePF} 
             report={wealthReport} 

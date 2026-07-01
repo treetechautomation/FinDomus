@@ -437,7 +437,7 @@ export function InvestmentWallet({
       </div>
 
       {/* Grid de Cards de Estatísticas com Freedom Index e Reserva de Emergência */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+      <div id="tour-step-invest-wallet" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
         <StatCard
           title="Proventos do Mês"
           value={money(yieldMetrics.totalCurrentMonth)}
@@ -575,12 +575,14 @@ export function InvestmentWallet({
             <span className="relative">METAS</span>
           </TabsTrigger>
           <TabsTrigger 
+            id="tour-step-invest-aportes"
             value="aportar"
             className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
           >
             <span className="relative">APORTAR</span>
           </TabsTrigger>
           <TabsTrigger 
+            id="tour-step-invest-proventos"
             value="proventos"
             className="data-[state=active]:bg-transparent data-[state=active]:text-cyan-300 data-[state=active]:shadow-[inset_0_-2px_0_2px_#22d3ee] rounded-t-md px-5 py-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 ease-out data-[state=active]:duration-200"
           >
@@ -609,31 +611,33 @@ export function InvestmentWallet({
 
         {activeTab === 'ativos' && (
           <TabsContent value="ativos" className="space-y-8">
-            <InvestmentAtivosTab
-              search={search}
-              setSearch={setSearch}
-              editingTicker={editingTicker}
-              setEditingTicker={setEditingTicker}
-              prefillAporte={prefillAporte}
-              prefillTicker={prefillTicker}
-              setPrefillTicker={setPrefillTicker}
-              assets={assets}
-              netWorth={netWorth}
-              wealthScore={wealthScore}
-              wealthStatus={wealthStatus}
-              activeLiabilityBalance={activeLiabilityBalance}
-              monthlyDebtPayment={monthlyDebtPayment}
-              wealthRecommendation={wealthRecommendation}
-              classes={classes}
-              filter={filter}
-              setFilter={setFilter}
-              filteredAssets={filteredAssets}
-              total={total}
-              distribution={distribution}
-              money={money}
-              getTypeLabel={getTypeLabel}
-              getTypeBadgeStyle={getTypeBadgeStyle}
-            />
+            <div id="tour-step-invest-distribution">
+              <InvestmentAtivosTab
+                search={search}
+                setSearch={setSearch}
+                editingTicker={editingTicker}
+                setEditingTicker={setEditingTicker}
+                prefillAporte={prefillAporte}
+                prefillTicker={prefillTicker}
+                setPrefillTicker={setPrefillTicker}
+                assets={assets}
+                netWorth={netWorth}
+                wealthScore={wealthScore}
+                wealthStatus={wealthStatus}
+                activeLiabilityBalance={activeLiabilityBalance}
+                monthlyDebtPayment={monthlyDebtPayment}
+                wealthRecommendation={wealthRecommendation}
+                classes={classes}
+                filter={filter}
+                setFilter={setFilter}
+                filteredAssets={filteredAssets}
+                total={total}
+                distribution={distribution}
+                money={money}
+                getTypeLabel={getTypeLabel}
+                getTypeBadgeStyle={getTypeBadgeStyle}
+              />
+            </div>
           </TabsContent>
         )}
 

@@ -498,8 +498,10 @@ return (
 
         <div className="flex items-center gap-2">
           <MonthFilter currentMonth={selectedMonth} />
-          <NewTransactionDialog />
-          <Link href="/importacoes">
+          <div id="tour-step-pessoal-novo">
+            <NewTransactionDialog />
+          </div>
+          <Link href="/importacoes" id="tour-step-pessoal-importar">
             <Button variant="outline" size="sm" className="h-9 rounded-xl">
               Importar Extrato
             </Button>
@@ -507,7 +509,7 @@ return (
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div id="tour-step-pessoal-stats" className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
 
           title="Receitas do Mês"
@@ -544,7 +546,7 @@ return (
             variant={accumulatedBalance >= 0 ? 'positive' : 'negative'}
           />
       </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div id="tour-step-pessoal-fechar" className="flex flex-wrap items-center gap-2">
           <div className="rounded-full border px-3 py-1 text-xs font-medium">
             Status do mês: {monthClosure?.status || "OPEN"}
           </div>
@@ -655,7 +657,7 @@ return (
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2 mt-6">
-          <div className="space-y-3">
+          <div id="tour-step-pessoal-tabela" className="space-y-3">
             <PersonalTransactionsTable
               title="Lançamentos Recentes: Despesas"
               description="Últimas despesas pessoais/familiares no período selecionado."
@@ -689,12 +691,14 @@ return (
             </div>
           </div>
 
-          <CategorySpendingChart
-            data={categoryChartData}
-            selectedCategory={activeCategory}
-            month={selectedMonth}
-            mode={mode}
-          />
+          <div id="tour-step-pessoal-grafico">
+            <CategorySpendingChart
+              data={categoryChartData}
+              selectedCategory={activeCategory}
+              month={selectedMonth}
+              mode={mode}
+            />
+          </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2">

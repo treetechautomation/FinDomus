@@ -82,7 +82,7 @@ export default function CalculadorasPage() {
         </div>
       </div>
 
-      <Card className="overflow-hidden border-primary/20 bg-card/70">
+      <Card id="tour-step-calc-milhao" className="overflow-hidden border-primary/20 bg-card/70">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <Calculator className="h-5 w-5 text-primary" />
@@ -115,22 +115,30 @@ export default function CalculadorasPage() {
         <p className="text-muted-foreground">Explore ferramentas para planejamento financeiro.</p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        {calculators.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <Card className="group h-full cursor-pointer border-border/70 bg-card/70 transition hover:-translate-y-1 hover:border-primary hover:shadow-lg">
-              <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-                <div className={`rounded-2xl ${item.bg} p-4 ${item.color} transition group-hover:scale-110`}>
-                  <item.icon className="h-7 w-7" />
-                </div>
-                <div>
-                  <div className="font-bold">{item.title}</div>
-                  <p className="mt-2 text-xs text-muted-foreground">{item.description}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <div id="tour-step-calc-hub" className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+        {calculators.map((item) => {
+          let itemSelectorId: string | undefined = undefined;
+          if (item.title.toLowerCase().includes('juros')) {
+            itemSelectorId = 'tour-step-calc-juros';
+          } else if (item.title.toLowerCase().includes('aposentadoria')) {
+            itemSelectorId = 'tour-step-calc-aposentadoria';
+          }
+          return (
+            <Link key={item.href} href={item.href} id={itemSelectorId}>
+              <Card className="group h-full cursor-pointer border-border/70 bg-card/70 transition hover:-translate-y-1 hover:border-primary hover:shadow-lg">
+                <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+                  <div className={`rounded-2xl ${item.bg} p-4 ${item.color} transition group-hover:scale-110`}>
+                    <item.icon className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <div className="font-bold">{item.title}</div>
+                    <p className="mt-2 text-xs text-muted-foreground">{item.description}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       <Card className="border-destructive/30 bg-destructive/5">

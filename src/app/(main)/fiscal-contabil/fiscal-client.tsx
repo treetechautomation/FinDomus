@@ -71,7 +71,7 @@ export default function FiscalClient() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Card id="tour-step-fiscal-obrigacoes">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-muted-foreground" />
@@ -86,7 +86,7 @@ export default function FiscalClient() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="tour-step-fiscal-dashboard">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-muted-foreground" />
@@ -106,7 +106,7 @@ export default function FiscalClient() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="tour-step-fiscal-empresa">
           <CardHeader>
             <CardTitle>Contador</CardTitle>
             <CardDescription>Informações e contato do seu contador.</CardDescription>

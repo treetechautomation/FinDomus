@@ -130,7 +130,7 @@ export function EditAccountDialog({ account, onSuccess }: { account: AccountLike
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary hover:text-background transition-all duration-300">
           <Pencil className="mr-2 h-4 w-4" />
           Editar
         </Button>

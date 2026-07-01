@@ -71,7 +71,7 @@ export function NewAccountDialog({ onSuccess }: { onSuccess?: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="mt-4">
+        <Button variant="outline" className="border-primary/30 text-primary hover:bg-primary hover:text-background transition-all duration-300">
           <PlusCircle className="mr-2 h-4 w-4" />
           Adicionar Conta
         </Button>

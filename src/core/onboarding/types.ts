@@ -7,6 +7,7 @@ export interface TourStep {
   target: string; // Seletor CSS (ex: '#tour-step-dashboard' ou vazia/body para centro)
   placement: TourStepPlacement;
   order: number;
+  route?: string;
 }
 
 export interface Tour {

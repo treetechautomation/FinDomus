@@ -105,9 +105,9 @@ export function AiChatWidget() {
   if (!isOpen) {
     return (
       <Button
+        id="tour-step-chat-botao"
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-gradient-to-tr from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20 text-white flex items-center justify-center border border-amber-400/30 transition-all duration-300 hover:scale-110 z-50 animate-bounce"
-        id="ai-chat-trigger"
       >
         <Sparkles className="h-6 w-6 animate-pulse" />
       </Button>
@@ -187,6 +187,27 @@ export function AiChatWidget() {
                   </div>
                 </div>
               ))}
+              {messages.length === 1 && !isLoading && (
+                <div id="tour-step-chat-exemplo" className="mt-4 pt-2 space-y-2">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Sugestões de perguntas:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Qual é o meu patrimônio líquido atual?',
+                      'Quanto gastei com alimentação este mês?',
+                      'Como posso acelerar minha independência?',
+                    ].map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setInput(q)}
+                        className="text-[10px] text-zinc-400 bg-slate-900 hover:bg-slate-800 hover:text-zinc-200 border border-white/5 rounded-lg px-2.5 py-1 text-left transition-colors"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {isLoading && (
                 <div className="flex gap-3 max-w-[80%]">
                   <div className="h-7 w-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
@@ -209,6 +230,7 @@ export function AiChatWidget() {
           {/* Footer form */}
           <form onSubmit={handleSend} className="p-3 border-t border-white/5 bg-slate-950 flex gap-2">
             <Input
+              id="tour-step-chat-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Pergunte sobre seus saldos ou gastos..."

@@ -238,7 +238,7 @@ export default function ReservaPage() {
       {/* Simulação Layout Split (Cenário A e B) */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Coluna Cenário A */}
-        <Card className={`border-zinc-800/80 bg-zinc-950/40 backdrop-blur-xl ${isComparing ? 'border-amber-500/10' : ''}`}>
+        <Card id="tour-step-reserva-params" className={`border-zinc-800/80 bg-zinc-950/40 backdrop-blur-xl ${isComparing ? 'border-amber-500/10' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
               <Shield className="h-5 w-5 text-amber-500" />
@@ -320,7 +320,7 @@ export default function ReservaPage() {
       </div>
 
       {/* Resultados/Outputs Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div id="tour-step-reserva-resultado" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Reserva Ideal */}
         <Card className="border-zinc-800 bg-zinc-950/20">
           <CardHeader className="py-4">
@@ -390,7 +390,7 @@ export default function ReservaPage() {
       </div>
 
       {/* Gráfico Comparativo */}
-      <Card className="border-zinc-800 bg-zinc-950/40 backdrop-blur-xl">
+      <Card id="tour-step-reserva-cenarios" className="border-zinc-800 bg-zinc-950/40 backdrop-blur-xl">
         <CardHeader>
           <CardTitle className="text-white text-base">Evolução e Comparação da Reserva</CardTitle>
           <CardDescription className="text-zinc-400">Visualização lado a lado da reserva atual vs. meta ideal.</CardDescription>
@@ -410,7 +410,7 @@ export default function ReservaPage() {
 
       {/* Seção 1: Breakdown de Liquidez (dados do kernel) */}
       {kernelData && (
-        <Card className="border-zinc-800 bg-zinc-950/40 backdrop-blur-xl">
+        <Card id="tour-step-reserva-breakdown" className="border-zinc-800 bg-zinc-950/40 backdrop-blur-xl">
           <CardHeader className="py-4 cursor-pointer select-none" onClick={() => setShowBreakdown(!showBreakdown)}>
             <div className="flex items-center justify-between">
               <CardTitle className="text-white text-base flex items-center gap-2">

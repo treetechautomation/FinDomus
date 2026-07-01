@@ -331,13 +331,15 @@ export default function EmpresasClient() {
 
         <div className="flex items-center gap-2">
           {companies.length > 0 && (
-            <CompanyFilter companies={companies} selectedCompanyId={selectedCompanyId} />
+            <div id="tour-step-empresas-selector">
+              <CompanyFilter companies={companies} selectedCompanyId={selectedCompanyId} />
+            </div>
           )}
           <NewCompanyDialog onSuccess={() => setRefreshTrigger(k => k + 1)} />
         </div>
       </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div id="tour-step-empresas-stats" className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <StatCard title="Saldo Inicial" value={money(openingBalance)} icon={Banknote} />
           <StatCard title="Entradas do Mês" value={money(cashInflow)} icon={ArrowUp} variant="positive" />
           <StatCard title="Saídas do Mês" value={money(cashOutflow)} icon={ArrowDown} variant="negative" />
@@ -346,7 +348,7 @@ export default function EmpresasClient() {
         </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
+        <Card id="tour-step-empresas-contas">
           <CardHeader>
             <CardTitle>Contas da Empresa</CardTitle>
             <CardDescription>Contas PJ vinculadas à empresa selecionada.</CardDescription>
@@ -370,7 +372,7 @@ export default function EmpresasClient() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card id="tour-step-empresas-extrato" className="lg:col-span-2">
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -496,7 +498,7 @@ export default function EmpresasClient() {
         </Card>
       </div>
 
-      <Card>
+      <Card id="tour-step-empresas-fiscal">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-muted-foreground" />
