@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
 
 import { getCompanies, updateAccount } from '@/services/firestore/accounts';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/hooks/use-toast';
+import { formatCurrencyInput, parseCurrencyInput } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -33,18 +34,29 @@ type AccountLike = {
   balance?: number;
 };
 
-export function EditAccountDialog({ account }: { account: AccountLike }) {
+export function EditAccountDialog({ account, onSuccess }: { account: AccountLike; onSuccess?: () => void }) {
   const { user } = useAuth();
-  const router = useRouter();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(account.name);
   const [accountType, setAccountType] = useState(account.type);
   const [owner, setOwner] = useState<'PF' | 'PJ'>(account.owner);
   const [companyId, setCompanyId] = useState(account.companyId ?? '');
-  const [balance, setBalance] = useState(String(account.balance ?? 0));
+  const [balanceRaw, setBalanceRaw] = useState(Math.round((account.balance ?? 0) * 100).toString());
   const [companies, setCompanies] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Sync state when account prop changes or dialog reopens
+  useEffect(() => {
+    if (open) {
+      setName(account.name);
+      setAccountType(account.type);
+      setOwner(account.owner);
+      setCompanyId(account.companyId ?? '');
+      setBalanceRaw(Math.round((account.balance ?? 0) * 100).toString());
+    }
+  }, [open, account]);
 
   useEffect(() => {
     async function loadCompanies() {
@@ -69,15 +81,23 @@ export function EditAccountDialog({ account }: { account: AccountLike }) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const numericBalance = Number(balance.replace(',', '.'));
+    const numericBalance = parseCurrencyInput(balanceRaw);
 
     if (!name.trim()) {
-      alert('Informe o nome da conta.');
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Informe o nome da conta.',
+        variant: 'destructive',
+      });
       return;
     }
 
     if (owner === 'PJ' && !companyId) {
-      alert('Selecione a empresa da conta PJ.');
+      toast({
+        title: 'Empresa obrigatória',
+        description: 'Selecione a empresa da conta PJ.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -94,10 +114,14 @@ export function EditAccountDialog({ account }: { account: AccountLike }) {
       });
 
       setOpen(false);
-      router.refresh();
-    } catch (error) {
+      onSuccess?.();
+    } catch (error: any) {
       console.error('Erro ao editar conta:', error);
-      alert('Não foi possível editar a conta.');
+      toast({
+        title: 'Erro ao editar conta',
+        description: error.message || 'Não foi possível editar a conta.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }
@@ -124,6 +148,7 @@ export function EditAccountDialog({ account }: { account: AccountLike }) {
               id="edit-account-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              required
             />
           </div>
 
@@ -180,9 +205,9 @@ export function EditAccountDialog({ account }: { account: AccountLike }) {
             <Label htmlFor="edit-account-balance">Saldo</Label>
             <Input
               id="edit-account-balance"
-              inputMode="decimal"
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
+              value={balanceRaw ? formatCurrencyInput(balanceRaw) : ''}
+              onChange={(e) => setBalanceRaw(e.target.value.replace(/\D/g, ''))}
+              placeholder="R$ 0,00"
             />
           </div>
 

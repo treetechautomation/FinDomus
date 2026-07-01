@@ -3,3 +3,12 @@
 - [x] Refatorar `src/ai/flows/financial-advisor.ts` para expurgar services client-side e usar loadKernelContextAdmin
 - [x] Executar typecheck de verificação
 - [x] Executar build de verificação final
+- [x] Correção 1 — Select de tipo na criação no new-account-dialog.tsx
+- [x] Correção 2 — alert() → useToast no new-account-dialog.tsx
+- [x] Correção 3 — router.refresh() → callback onSuccess no new-account-dialog.tsx, edit-account-dialog.tsx e contas/page.tsx
+- [x] Correção 4 — Card Reserva de Emergência no contas/page.tsx
+- [x] Correção 5 — Card Impacto no Freedom Index com círculo progressivo SVG no contas/page.tsx
+- [x] Correção 6 — Filtrar account_identities por userId e atualizar chamadas no transaction-classifier.ts e configuracoes-client.tsx
+- [x] Correção 7 — Badge colorido por tipo de conta no contas/page.tsx
+- [x] Correção 8 — Link para simulações e botão "Simular Conta" no contas/page.tsx
+- [x] Correção 9 — Máscara monetária centesimal real no input de saldo do edit-account-dialog.tsx

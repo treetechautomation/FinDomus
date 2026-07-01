@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { PlusCircle } from 'lucide-react';
 
 import { addAccount } from '@/services/firestore/accounts';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,20 +18,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-export function NewAccountDialog() {
+export function NewAccountDialog({ onSuccess }: { onSuccess?: () => void }) {
   const { user } = useAuth();
-  const router = useRouter();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-    const [owner, setOwner] = useState<'PF' | 'PJ'>('PF');
+  const [type, setType] = useState('checking');
+  const [owner, setOwner] = useState<'PF' | 'PJ'>('PF');
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: any) {
     e.preventDefault();
 
     if (!name) {
-      alert('Informe o nome da conta.');
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Informe o nome da conta.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -39,21 +44,25 @@ export function NewAccountDialog() {
       setSaving(true);
       if (!user?.uid) throw new Error("Usuário não autenticado.");
 
-        await addAccount(user.uid, {
-          name,
-          type: "checking",
-          owner,
-          balance: 0,
-        });
+      await addAccount(user.uid, {
+        name,
+        type,
+        owner,
+        balance: 0,
+      });
 
       setOpen(false);
       setName('');
-      // setBank removido
-
-      router.refresh();
-    } catch (err) {
+      setType('checking');
+      setOwner('PF');
+      onSuccess?.();
+    } catch (err: any) {
       console.error(err);
-      alert('Erro ao salvar conta');
+      toast({
+        title: 'Erro ao salvar conta',
+        description: err.message || 'Houve um erro ao registrar a conta.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }
@@ -76,10 +85,25 @@ export function NewAccountDialog() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label>Nome</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Input value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
 
-                    <div>
+          <div>
+            <Label>Tipo de Conta</Label>
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="checking">Conta Corrente</SelectItem>
+                <SelectItem value="savings">Poupança</SelectItem>
+                <SelectItem value="wallet">Carteira</SelectItem>
+                <SelectItem value="investment">Investimento</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label>Proprietário</Label>
             <Select value={owner} onValueChange={(v: any) => setOwner(v)}>
               <SelectTrigger>

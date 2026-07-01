@@ -4,12 +4,14 @@ import {
   getDocs,
   orderBy,
   query,
+  where,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
 
 export type AccountIdentity = {
   id?: string;
+  userId?: string;
 
   accountId?: string | null;
 
@@ -73,10 +75,11 @@ export async function createAccountIdentity(
   );
 }
 
-export async function getAccountIdentities() {
+export async function getAccountIdentities(userId?: string) {
 
   const q = query(
     collection(db, 'account_identities'),
+    ...(userId ? [where('userId', '==', userId)] : []),
     orderBy('createdAt', 'desc')
   );
 

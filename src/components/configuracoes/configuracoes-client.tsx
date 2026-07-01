@@ -338,7 +338,7 @@ export function ConfiguracoesClient() {
             console.error('Erro ao carregar categorias:', err);
             return [];
           }),
-          getAccountIdentities().catch(err => {
+          getAccountIdentities(user.uid).catch(err => {
             console.error('Erro ao carregar identidades de conta:', err);
             return [];
           }),

@@ -213,11 +213,12 @@ async function classifyByLearning(text: string, userId?: string) {
 
 // 🔥 identidades financeiras internas
 async function classifyInternalTransfer(
-  text: string
+  text: string,
+  userId?: string
 ) {
 
   const identities =
-    await getAccountIdentities();
+    await getAccountIdentities(userId);
 
   for (const identity of identities) {
 
@@ -298,7 +299,7 @@ export async function buildClassificationContext(userId?: string): Promise<Class
       console.error('Erro ao carregar categorias no contexto:', err);
       return [];
     }),
-    getAccountIdentities().catch(err => {
+    getAccountIdentities(userId).catch(err => {
       console.error('Erro ao carregar identidades no contexto:', err);
       return [];
     }),
@@ -411,7 +412,7 @@ export async function classifyTransaction(
   const text = normalizeText(rawText);
 
   // transferência por identidade familiar
-  const internalTransfer = await classifyInternalTransfer(text);
+  const internalTransfer = await classifyInternalTransfer(text, userId);
 
   if (internalTransfer) {
     return {

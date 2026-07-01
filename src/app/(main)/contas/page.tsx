@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CreditCard } from 'lucide-react';
+import { CreditCard, TrendingUp, Sparkles, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/providers/auth-provider';
@@ -9,6 +9,9 @@ import { getAccountsWithBalance } from '@/services/firestore/accounts';
 import { NewAccountDialog } from '@/components/contas/new-account-dialog';
 import { EditAccountDialog } from '@/components/contas/edit-account-dialog';
 import { useVisibility } from '@/providers/visibility-provider';
+import { calculateEmergencyReserve } from '@/core/finance/financial-core';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 function accountTypeLabel(type: string) {
   switch (type) {
@@ -21,11 +24,29 @@ function accountTypeLabel(type: string) {
   }
 }
 
+function accountTypeBadge(type: string) {
+  switch (type) {
+    case 'checking':
+      return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+    case 'savings':
+      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    case 'wallet':
+      return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    case 'investment':
+      return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+    case 'credit_card':
+      return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+    default:
+      return 'bg-muted text-muted-foreground border-border/40';
+  }
+}
+
 export default function ContasPage() {
   const { user } = useAuth();
   const { showFinancialValues } = useVisibility();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const loadAccounts = () => {
     if (!user?.uid) return;
@@ -38,17 +59,24 @@ export default function ContasPage() {
 
   useEffect(() => {
     loadAccounts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, refreshTrigger]);
 
   const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
   const pfAccounts = accounts.filter((a) => a.owner === 'PF');
   const pjAccounts = accounts.filter((a) => a.owner !== 'PF');
 
+  const reserve = calculateEmergencyReserve({
+    accounts,
+    investments: [],
+    essentialMonthlyExpenses: 3000, // placeholder — viria do Kernel em integração futura
+    targetMonths: 6,
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
             <CreditCard className="w-8 h-8 text-teal-400" />
@@ -58,23 +86,110 @@ export default function ContasPage() {
             Gerencie suas contas pessoais e empresariais.
           </p>
         </div>
-        <NewAccountDialog />
+        <div className="flex items-center gap-2">
+          <Link href="/?simulate=new_investment">
+            <Button variant="outline" size="sm" className="border-teal-500/30 text-teal-400 hover:bg-teal-500/10">
+              <TrendingUp className="mr-1 h-4 w-4" />
+              Simular Conta
+            </Button>
+          </Link>
+          <NewAccountDialog onSuccess={() => setRefreshTrigger((k) => k + 1)} />
+        </div>
       </div>
 
-      {/* Saldo total */}
-      <Card className="border-teal-500/20 bg-teal-500/5">
-        <CardHeader className="pb-2">
-          <CardDescription>Saldo Total Consolidado</CardDescription>
-          <CardTitle className="text-3xl">
-            {showFinancialValues
-              ? totalBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-              : '••••••••••'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground">{accounts.length} conta{accounts.length !== 1 ? 's' : ''} cadastrada{accounts.length !== 1 ? 's' : ''}</p>
-        </CardContent>
-      </Card>
+      {/* Metrics Grid */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Card 1: Saldo total */}
+        <Card className="border-teal-500/20 bg-teal-500/5 relative overflow-hidden group">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-teal-400">
+              Saldo Total Consolidado
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold mt-1">
+              {showFinancialValues
+                ? totalBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                : '••••••••••'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">{accounts.length} conta{accounts.length !== 1 ? 's' : ''} cadastrada{accounts.length !== 1 ? 's' : ''}</p>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Reserva de Emergência */}
+        <Card className={`border-border/40 bg-background/95 supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group transition-all duration-300 ${
+          reserve.reserveGap > 0 ? 'border-amber-500/20 bg-amber-500/5' : 'border-emerald-500/20 bg-emerald-500/5'
+        }`}>
+          <div className="absolute top-0 right-0 p-3 text-amber-500/10 group-hover:text-amber-500/20 transition-colors">
+            <AlertCircle className="h-24 w-24 -mr-6 -mt-6" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Reserva de Emergência
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold mt-1">
+              {showFinancialValues
+                ? `${reserve.coveredMonths.toFixed(1)} meses`
+                : '••••'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              {reserve.reserveGap > 0
+                ? `Faltam ${reserve.reserveGap.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} para a meta de 6 meses`
+                : 'Meta de 6 meses atingida ✅'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Impacto no Freedom Index */}
+        <Card className="border-border/40 bg-background/95 supports-[backdrop-filter]:bg-background/60 shadow-lg relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 text-teal-500/10 group-hover:text-teal-500/20 transition-colors">
+            <Sparkles className="h-24 w-24 -mr-6 -mt-6" />
+          </div>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardDescription className="text-xs font-semibold uppercase tracking-wider text-teal-400 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                Impacto no Freedom Index
+              </CardDescription>
+              <CardTitle className="text-3xl font-extrabold mt-1">
+                {showFinancialValues ? `${Math.min(100, Math.round(reserve.reservePercent))}%` : '••••'}
+              </CardTitle>
+            </div>
+            {/* Circle SVG */}
+            <div className="relative h-12 w-12 flex items-center justify-center">
+              <svg className="h-12 w-12 transform -rotate-90">
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  className="stroke-muted"
+                  strokeWidth="3.5"
+                  fill="transparent"
+                />
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  className="stroke-teal-400 transition-all duration-500"
+                  strokeWidth="3.5"
+                  fill="transparent"
+                  strokeDasharray={2 * Math.PI * 20}
+                  strokeDashoffset={2 * Math.PI * 20 - (Math.min(100, reserve.reservePercent) / 100) * (2 * Math.PI * 20)}
+                />
+              </svg>
+              <span className="absolute text-[10px] font-bold text-teal-400">FI</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Essa liquidez cobre <span className="font-bold text-foreground">{(Math.min(100, reserve.reservePercent) * 0.3).toFixed(1)}%</span> dos 30 pontos de segurança do índice.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -105,7 +220,11 @@ export default function ContasPage() {
                   <div key={account.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
                     <div>
                       <p className="font-medium">{account.name}</p>
-                      <p className="text-xs text-muted-foreground">{accountTypeLabel(account.type)}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className={`text-[10px] font-normal border ${accountTypeBadge(account.type)}`}>
+                          {accountTypeLabel(account.type)}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium">
@@ -114,7 +233,7 @@ export default function ContasPage() {
                           : '••••••'}
                       </span>
                       <Badge variant="default">Pessoal</Badge>
-                      <EditAccountDialog account={account} />
+                      <EditAccountDialog account={account} onSuccess={() => setRefreshTrigger((k) => k + 1)} />
                     </div>
                   </div>
                 ))}
@@ -142,7 +261,11 @@ export default function ContasPage() {
                   <div key={account.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
                     <div>
                       <p className="font-medium">{account.name}</p>
-                      <p className="text-xs text-muted-foreground">{accountTypeLabel(account.type)}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className={`text-[10px] font-normal border ${accountTypeBadge(account.type)}`}>
+                          {accountTypeLabel(account.type)}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium">
@@ -151,7 +274,7 @@ export default function ContasPage() {
                           : '••••••'}
                       </span>
                       <Badge variant="outline">Empresa</Badge>
-                      <EditAccountDialog account={account} />
+                      <EditAccountDialog account={account} onSuccess={() => setRefreshTrigger((k) => k + 1)} />
                     </div>
                   </div>
                 ))}
