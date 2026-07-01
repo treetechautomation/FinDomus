@@ -1,8 +1,5 @@
-- [x] Apontar chat widget para /api/chat/financial
-- [x] Redirecionar POST /api/ai/chat legado para o flow financialAdvisorFlow
-- [x] Unificar usage tracking removendo usage.ts obsoleto
-- [x] Remover tipo 'deepseek' orfão e ajustar testes
-- [x] Corrigir classify-pix com prompt de saída estruturada Zod
-- [x] Adicionar limite de cota mensal (canUseAIAdmin) à rota de insights
+- [x] Backup dos arquivos kernel.admin.ts e financial-advisor.ts
+- [x] Atualizar `src/services/firestore/kernel.admin.ts` para retornar os campos do KernelContext bruto (transactions, recurringExpenses, wealthProfile...)
+- [x] Refatorar `src/ai/flows/financial-advisor.ts` para expurgar services client-side e usar loadKernelContextAdmin
 - [x] Executar typecheck de verificação
 - [x] Executar build de verificação final

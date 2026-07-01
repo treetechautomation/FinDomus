@@ -2,51 +2,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { runFinancialKernel } from '@/core/finance/kernel';
 import { runSimulation } from '@/core/finance/simulation-engine';
-
-import { getPersonalTransactions } from '@/services/firestore/transactions';
-import { getWealthProfile, getRecurringExpenses } from '@/services/firestore/planning';
-import { getAccountsWithBalance } from '@/services/firestore/accounts';
-import { getInvestments } from '@/services/firestore/investments';
-import { getLiabilities } from '@/services/firestore/liabilities';
-import { consolidatePortfolio } from '@/services/investments/consolidation-engine';
-import { generateInvestmentAnalytics } from '@/core/investments/analytics/analytics-engine';
-import { getMonthlyClosures } from '@/services/firestore/monthly-closures';
-
-export async function loadKernelContext(userId: string) {
-  const [
-    txs,
-    profile,
-    accounts,
-    investments,
-    liabilities,
-    recurringExpenses,
-    portfolio,
-    closures,
-  ] = await Promise.all([
-    getPersonalTransactions(userId),
-    getWealthProfile(userId),
-    getAccountsWithBalance(userId),
-    getInvestments(userId),
-    getLiabilities(userId),
-    getRecurringExpenses(userId),
-    consolidatePortfolio(userId),
-    getMonthlyClosures(userId, 'PF'),
-  ]);
-
-  const investmentAnalytics = generateInvestmentAnalytics(portfolio);
-
-  return {
-    accounts,
-    investments,
-    liabilities,
-    transactions: txs,
-    recurringExpenses,
-    taxObligations: [],
-    wealthProfile: profile,
-    monthlyClosures: closures,
-    investmentAnalytics,
-  };
-}
+import { loadKernelContextAdmin } from '@/services/firestore/kernel.admin';
 
 export const financialAdvisorFlow = ai.defineFlow(
   {
@@ -64,7 +20,7 @@ export const financialAdvisorFlow = ai.defineFlow(
     }),
   },
   async (input) => {
-    const context = input.contextData || (await loadKernelContext(input.userId));
+    const context = input.contextData || (await loadKernelContextAdmin(input.userId));
     const baseline = runFinancialKernel(context);
 
     // Dynamic simulations based on keyword analysis

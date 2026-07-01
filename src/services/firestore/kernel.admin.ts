@@ -47,6 +47,13 @@ export async function loadKernelContextAdmin(userId: string) {
     accounts,
     investments,
     liabilities,
+    transactions,
+    recurringExpenses,
+    taxObligations: [],
+    wealthProfile,
+    monthlyClosures: [],
+    investmentAnalytics: null,
+
     netWorth: kernelResult.financialCore.netWorth,
     cashBalance: kernelResult.financialCore.cashBalance,
     emergencyReserve: {
@@ -67,6 +74,5 @@ export async function loadKernelContextAdmin(userId: string) {
       taxaAcumulacao: kernelResult.dre.taxaAcumulacao || 0,
       essenciais: kernelResult.dre.essenciais || 0,
     },
-    wealthProfile: wealthProfile ? { age: (wealthProfile as any).age } : {}
   };
 }
