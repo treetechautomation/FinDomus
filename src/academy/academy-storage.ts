@@ -48,8 +48,17 @@ export const academyStorage = {
       const ref = doc(db, 'academy_progress', userId);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        const data = snap.data() as AcademyProgress;
-        data.userId = userId;
+        const raw = snap.data() as Partial<AcademyProgress>;
+        const data: AcademyProgress = {
+          ...raw,
+          userId,
+          currentLesson: raw.currentLesson ?? 1,
+          currentStep: raw.currentStep ?? 0,
+          achievements: raw.achievements ?? [],
+          completedLessons: raw.completedLessons ?? [],
+          knowledge: raw.knowledge ?? [],
+          history: raw.history ?? [],
+        } as AcademyProgress;
         setLocalProgress(data);
         return data;
       }
@@ -58,7 +67,19 @@ export const academyStorage = {
     }
 
     const local = getLocalProgress();
-    return local ? (local as AcademyProgress) : null;
+    if (local) {
+      return {
+        ...local,
+        userId,
+        currentLesson: local.currentLesson ?? 1,
+        currentStep: local.currentStep ?? 0,
+        achievements: local.achievements ?? [],
+        completedLessons: local.completedLessons ?? [],
+        knowledge: local.knowledge ?? [],
+        history: local.history ?? [],
+      } as AcademyProgress;
+    }
+    return null;
   },
 
   async save(userId: string, data: Partial<AcademyProgress>): Promise<void> {
