@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { learnTransactionCategory } from "@/core/finance/category-learning-engine";
+import { financialEvents } from "@/core/finance/events";
 
 type Props = {
   transaction: any;
@@ -45,6 +46,13 @@ export function EditTransactionButton({ transaction, onSuccess }: Props) {
         merchant,
         amount: Number(amount),
         updatedAt: new Date().toISOString(),
+      });
+
+      financialEvents.emit({
+        type: 'data:changed',
+        payload: { triggerEvent: 'transaction:updated', transactionId: transaction.id },
+        timestamp: new Date().toISOString(),
+        source: 'editTransactionButton',
       });
 
       await learnCategory();

@@ -1,6 +1,7 @@
 import { addDoc, collection, doc, getDocs, deleteDoc, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { resolveUserHouseholdId } from "./users";
+import { financialEvents } from "@/core/finance/events";
 
 export type YieldType = 'DIVIDEND' | 'JCP' | 'FII' | 'COUPON' | 'OTHER';
 
@@ -48,6 +49,13 @@ export async function addInvestmentYield(
     updatedAt: new Date().toISOString(),
   });
 
+  financialEvents.emit({
+    type: 'data:changed',
+    payload: { triggerEvent: 'investment:updated', yieldId: docRef.id },
+    timestamp: new Date().toISOString(),
+    source: 'addInvestmentYield',
+  });
+
   return docRef.id;
 }
 
@@ -55,4 +63,11 @@ export async function deleteInvestmentYield(userId: string, yieldId: string) {
   if (!userId) throw new Error("userId required");
   const ref = doc(db, "investment_yields", yieldId);
   await deleteDoc(ref);
+
+  financialEvents.emit({
+    type: 'data:changed',
+    payload: { triggerEvent: 'investment:updated', yieldId },
+    timestamp: new Date().toISOString(),
+    source: 'deleteInvestmentYield',
+  });
 }

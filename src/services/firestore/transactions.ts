@@ -266,12 +266,13 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
     (item) => !existingHashes.has(item.importHash || '')
   );
 
+  const uniqueMonthPairs = new Set<string>();
   for (const item of toInsert) {
-    await assertMonthOpen(
-      userId,
-      item.owner || 'PF',
-      item.competenceMonthKey || item.monthKey
-    );
+    uniqueMonthPairs.add(`${item.owner || 'PF'}|${item.competenceMonthKey || item.monthKey}`);
+  }
+  for (const pair of uniqueMonthPairs) {
+    const [owner, month] = pair.split('|') as ['PF' | 'PJ', string];
+    await assertMonthOpen(userId, owner, month);
   }
 
   const batch = writeBatch(db);
@@ -363,7 +364,8 @@ export async function getTransactionsByOwnerAndMonth(
   const q = query(
     collection(db, 'transactions'),
     where('userId', '==', userId),
-    where('owner', '==', owner)
+    where('owner', '==', owner),
+    where('monthKey', '==', monthKey)
   );
 
   const snap = await getDocs(q);

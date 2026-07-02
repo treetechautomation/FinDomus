@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       question: message,
     });
 
-    await registerAIUsageAdmin(userId);
+    await registerAIUsageAdmin(userId, agentResponse.audit);
 
     return NextResponse.json(agentResponse);
   } catch (error: any) {

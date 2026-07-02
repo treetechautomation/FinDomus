@@ -202,17 +202,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
     if (!currentStep.target) {
       setTargetRect(null);
-      console.log("Tour iniciado");
-      console.log(activeTour);
-      console.log(currentStep);
-      console.log(currentStep.target);
       return;
     }
-
-    console.log("Tour iniciado");
-    console.log(activeTour);
-    console.log(currentStep);
-    console.log(currentStep.target);
 
     let isCancelled = false;
     const startTime = Date.now();
@@ -222,7 +213,6 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
       const element = document.querySelector(currentStep!.target);
       if (element) {
-        console.log("Target encontrado");
         element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         
         // Delay to allow smooth scrolling to finish
@@ -232,7 +222,6 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
           setTargetRect(rect);
         }, 150);
       } else {
-        console.log("Target não encontrado");
         const elapsed = Date.now() - startTime;
         if (elapsed < 8000) {
           requestAnimationFrame(() => {

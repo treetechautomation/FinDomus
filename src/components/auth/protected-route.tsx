@@ -13,8 +13,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (!loading) {
       if (!user) {
         router.replace('/login');
-      } else if (profile && profile.acceptedTerms !== true) {
-        router.replace('/termos');
+      } else {
+        if (!profile || profile.acceptedTerms !== true) {
+          router.replace('/termos');
+        }
       }
     }
   }, [user, profile, loading, router]);

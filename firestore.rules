@@ -180,7 +180,7 @@ service cloud.firestore {
 
     match /monthly_closures/{docId} {
       allow get: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow list: if isAuthenticated();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
@@ -194,7 +194,7 @@ service cloud.firestore {
 
     match /investment_price_history/{docId} {
       allow read, write: if isAuthenticated() && resource.data.investmentId != null;
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
     }
 
     match /categories/{docId} {
@@ -252,10 +252,11 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && resource.data.companyId != null;
     }
 
-    // 6. Sumarios Mensais (sem userId — acesso autenticado global para geracao)
+    // 6. Sumarios Mensais (isolamento por userId)
     match /monthly_summaries/{docId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow delete: if false;
     }
 

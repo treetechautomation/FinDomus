@@ -27,7 +27,7 @@ import Link from "next/link";
 export default function PassivosPage() {
   const { user } = useAuth();
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
-  const baseMonthKey = "2026-04";
+  const baseMonthKey = getCurrentMonthKey();
 
     useEffect(() => {
       async function load() {

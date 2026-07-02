@@ -8,6 +8,7 @@ import { getAccounts, getCompanies } from '@/services/firestore/accounts';
 import { addTransaction } from '@/services/firestore/transactions';
 import { getCategories } from '@/services/firestore/categories';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -160,6 +161,7 @@ const CATEGORY_PJ = [
 
 export function NewTransactionDialog() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
@@ -223,17 +225,17 @@ export function NewTransactionDialog() {
     const numericAmount = Number(amount.replace(',', '.'));
 
     if (!description.trim() || !category.trim() || !numericAmount || !date) {
-      alert('Preencha descrição, categoria, valor e data.');
+      toast({ title: 'Campos obrigatórios', description: 'Preencha descrição, categoria, valor e data.', variant: 'destructive' });
       return;
     }
 
     if (!accountId) {
-      alert('Selecione a conta do lançamento.');
+      toast({ title: 'Conta obrigatória', description: 'Selecione a conta do lançamento.', variant: 'destructive' });
       return;
     }
 
     if (owner === 'PJ' && !companyId) {
-      alert('Selecione a empresa para um lançamento PJ.');
+      toast({ title: 'Empresa obrigatória', description: 'Selecione a empresa para um lançamento PJ.', variant: 'destructive' });
       return;
     }
 
@@ -260,8 +262,6 @@ export function NewTransactionDialog() {
       setCompanyId('');
       setAmount('');
       setDate(new Date().toISOString().slice(0, 10));
-
-        window.location.reload();
       } catch (error: any) {
         console.error("Erro ao salvar lançamento:", error);
         alert(error?.message || "Não foi possível salvar o lançamento.");
