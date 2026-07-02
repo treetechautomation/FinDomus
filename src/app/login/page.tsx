@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/providers/auth-provider';
@@ -12,12 +12,14 @@ import { Loader2, Landmark, ShieldCheck, LineChart, BrainCircuit, PieChart } fro
 import { useToast } from '@/hooks/use-toast';
 import { getPublicLaunchOffer } from '@/lib/public/launch-offer-client';
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loadingLogin, setLoadingLogin] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect') || '/';
   const { user, loading } = useAuth();
   const { toast } = useToast();
   const [remainingSlots, setRemainingSlots] = useState<number | null>(null);
@@ -31,11 +33,11 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    // Se já estiver logado, manda para home silenciosamente
+    // Se já estiver logado, manda para redirecionamento silenciosamente
     if (!loading && user) {
-      router.replace('/');
+      router.replace(redirectUrl);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, redirectUrl]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,3 +392,14 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-full items-center justify-center bg-zinc-950">
+        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
+  );
+}

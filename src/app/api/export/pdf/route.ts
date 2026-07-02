@@ -18,8 +18,7 @@ export async function GET(req: NextRequest) {
       .get();
 
     rows = snap.docs
-      .map((d) => ({ id: d.id, ...(d.data() as any) }))
-      .slice(0, 500);
+      .map((d) => ({ id: d.id, ...(d.data() as any) }));
   } catch (error) {
     return new NextResponse('Unauthorized', { status: 401 });
   }

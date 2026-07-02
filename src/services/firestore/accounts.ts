@@ -37,6 +37,13 @@ export async function addCompany(userId: string, data: {
     createdAt: data.createdAt ?? new Date().toISOString(),
   });
 
+  financialEvents.emit({
+    type: 'data:changed',
+    payload: { triggerEvent: 'company:created', companyId: docRef.id },
+    timestamp: new Date().toISOString(),
+    source: 'addCompany',
+  });
+
   return docRef.id;
 }
 

@@ -1,5 +1,5 @@
-- [x] Backup dos arquivos antes da reversão
-- [x] Restaurar `transactions.ts` para o estado estável original
-- [x] Reverter chamadores para usar `getTransactions` / `getPersonalTransactions`
+- [x] Backup dos arquivos afetados na Sprint H.1
+- [x] Aplicar Correção Bug H1-UX-001 em `src/app/login/page.tsx` (redir dinâmico com useSearchParams e Suspense)
+- [x] Aplicar Correção Bug H1-SEC-001 em `src/components/auth/protected-route.tsx` (restrição caso profile seja null)
 - [x] Rodar typecheck de validação
 - [x] Rodar build de produção para validação final

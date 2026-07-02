@@ -3,8 +3,9 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/providers/auth-provider';
 import { VisibilityProvider } from '@/providers/visibility-provider';
-import { TourProvider } from '@/core/onboarding/tour-engine';
-import { TourRenderer } from '@/components/onboarding/TourRenderer';
+import { AcademyRenderer } from '@/components/academy';
+import { SchedulerInit } from '@/components/scheduler-init';
+import { SnapshotCacheProvider } from '@/providers/snapshot-cache-provider';
 
 export const metadata: Metadata = {
   title: 'FinDomus - Unified Financial Platform',
@@ -26,11 +27,12 @@ export default function RootLayout({
       <body className="font-body antialiased bg-background">
         <AuthProvider>
           <VisibilityProvider>
-            <TourProvider>
+            <SnapshotCacheProvider>
               {children}
-              <TourRenderer />
+              <SchedulerInit />
+              <AcademyRenderer />
               <Toaster />
-            </TourProvider>
+            </SnapshotCacheProvider>
           </VisibilityProvider>
         </AuthProvider>
       </body>

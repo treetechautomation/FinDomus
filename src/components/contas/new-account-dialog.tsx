@@ -99,6 +99,7 @@ export function NewAccountDialog({ onSuccess }: { onSuccess?: () => void }) {
                 <SelectItem value="savings">Poupança</SelectItem>
                 <SelectItem value="wallet">Carteira</SelectItem>
                 <SelectItem value="investment">Investimento</SelectItem>
+                <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
               </SelectContent>
             </Select>
           </div>

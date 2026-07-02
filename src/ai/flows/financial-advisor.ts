@@ -3,6 +3,7 @@ import { z } from 'genkit';
 import { runFinancialKernel } from '@/core/finance/kernel';
 import { runSimulation } from '@/core/finance/simulation-engine';
 import { loadKernelContextAdmin } from '@/services/firestore/kernel.admin';
+import { loadSnapshotsForIA } from '@/ai/tools/load-snapshots';
 
 export const financialAdvisorFlow = ai.defineFlow(
   {
@@ -17,22 +18,83 @@ export const financialAdvisorFlow = ai.defineFlow(
       simulations: z.array(z.any()).optional(),
       confidence: z.number(),
       dataUsed: z.array(z.string()),
+      audit: z.object({
+        sourcesUsed: z.array(z.string()),
+        snapshotVersions: z.record(z.number()),
+        cacheHit: z.boolean(),
+        fallbackReason: z.string().nullable(),
+      }).optional(),
     }),
   },
   async (input) => {
-    const context = input.contextData || (await loadKernelContextAdmin(input.userId));
+    const startTime = performance.now();
+    let sourcesUsed: string[] = [];
+    let snapshotVersions: Record<string, number> = {};
+    let cacheHit = false;
+    let fallbackReason: string | null = null;
+    let context: any;
+
+    if (input.contextData) {
+      context = input.contextData;
+      sourcesUsed.push('preloaded_context');
+    } else {
+      // Snapshots-first: try aggregated snapshots before full scan
+      const snapshots = await loadSnapshotsForIA(input.userId);
+      sourcesUsed = [...snapshots.sourcesUsed];
+      snapshotVersions = snapshots.snapshotVersions;
+      cacheHit = snapshots.cacheHit;
+      fallbackReason = snapshots.fallbackReason;
+
+      if (snapshots.dashboard) {
+        // Build lightweight context from snapshots (avoid full kernel context)
+        const d = snapshots.dashboard.data;
+        const p = snapshots.planning?.data;
+        const i = snapshots.investment?.data;
+        const l = snapshots.liability?.data;
+
+        context = {
+          accounts: [],
+          investments: [],
+          liabilities: [],
+          transactions: [],
+          recurringExpenses: [],
+          taxObligations: [],
+          wealthProfile: p ? { categories: [] } : null,
+          monthlyClosures: [],
+          investmentAnalytics: null,
+
+          // Pre-computed values from snapshots
+          netWorth: d.netWorth,
+          cashBalance: p?.financialCore.cashBalance ?? d.totalPF + d.totalPJ,
+          emergencyReserve: p?.emergencyReserve ?? {
+            reserveAmount: 0, essentialMonthlyExpenses: 0, targetMonths: 6,
+            targetAmount: 0, reserveGap: 0, reservePercent: 0, coveredMonths: 0,
+            liquidityAssets: 0, excludedAssets: 0,
+          },
+          monthlyIncome: d.monthlyIncome,
+          monthlyExpenses: d.monthlyExpenses,
+          selicRate: 10.75,
+          dre: {
+            taxaAcumulacao: p?.dre.taxaAcumulacao ?? 0,
+            essenciais: p?.dre.essenciais ?? 0,
+          },
+        };
+      } else {
+        // Fallback to full context if no snapshots
+        context = await loadKernelContextAdmin(input.userId);
+        if (!snapshots.cacheHit) {
+          sourcesUsed.push('kernel_context_admin');
+        }
+      }
+    }
+
     const baseline = runFinancialKernel(context);
 
-    // Dynamic simulations based on keyword analysis
+    // Dynamic simulations
     const simulations: any[] = [];
     const textLower = input.question.toLowerCase();
 
-    if (
-      textLower.includes('quitar') ||
-      textLower.includes('amortizar') ||
-      textLower.includes('divida') ||
-      textLower.includes('pagar')
-    ) {
+    if (textLower.includes('quitar') || textLower.includes('amortizar') || textLower.includes('divida') || textLower.includes('pagar')) {
       const targetLiab = context.liabilities.find((l: any) => Number(l.remainingBalance || 0) > 0);
       if (targetLiab) {
         const halfAmount = Number((targetLiab.remainingBalance * 0.5).toFixed(0));
@@ -45,11 +107,7 @@ export const financialAdvisorFlow = ai.defineFlow(
       }
     }
 
-    if (
-      textLower.includes('investir') ||
-      textLower.includes('aporte') ||
-      textLower.includes('investimento')
-    ) {
+    if (textLower.includes('investir') || textLower.includes('aporte') || textLower.includes('investimento')) {
       const simInvest = runSimulation(context, baseline, {
         type: 'new_investment',
         params: { monthlyAmount: 500 },
@@ -72,17 +130,12 @@ export const financialAdvisorFlow = ai.defineFlow(
     - Duração da reserva: ${baseline.freedom.timeline.monthsToReserve} meses para completar
 
     SIMULAÇÕES EXECUTADAS:
-    ${
-      simulations.length > 0
-        ? JSON.stringify(
-            simulations.map((s) => ({
-              scenario: s.scenario.label,
-              freedomIndexDelta: s.diff.find((d: any) => d.metric === 'Índice de Liberdade')?.delta || 0,
-              netWorthDelta: s.diff.find((d: any) => d.metric === 'Patrimônio Líquido')?.delta || 0,
-            })),
-            null,
-            2
-          )
+    ${simulations.length > 0
+        ? JSON.stringify(simulations.map((s) => ({
+            scenario: s.scenario.label,
+            freedomIndexDelta: s.diff.find((d: any) => d.metric === 'Índice de Liberdade')?.delta || 0,
+            netWorthDelta: s.diff.find((d: any) => d.metric === 'Patrimônio Líquido')?.delta || 0,
+          })), null, 2)
         : 'Nenhuma simulação de comparação foi acionada para esta pergunta.'
     }
 
@@ -94,18 +147,21 @@ export const financialAdvisorFlow = ai.defineFlow(
     - Seja extremamente profissional, com linguagem polida, agindo como um assessor financeiro sênior.
     `;
 
-    const res = await ai.generate({
-      prompt,
-    });
+    const res = await ai.generate({ prompt });
+
+    const endTime = performance.now();
 
     return {
       answer: res.text,
-      simulations: simulations.map((s) => ({
-        label: s.scenario.label,
-        diff: s.diff,
-      })),
+      simulations: simulations.map((s) => ({ label: s.scenario.label, diff: s.diff })),
       confidence: 0.95,
       dataUsed: ['dre-engine', 'financial-core', 'freedom-engine', 'simulation-engine'],
+      audit: {
+        sourcesUsed,
+        snapshotVersions,
+        cacheHit,
+        fallbackReason,
+      },
     };
   }
 );

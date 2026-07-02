@@ -3,16 +3,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { verifyIdToken } from '@/lib/verify-id-token';
 
-function formatDateOFX(value: any) {
+function formatDateOFX(value: any, isoFallback?: string) {
   const raw = String(value || '').trim();
 
-  const [day, month, year] = raw.split('/');
-
-  if (!day || !month || !year) {
-    return '20260101000000';
+  const brMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) {
+    const [, dd, mm, yyyy] = brMatch;
+    return `${yyyy}${mm.padStart(2, '0')}${dd.padStart(2, '0')}000000`;
   }
 
-  return `${year}${month}${day}000000`;
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, yyyy, mm, dd] = isoMatch;
+    return `${yyyy}${mm}${dd}000000`;
+  }
+
+  if (isoFallback) {
+    const iso2 = String(isoFallback).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso2) {
+      const [, yyyy, mm, dd] = iso2;
+      return `${yyyy}${mm}${dd}000000`;
+    }
+  }
+
+  return '20260101000000';
 }
 
 export async function GET(req: NextRequest) {
@@ -49,7 +63,7 @@ export async function GET(req: NextRequest) {
         return `
 <STMTTRN>
 <TRNTYPE>${type}
-<DTPOSTED>${formatDateOFX(t.date)}
+<DTPOSTED>${formatDateOFX(t.date, t.dateISO)}
 <TRNAMT>${Number(
           t.type === 'income'
             ? t.amount

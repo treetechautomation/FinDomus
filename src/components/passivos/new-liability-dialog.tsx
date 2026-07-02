@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlusCircle } from 'lucide-react';
 
+import { useToast } from '@/hooks/use-toast';
 import { addLiability } from '@/services/firestore/liabilities';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ type LiabilityType = 'Financiamento' | 'Empréstimo' | 'Cartão' | 'Outro';
 
 export function NewLiabilityDialog() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
@@ -37,7 +39,7 @@ export function NewLiabilityDialog() {
     e.preventDefault();
 
     if (!name.trim() || !installmentValue || !totalInstallments || !remainingBalance) {
-      alert('Preencha os campos obrigatórios.');
+      toast({ title: 'Campos obrigatórios', description: 'Preencha os campos obrigatórios.', variant: 'destructive' });
       return;
     }
 
@@ -59,7 +61,7 @@ export function NewLiabilityDialog() {
       router.refresh();
     } catch (err) {
       console.error(err);
-      alert('Erro ao salvar passivo');
+      toast({ title: 'Erro ao salvar', description: 'Não foi possível salvar o passivo.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }

@@ -23,13 +23,31 @@ export async function canUseAIAdmin(userId: string, limit = 100) {
   return (data?.calls || 0) < (data?.limit || limit);
 }
 
-export async function registerAIUsageAdmin(userId: string) {
+export async function registerAIUsageAdmin(
+  userId: string,
+  audit?: {
+    sourcesUsed?: string[];
+    snapshotVersions?: Record<string, number>;
+    cacheHit?: boolean;
+    fallbackReason?: string | null;
+  },
+) {
   const ref = adminDb.collection('ai_usage').doc(`${userId}_${getMonthKey()}`);
   const snap = await ref.get();
 
   if (!snap.exists) return;
 
-  await ref.update({
-    calls: (snap.data()?.calls || 0) + 1
-  });
+  const update: Record<string, any> = {
+    calls: (snap.data()?.calls || 0) + 1,
+  };
+
+  if (audit) {
+    update.lastSourcesUsed = audit.sourcesUsed || [];
+    update.lastSnapshotVersions = audit.snapshotVersions || {};
+    update.lastCacheHit = audit.cacheHit ?? false;
+    update.lastFallbackReason = audit.fallbackReason || null;
+    update.lastUsedAt = new Date().toISOString();
+  }
+
+  await ref.update(update);
 }
