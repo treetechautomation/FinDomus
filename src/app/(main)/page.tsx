@@ -7,8 +7,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useVisibility } from '@/providers/visibility-provider';
 import { FinancialSection } from '@/components/onboarding/FinancialSection';
-import { useTour } from '@/core/onboarding/tour-engine';
-import { MAIN_TOUR_ID } from '@/core/onboarding/tour-registry';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -120,7 +118,6 @@ export default function DashboardPage() {
   const { result: kernel } = useFinancialKernel(context);
   const [hasNoData, setHasNoData] = useState<boolean>(false);
   const { showFinancialValues } = useVisibility();
-  const { startTour, completedTours, dismissedTours, isReady } = useTour();
 
   const freedomData = kernel ? {
     index: kernel.freedom.index,
@@ -204,18 +201,7 @@ export default function DashboardPage() {
       .catch(console.error);
   }, [user?.uid]);
 
-  // Autostart do tour na primeira visita ao dashboard
-  useEffect(() => {
-    if (dashboard && isReady) {
-      const isMainTourSeen = completedTours.includes(MAIN_TOUR_ID) || dismissedTours.includes(MAIN_TOUR_ID);
-      if (!isMainTourSeen) {
-        const timer = setTimeout(() => {
-          startTour(MAIN_TOUR_ID);
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [dashboard, completedTours, dismissedTours, startTour, isReady]);
+
 
   if (!dashboard) {
     return <DashboardSkeleton />;

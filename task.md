@@ -1,5 +1,8 @@
-- [x] Backup dos arquivos afetados na Sprint H.1
-- [x] Aplicar Correção Bug H1-UX-001 em `src/app/login/page.tsx` (redir dinâmico com useSearchParams e Suspense)
-- [x] Aplicar Correção Bug H1-SEC-001 em `src/components/auth/protected-route.tsx` (restrição caso profile seja null)
-- [x] Rodar typecheck de validação
-- [x] Rodar build de produção para validação final
+- [x] Criar backups dos arquivos afetados na FP.22.6
+- [x] Elevar AcademyProvider em `src/app/layout.tsx`
+- [x] Remover AcademyProvider interno de `src/components/academy/academy-renderer.tsx`
+- [x] Limpar importações e lógica do Tour legado em `src/app/(main)/page.tsx`
+- [x] Substituir resetTours por resetAcademy em `src/components/configuracoes/configuracoes-client.tsx`
+- [x] Rodar validação de typecheck (0 erros)
+- [x] Executar build de produção pós-limpeza da pasta .next (Sucesso em 23.7s)
+- [x] Fazer grep final de verificação (0 dependências operacionais)

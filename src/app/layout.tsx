@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/providers/auth-provider';
 import { VisibilityProvider } from '@/providers/visibility-provider';
 import { AcademyRenderer } from '@/components/academy';
+import { AcademyProvider } from '@/components/academy/academy-provider';
 import { SchedulerInit } from '@/components/scheduler-init';
 import { SnapshotCacheProvider } from '@/providers/snapshot-cache-provider';
 
@@ -28,10 +29,12 @@ export default function RootLayout({
         <AuthProvider>
           <VisibilityProvider>
             <SnapshotCacheProvider>
-              {children}
-              <SchedulerInit />
-              <AcademyRenderer />
-              <Toaster />
+              <AcademyProvider>
+                {children}
+                <SchedulerInit />
+                <AcademyRenderer />
+                <Toaster />
+              </AcademyProvider>
             </SnapshotCacheProvider>
           </VisibilityProvider>
         </AuthProvider>

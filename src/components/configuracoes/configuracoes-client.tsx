@@ -31,7 +31,7 @@ import { getFinancialAIData } from "@/services/firestore/financial-ai";
 import { getAccountIdentities } from "@/services/firestore/account-identities";
 import { useAuth } from "@/providers/auth-provider";
 import { useVisibility } from "@/providers/visibility-provider";
-import { useTour } from "@/core/onboarding/tour-engine";
+import { useAcademy } from "@/components/academy";
 import { useToast } from "@/hooks/use-toast";
 
 function accountTypeLabel(type: string) {
@@ -55,7 +55,7 @@ export function ConfiguracoesClient() {
   const { user, profile } = useAuth();
   const [aiData, setAIData] = useState<any>(null);
   const { showFinancialValues, autoHideOnStart, toggleVisibility, setAutoHideOnStart } = useVisibility();
-  const { resetTours } = useTour();
+  const { resetAcademy } = useAcademy();
   const { toast } = useToast();
 
   const [household, setHousehold] = useState<any>(null);
@@ -374,11 +374,11 @@ export function ConfiguracoesClient() {
     a.name.localeCompare(b.name, 'pt-BR')
   );
 
-  const handleResetTour = () => {
-    resetTours();
+  const handleResetAcademy = async () => {
+    await resetAcademy();
     toast({
-      title: "Visita Guiada Resetada! 🚀",
-      description: "O tour principal de onboarding foi reiniciado. Visite a página 'Visão Geral' para iniciar o tour.",
+      title: "Academia Reiniciada! 🚀",
+      description: "O progresso e as aulas da Academia FinDomus foram reiniciados.",
       duration: 5000,
     });
   };
@@ -813,17 +813,17 @@ export function ConfiguracoesClient() {
                 <div className="space-y-0.5">
                   <Label className="text-sm font-bold text-white flex items-center gap-2">
                     <RotateCcw className="h-4 w-4 text-emerald-400" />
-                    Visita Guiada (Onboarding)
+                    Academia FinDomus (Onboarding)
                   </Label>
                   <p className="text-xs text-zinc-400">
-                    Apaga o registro de visitas e executa o tour interativo novamente na tela Visão Geral.
+                    Apaga o registro de aulas assistidas e reinicia a jornada educacional de onboarding.
                   </p>
                 </div>
                 <Button 
-                  onClick={handleResetTour}
+                  onClick={handleResetAcademy}
                   className="h-9 text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all duration-200"
                 >
-                  Reiniciar Visita Guiada
+                  Reiniciar Academia
                 </Button>
               </div>
             </CardContent>
