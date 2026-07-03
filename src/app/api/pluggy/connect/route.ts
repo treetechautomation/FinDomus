@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PluggyClient } from 'pluggy-sdk';
 import { verifyIdToken } from '@/lib/verify-id-token';
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -68,6 +67,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { PluggyClient } = await new Function('return import("pluggy-sdk")')();
     const client = new PluggyClient({
       clientId,
       clientSecret,

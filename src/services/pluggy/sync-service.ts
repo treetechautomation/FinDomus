@@ -1,4 +1,3 @@
-import { PluggyClient } from 'pluggy-sdk';
 import { adminDb } from '@/lib/firebase-admin';
 import { resolveUserHouseholdId } from '@/services/firestore/users';
 import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date';
@@ -45,6 +44,14 @@ async function isMonthClosed(userId: string, owner: 'PF' | 'PJ', monthKey: strin
     console.error(`[Pluggy Sync] Error checking monthly closure for month ${monthKey}:`, e);
     return false;
   }
+}
+
+async function getPluggyClient(clientId: string, clientSecret: string) {
+  const { PluggyClient } = await new Function('return import("pluggy-sdk")')();
+  return new PluggyClient({
+    clientId,
+    clientSecret,
+  });
 }
 
 /**
@@ -132,10 +139,7 @@ export async function syncItem(
       throw new Error('Pluggy API credentials missing on server');
     }
 
-    const client = new PluggyClient({
-      clientId,
-      clientSecret,
-    });
+    const client = await getPluggyClient(clientId, clientSecret);
 
     // 2. Resolver householdId do usuário
     let householdId = null;
@@ -418,7 +422,7 @@ Gere um resumo em português do Brasil, curto e elegante em Markdown com bullet 
 async function syncAccountsAndBalances(
   userId: string,
   itemId: string,
-  client: PluggyClient,
+  client: any,
   householdId: string | null
 ): Promise<Map<string, string>> {
   const accountsMap = new Map<string, string>();
@@ -484,7 +488,7 @@ async function syncAccountsAndBalances(
 async function syncTransactions(
   userId: string,
   itemId: string,
-  client: PluggyClient,
+  client: any,
   accountsMap: Map<string, string>,
   householdId: string | null,
   lastTransactionDate: string | null
@@ -651,7 +655,7 @@ async function syncTransactions(
 async function syncInvestments(
   userId: string,
   itemId: string,
-  client: PluggyClient,
+  client: any,
   householdId: string | null
 ): Promise<number> {
   let pluggyInvestmentsResponse;
