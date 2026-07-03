@@ -12,6 +12,11 @@ export interface FeatureFlags {
   reportsSnapshot: boolean;
   schedulerEnabled: boolean;
   useSnapshotsForIA: boolean;
+  pluggyEnabled: boolean;
+  monetizationEnabled: boolean;
+  trialEnabled: boolean;
+  campaignEnabled: boolean;
+  whatsappOtpEnabled: boolean;
 }
 
 const DEFAULTS: FeatureFlags = {
@@ -22,6 +27,11 @@ const DEFAULTS: FeatureFlags = {
   reportsSnapshot: false,
   schedulerEnabled: false,
   useSnapshotsForIA: false,
+  pluggyEnabled: false,
+  monetizationEnabled: false,
+  trialEnabled: false,
+  campaignEnabled: false,
+  whatsappOtpEnabled: false,
 };
 
 let memoryCache: FeatureFlags | null = null;

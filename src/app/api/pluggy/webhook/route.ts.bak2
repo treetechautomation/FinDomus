@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { adminDb } from '@/lib/firebase-admin';
+import { syncItem } from '@/services/pluggy/sync-service';
+import { isPluggyEnabledAdmin } from '@/services/pluggy/feature-flag-check';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: NextRequest) {
+  const webhookStart = Date.now();
+  try {
+    // 1. Validar Feature Flag Global
+    const isEnabled = await isPluggyEnabledAdmin();
+    if (!isEnabled) {
+      console.log('[Pluggy Webhook] Skipped because feature flag pluggyEnabled is disabled.');
+      return NextResponse.json({ success: true, message: 'Webhook ignored (Integration disabled)' });
+    }
+
+    const payload = await req.json();
+    console.log('[Pluggy Webhook] Received payload:', JSON.stringify(payload));
+
+    const event = payload.event;
+    const itemId = payload.id || (payload.item && payload.item.id);
+
+    if (!itemId) {
+      return NextResponse.json({ success: false, error: 'Missing item id' }, { status: 400 });
+    }
+
+    // 2. Localizar a conexão salva para obter o userId
+    const connectionRef = adminDb.collection('bank_connections').doc(itemId);
+    const connectionDoc = await connectionRef.get();
+
+    if (!connectionDoc.exists) {
+      console.warn(`[Pluggy Webhook] Connection not found in Firestore for itemId: ${itemId}`);
+      return NextResponse.json({ success: true, message: 'Item skipped (not registered)' });
+    }
+
+    const connectionData = connectionDoc.data()!;
+    const userId = connectionData.userId;
+
+    // 3. Tratar eventos
+    if (event === 'item/deleted') {
+      await connectionRef.delete();
+      console.log(`[Pluggy Webhook] Connection deleted for itemId: ${itemId}`);
+      return NextResponse.json({ success: true });
+    }
+
+    const itemStatus = payload.item?.status || 'UPDATED';
+
+    // Atualiza o status da conexão
+    await connectionRef.update({
+      status: itemStatus,
+      lastWebhook: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    console.log(`[Pluggy Webhook] Updated connection status to ${itemStatus} for itemId: ${itemId}`);
+
+    // 4. Se a sincronização terminou com sucesso ou atualizou dados na Pluggy, dispara a nossa sincronização
+    if (itemStatus === 'UPDATED' || itemStatus === 'ACTIVE') {
+      console.log(`[Pluggy Webhook] Dispatched automatic sync for user ${userId}, itemId ${itemId}`);
+      // Roda em segundo plano sem bloquear a resposta HTTP do webhook
+      syncItem(userId, itemId, 'WEBHOOK').catch((err) => {
+        console.error(`[Pluggy Webhook Sync Background Error] for itemId ${itemId}:`, err);
+      });
+    }
+
+    // 5. Registrar métrica de tempo de processamento do webhook
+    const duration = Date.now() - webhookStart;
+    try {
+      await adminDb.collection('system_metrics').add({
+        userId,
+        metric: 'pluggy_webhook_processing_ms',
+        value: duration,
+        domain: 'pluggy',
+        extra: { itemId, event },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('[Pluggy Webhook] Error recording webhook metrics:', e);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[Pluggy Webhook Error]:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}

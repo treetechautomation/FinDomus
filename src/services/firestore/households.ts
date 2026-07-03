@@ -47,8 +47,17 @@ export interface Subscription {
   id: string;
   householdId: string;
   planId: string;
-  status: 'active' | 'canceled' | 'past_due';
+  status: 'trialing' | 'active' | 'expired' | 'canceled' | 'past_due' | 'paused';
   currentPeriodEnd: string | null;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  trialUsed: boolean;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  campaignId: string | null;
+  pausedAt: string | null;
+  resumedAt: string | null;
+  cancelReason: string | null;
   createdAt: string;
   updatedAt: string;
 }

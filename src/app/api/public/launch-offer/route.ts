@@ -1,36 +1,61 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import type { Campaign, PublicCampaign } from '@/lib/billing/campaign-types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const docRef = adminDb.collection('settings').doc('launch_offer');
-    const docSnap = await docRef.get();
+    const activeRef = adminDb.collection('settings').doc('active_campaign');
+    const activeSnap = await activeRef.get();
 
-    if (docSnap.exists) {
-      const data = docSnap.data();
-      const totalSlots = data?.totalSlots ?? 100;
-      const usedSlots = data?.usedSlots ?? 0;
-      const remainingSlots = Math.max(0, totalSlots - usedSlots);
-      const active = data?.active ?? true;
+    if (activeSnap.exists) {
+      const activeData = activeSnap.data();
+      const campaignId = activeData?.campaignId;
+      const enabled = activeData?.enabled === true;
 
-      return NextResponse.json({
-        totalSlots,
-        usedSlots,
-        remainingSlots,
-        active,
-      });
+      if (campaignId && enabled) {
+        const campaignRef = adminDb.collection('campaigns').doc(campaignId);
+        const campaignSnap = await campaignRef.get();
+
+        if (campaignSnap.exists) {
+          const campaign = campaignSnap.data() as Campaign;
+
+          if (campaign.enabled) {
+            const seatsUsed = campaign.seatsUsed ?? 0;
+            const seatsLimit = campaign.seatsLimit;
+            const seatsRemaining = seatsLimit !== null
+              ? Math.max(0, seatsLimit - seatsUsed)
+              : null;
+
+            const result: PublicCampaign = {
+              enabled: true,
+              name: campaign.name,
+              seatsLimit,
+              seatsUsed,
+              seatsRemaining,
+              endsAt: campaign.endsAt,
+              plans: campaign.plans ?? {},
+            };
+
+            return NextResponse.json(result);
+          }
+        }
+      }
     }
   } catch (error) {
-    console.error('Error fetching launch offer from admin Firestore:', error);
+    console.error('Error fetching campaign from admin Firestore:', error);
   }
 
-  // Fallback seguro em caso de indisponibilidade ou documento inexistente
-  return NextResponse.json({
-    totalSlots: 100,
-    usedSlots: 0,
-    remainingSlots: 100,
-    active: true,
-  });
+  const fallback: PublicCampaign = {
+    enabled: false,
+    name: '',
+    seatsLimit: null,
+    seatsUsed: 0,
+    seatsRemaining: null,
+    endsAt: null,
+    plans: {},
+  };
+
+  return NextResponse.json(fallback);
 }

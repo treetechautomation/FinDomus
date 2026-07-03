@@ -1,0 +1,265 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Terminal, Activity, CheckCircle2, XCircle, ShieldAlert, Clock, RefreshCw, Loader2 } from "lucide-react";
+import { db } from '@/lib/firebase';
+import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+interface SyncLog {
+  id: string;
+  userId: string;
+  itemId: string;
+  institution: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  accountsImported: number;
+  transactionsImported: number;
+  transactionsIgnored: number;
+  transactionsDuplicated: number;
+  investmentsImported: number;
+  errors: string[];
+  status: 'SUCCESS' | 'FAILED';
+  trigger: 'MANUAL' | 'SCHEDULER' | 'WEBHOOK';
+}
+
+interface ConnectionSummary {
+  total: number;
+  active: number;
+  failures: number;
+  avgDurationMs: number;
+}
+
+export default function ConsolePage() {
+  const [activeTab, setActiveTab] = useState<'terminal' | 'pluggy-observability'>('terminal');
+  const [logs, setLogs] = useState<SyncLog[]>([]);
+  const [summary, setSummary] = useState<ConnectionSummary>({ total: 0, active: 0, failures: 0, avgDurationMs: 0 });
+  const [loading, setLoading] = useState(false);
+
+  // Carregar dados de observabilidade da Pluggy
+  const loadObservabilityData = async () => {
+    setLoading(true);
+    try {
+      // 1. Buscar Conexões
+      const connectionsSnap = await getDocs(collection(db, 'bank_connections'));
+      const connections = connectionsSnap.docs.map(doc => doc.data());
+      
+      const total = connections.length;
+      const active = connections.filter(c => c.status === 'ACTIVE').length;
+      const failures = connections.filter(c => c.status === 'ERROR').length;
+
+      // 2. Buscar Logs de Sincronização
+      const logsQuery = query(
+        collection(db, 'pluggy_sync_logs'),
+        orderBy('startedAt', 'desc'),
+        limit(20)
+      );
+      const logsSnap = await getDocs(logsQuery);
+      const logsList = logsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as SyncLog[];
+
+      setLogs(logsList);
+
+      // Calcular tempo médio de duração das execuções bem-sucedidas
+      const successLogs = logsList.filter(l => l.status === 'SUCCESS');
+      const totalDuration = successLogs.reduce((acc, curr) => acc + (curr.durationMs || 0), 0);
+      const avgDurationMs = successLogs.length > 0 ? Math.round(totalDuration / successLogs.length) : 0;
+
+      setSummary({
+        total,
+        active,
+        failures,
+        avgDurationMs
+      });
+    } catch (e) {
+      console.error('[Console Observability] Failed to load statistics:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'pluggy-observability') {
+      loadObservabilityData();
+    }
+  }, [activeTab]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
+          <Terminal className="w-8 h-8 text-primary" />
+          Console Administrativo
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Interface para depuração de rotas, auditoria de logs e observabilidade de serviços.
+        </p>
+      </div>
+
+      <Tabs defaultValue="terminal" value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="w-full">
+        <TabsList className="bg-slate-900/60 border border-white/5 grid w-full grid-cols-2 max-w-[400px] p-1 h-auto rounded-xl">
+          <TabsTrigger value="terminal" className="rounded-lg py-2 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            Terminal
+          </TabsTrigger>
+          <TabsTrigger value="pluggy-observability" className="rounded-lg py-2 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            Pluggy Observability
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="terminal" className="mt-6 animate-in fade-in duration-300">
+          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl">
+            <CardHeader>
+              <CardTitle>Terminal</CardTitle>
+              <CardDescription>Execute comandos e veja os logs de saída.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm h-96 overflow-y-auto border border-white/5">
+                <p className="text-muted-foreground">&gt; Console inicializado. Aguardando comandos...</p>
+              </div>
+              <div className="flex gap-2">
+                <Input placeholder="Digite um comando..." className="font-mono border-white/10 bg-slate-950/60" />
+                <Button>Executar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pluggy-observability" className="mt-6 space-y-6 animate-in fade-in duration-300">
+          {/* Indicadores Globais de Observabilidade */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card className="border-white/5 bg-slate-900/40">
+              <CardHeader className="py-4">
+                <CardDescription className="text-xs uppercase font-bold tracking-wider text-zinc-400">Total Conexões</CardDescription>
+                <CardTitle className="text-3xl font-black text-white mt-1">{summary.total}</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card className="border-white/5 bg-slate-900/40">
+              <CardHeader className="py-4">
+                <CardDescription className="text-xs uppercase font-bold tracking-wider text-zinc-400">Conexões Ativas</CardDescription>
+                <CardTitle className="text-3xl font-black text-emerald-400 mt-1 flex items-center gap-2">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                  {summary.active}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card className="border-white/5 bg-slate-900/40">
+              <CardHeader className="py-4">
+                <CardDescription className="text-xs uppercase font-bold tracking-wider text-zinc-400">Conexões com Falha</CardDescription>
+                <CardTitle className="text-3xl font-black text-rose-400 mt-1 flex items-center gap-2">
+                  <ShieldAlert className="h-6 w-6 text-rose-500" />
+                  {summary.failures}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card className="border-white/5 bg-slate-900/40">
+              <CardHeader className="py-4">
+                <CardDescription className="text-xs uppercase font-bold tracking-wider text-zinc-400">Tempo Médio Sync</CardDescription>
+                <CardTitle className="text-3xl font-black text-sky-400 mt-1 flex items-center gap-2">
+                  <Clock className="h-6 w-6 text-sky-500" />
+                  {summary.avgDurationMs ? `${(summary.avgDurationMs / 1000).toFixed(1)}s` : 'N/A'}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </div>
+
+          {/* Tabela de Logs de Auditoria */}
+          <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Histórico de Sincronizações</CardTitle>
+                <CardDescription>Auditoria detalhada dos últimos 20 ciclos de sincronização executados.</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadObservabilityData} disabled={loading} className="border-white/10">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto border border-white/5 rounded-lg">
+                <table className="w-full text-sm text-left text-zinc-300">
+                  <thead className="bg-slate-900/80 text-xs uppercase text-zinc-400 border-b border-white/5">
+                    <tr>
+                      <th className="px-4 py-3">Banco / Instituição</th>
+                      <th className="px-4 py-3">Usuário</th>
+                      <th className="px-4 py-3">Trigger</th>
+                      <th className="px-4 py-3">Duração</th>
+                      <th className="px-4 py-3">Transações</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Horário</th>
+                      <th className="px-4 py-3">Erros</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && logs.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-zinc-500" />
+                        </td>
+                      </tr>
+                    ) : logs.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-8 text-zinc-500">Nenhum log de sincronização encontrado.</td>
+                      </tr>
+                    ) : (
+                      logs.map((log) => (
+                        <tr key={log.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-white">{log.institution}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-zinc-400">{log.userId?.slice(0, 8)}...</td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="text-[10px] uppercase font-semibold">
+                              {log.trigger}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-zinc-300">
+                            {log.durationMs ? `${(log.durationMs / 1000).toFixed(1)}s` : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-300">
+                            {log.status === 'SUCCESS' ? (
+                              <span className="flex items-center gap-1">
+                                {log.transactionsImported || 0}
+                                {log.transactionsDuplicated > 0 && (
+                                  <span className="text-[10px] text-zinc-500">
+                                    ({log.transactionsDuplicated} dup)
+                                  </span>
+                                )}
+                              </span>
+                            ) : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {log.status === 'SUCCESS' ? (
+                              <span className="text-emerald-400 flex items-center gap-1 font-semibold text-xs">
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                SUCESSO
+                              </span>
+                            ) : (
+                              <span className="text-rose-400 flex items-center gap-1 font-semibold text-xs">
+                                <XCircle className="h-4 w-4 text-rose-500" />
+                                FALHOU
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-400 text-xs">
+                            {new Date(log.startedAt).toLocaleString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3 text-rose-400 text-xs max-w-[200px] truncate" title={log.errors?.join(', ')}>
+                            {log.errors && log.errors.length > 0 ? log.errors.join(', ') : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

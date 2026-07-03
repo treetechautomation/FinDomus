@@ -1,0 +1,463 @@
+import { adminDb } from '@/lib/firebase-admin';
+import { getPlanById, PLANS } from '@/services/firestore/plans';
+import { stripe } from '@/lib/stripe/server';
+import type {
+  Plan,
+  Subscription,
+  PlanCapabilities,
+  ConnectBankResult,
+  UserPlanInfo,
+} from '@/lib/billing/billing-types';
+import { UNLIMITED_CAPABILITIES } from '@/lib/billing/billing-types';
+import { isMonetizationEnabled } from './feature-flags-admin';
+import { getTrialStatus, initializeTrial, checkAndExpireTrial } from './trial-engine';
+import { getActiveCampaign, getCampaignPricing, consumeCampaignSeat, releaseCampaignSeat } from './campaign-engine';
+import { getPlanCapabilities, getUserCapabilities } from './capabilities-engine';
+import { getUsageStats, getBankUsagePercentage, getAIUsagePercentage } from './usage-engine';
+
+export { getTrialStatus, initializeTrial, checkAndExpireTrial };
+export { getActiveCampaign, getCampaignPricing, consumeCampaignSeat, releaseCampaignSeat };
+export { getPlanCapabilities, getUserCapabilities };
+export { getUsageStats, getBankUsagePercentage, getAIUsagePercentage };
+
+export async function getCurrentPlan(userId: string): Promise<{ plan: Plan; subscription: Subscription | null }> {
+  const userSnap = await adminDb.collection('users').doc(userId).get();
+  if (!userSnap.exists) {
+    return { plan: PLANS['individual'], subscription: null };
+  }
+
+  const householdId = userSnap.data()?.activeHouseholdId;
+  if (!householdId) {
+    return { plan: PLANS['individual'], subscription: null };
+  }
+
+  const householdSnap = await adminDb.collection('households').doc(householdId).get();
+  const planId = householdSnap.exists ? householdSnap.data()?.planId || 'individual' : 'individual';
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('householdId', '==', householdId)
+    .limit(1)
+    .get();
+
+  const plan = (await getPlanById(planId)) ?? PLANS[planId] ?? PLANS['individual'];
+  const subscription = subSnap.empty ? null : subSnap.docs[0].data() as Subscription;
+
+  return { plan, subscription };
+}
+
+export async function getEffectivePrice(planId: string): Promise<{
+  price: number;
+  officialPrice: number;
+  isCampaign: boolean;
+  campaignName: string | null;
+}> {
+  const plan = await getPlanById(planId) ?? PLANS[planId];
+  if (!plan) throw new Error(`Plan ${planId} not found`);
+
+  const pricing = await getCampaignPricing(planId);
+
+  if (pricing.isActive) {
+    return {
+      price: pricing.campaignPrice,
+      officialPrice: pricing.officialPrice,
+      isCampaign: true,
+      campaignName: pricing.campaignName,
+    };
+  }
+
+  return {
+    price: plan.officialPrice,
+    officialPrice: plan.officialPrice,
+    isCampaign: false,
+    campaignName: null,
+  };
+}
+
+export async function canConnectBank(userId: string): Promise<ConnectBankResult> {
+  const enabled = await isMonetizationEnabled(userId);
+  if (!enabled) {
+    return {
+      allowed: true, planId: 'unlimited', planName: 'Ilimitado',
+      current: 0, max: null, remaining: null, unlimited: true,
+      isTrial: false, trialDaysRemaining: null, trialExpired: false,
+      upgradeUrl: '/planos', upgradeMessage: '',
+    };
+  }
+
+  const caps = await getUserCapabilities(userId);
+  const usage = await getUsageStats(userId);
+  const { plan, subscription } = await getCurrentPlan(userId);
+
+  const trialStatus = subscription?.status === 'trialing'
+    ? await getTrialStatus(subscription.householdId)
+    : null;
+
+  const isTrial = trialStatus?.isActive ?? false;
+  const trialExpired = trialStatus?.isExpired ?? false;
+  const trialDaysRemaining = trialStatus?.daysRemaining ?? null;
+
+  const max = caps.maxBankConnections;
+  const unlimited = max === null;
+
+  if (!unlimited && usage.connectedBanks >= max) {
+    const upgradeTarget = plan.id === 'individual' ? 'Família' : 'Família Premium';
+    return {
+      allowed: false,
+      reason: 'PLAN_LIMIT_REACHED',
+      planId: plan.id,
+      planName: plan.name,
+      current: usage.connectedBanks,
+      max,
+      remaining: 0,
+      unlimited: false,
+      isTrial,
+      trialDaysRemaining,
+      trialExpired,
+      upgradeUrl: '/planos',
+      upgradeMessage: `Você atingiu o limite de ${max} banco(s) do plano ${plan.name}. Faça upgrade para ${upgradeTarget}.`,
+    };
+  }
+
+  if (trialExpired && !unlimited && usage.connectedBanks >= max) {
+    return {
+      allowed: false,
+      reason: 'TRIAL_EXPIRED',
+      planId: plan.id,
+      planName: plan.name,
+      current: usage.connectedBanks,
+      max,
+      remaining: 0,
+      unlimited: false,
+      isTrial: false,
+      trialDaysRemaining: 0,
+      trialExpired: true,
+      upgradeUrl: '/planos',
+      upgradeMessage: 'Seu Trial expirou. Escolha um plano para continuar.',
+    };
+  }
+
+  return {
+    allowed: true,
+    planId: plan.id,
+    planName: plan.name,
+    current: usage.connectedBanks,
+    max,
+    remaining: unlimited ? null : max - usage.connectedBanks,
+    unlimited,
+    isTrial,
+    trialDaysRemaining,
+    trialExpired,
+    upgradeUrl: '/planos',
+    upgradeMessage: '',
+  };
+}
+
+export async function getUserPlanInfo(userId: string): Promise<UserPlanInfo> {
+  const caps = await getUserCapabilities(userId);
+  const usage = await getUsageStats(userId);
+  const { plan, subscription } = await getCurrentPlan(userId);
+
+  const trialStatus = subscription
+    ? await getTrialStatus(subscription.householdId)
+    : null;
+
+  const pricing = await getEffectivePrice(plan.id);
+  const bankPct = await getBankUsagePercentage(userId);
+  const aiPct = await getAIUsagePercentage(userId);
+
+  const maxBanks = caps.maxBankConnections;
+  const remaining = maxBanks === null ? null : Math.max(0, maxBanks - usage.connectedBanks);
+
+  return {
+    planId: plan.id,
+    planName: plan.name,
+    recommended: plan.recommended,
+    price: pricing.price,
+    officialPrice: pricing.officialPrice,
+    isCampaignPrice: pricing.isCampaign,
+    capabilities: caps,
+    trial: trialStatus ?? { isActive: false, isExpired: false, daysRemaining: null, hoursRemaining: null, endsAt: null, startedAt: null, used: false },
+    usage: {
+      connectedBanks: usage.connectedBanks,
+      memberCount: usage.memberCount,
+      aiRequestsThisMonth: usage.aiRequestsThisMonth,
+      importsThisMonth: usage.importsThisMonth,
+      maxBanks,
+      remainingBanks: remaining,
+      bankUsagePercent: bankPct,
+      maxAIRequests: caps.monthlyCredits,
+      aiUsagePercent: aiPct,
+    },
+  };
+}
+
+export async function canUpgrade(
+  userId: string,
+  targetPlanId: string
+): Promise<{ allowed: boolean; reason?: string }> {
+  const { plan: currentPlan } = await getCurrentPlan(userId);
+  const targetPlan = await getPlanById(targetPlanId) ?? PLANS[targetPlanId];
+
+  if (!targetPlan) {
+    return { allowed: false, reason: 'PLAN_NOT_FOUND' };
+  }
+
+  if (!targetPlan.isActive) {
+    return { allowed: false, reason: 'PLAN_INACTIVE' };
+  }
+
+  if (targetPlan.sortOrder <= currentPlan.sortOrder && currentPlan.id !== targetPlanId) {
+    return { allowed: false, reason: 'DOWNGRADE_NOT_ALLOWED' };
+  }
+
+  return { allowed: true };
+}
+
+export async function createCheckoutSession(params: {
+  planId: string;
+  email: string;
+  userId: string;
+  householdId: string;
+  appUrl: string;
+}): Promise<{ checkoutUrl: string; sessionId: string } | null> {
+  const { planId, email, userId, householdId, appUrl } = params;
+
+  const plan = await getPlanById(planId) ?? PLANS[planId];
+  if (!plan) throw new Error(`Plan ${planId} not found`);
+
+  const pricing = await getEffectivePrice(planId);
+  const priceInCents = Math.round(pricing.price * 100);
+
+  if (priceInCents === 0) {
+    return null;
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    customer_email: email,
+    line_items: [{
+      price_data: {
+        currency: 'brl',
+        recurring: { interval: 'month' },
+        product_data: {
+          name: `FinDomus - Plano ${plan.name}`,
+          description: pricing.isCampaign
+            ? `Preço de lançamento (oficial: R$ ${pricing.officialPrice.toFixed(2)})`
+            : `Assinatura mensal do plano ${plan.name}`,
+        },
+        unit_amount: priceInCents,
+      },
+      quantity: 1,
+    }],
+    metadata: {
+      type: 'findomus_subscription',
+      planId,
+      userId,
+      householdId,
+      email,
+    },
+    subscription_data: {
+      metadata: {
+        type: 'findomus_subscription',
+        planId,
+        userId,
+        householdId,
+      },
+    },
+    success_url: `${appUrl}/planos?checkout=success`,
+    cancel_url: `${appUrl}/planos?checkout=cancel`,
+  });
+
+  return {
+    checkoutUrl: session.url!,
+    sessionId: session.id,
+  };
+}
+
+export async function handleCheckoutCompleted(event: any): Promise<void> {
+  const metadata = event.metadata || {};
+  const planId = metadata.planId;
+  const householdId = metadata.householdId;
+  const subscriptionId = event.subscription as string;
+
+  if (!planId || !householdId) return;
+
+  const nowStr = new Date().toISOString();
+
+  await adminDb.collection('households').doc(householdId).update({
+    planId,
+    updatedAt: nowStr,
+  } as any);
+
+  let currentPeriodEnd: string | null = null;
+  let stripeCustomerId: string | null = null;
+
+  if (subscriptionId) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(subscriptionId) as any;
+      currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+      stripeCustomerId = typeof sub.customer === 'string' ? sub.customer : null;
+    } catch { /* ignore */ }
+  }
+
+  const subData: Record<string, any> = {
+    householdId,
+    planId,
+    status: 'active',
+    currentPeriodEnd,
+    stripeSubscriptionId: subscriptionId || null,
+    stripeCustomerId,
+    updatedAt: nowStr,
+  };
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('householdId', '==', householdId)
+    .limit(1)
+    .get();
+
+  if (!subSnap.empty) {
+    await subSnap.docs[0].ref.update(subData);
+  } else {
+    await adminDb.collection('subscriptions').add({ ...subData, createdAt: nowStr });
+  }
+
+  const campaign = await getActiveCampaign();
+  if (campaign) {
+    const subDoc = subSnap.empty ? null : subSnap.docs[0];
+    if (subDoc) {
+      await subDoc.ref.update({ campaignId: campaign.id } as any);
+    }
+    await consumeCampaignSeat(campaign.id);
+  }
+}
+
+export async function handleSubscriptionUpdated(event: any): Promise<void> {
+  const metadata = event.metadata || {};
+  const planId = metadata.planId;
+  const householdId = metadata.householdId;
+
+  if (!planId || !householdId) return;
+
+  const nowStr = new Date().toISOString();
+  const status = event.status === 'active' || event.status === 'trialing' ? 'active'
+    : event.status === 'past_due' ? 'past_due'
+    : event.status === 'paused' ? 'paused'
+    : 'canceled';
+
+  if (status === 'canceled') {
+    await adminDb.collection('households').doc(householdId).update({
+      planId: 'individual',
+      updatedAt: nowStr,
+    } as any);
+
+    const subSnap = await adminDb
+      .collection('subscriptions')
+      .where('householdId', '==', householdId)
+      .limit(1)
+      .get();
+
+    if (!subSnap.empty) {
+      const sub = subSnap.docs[0].data();
+      if (sub.campaignId) {
+        await releaseCampaignSeat(sub.campaignId);
+      }
+    }
+  }
+
+  const currentPeriodEnd = event.current_period_end
+    ? new Date(event.current_period_end * 1000).toISOString()
+    : null;
+
+  const subData: Record<string, any> = {
+    householdId, planId, status, currentPeriodEnd, updatedAt: nowStr,
+  };
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('householdId', '==', householdId)
+    .limit(1)
+    .get();
+
+  if (!subSnap.empty) {
+    await subSnap.docs[0].ref.update(subData);
+  } else {
+    await adminDb.collection('subscriptions').add({ ...subData, createdAt: nowStr });
+  }
+}
+
+export async function handleInvoicePaid(event: any): Promise<void> {
+  const subscriptionId = event.subscription;
+  if (!subscriptionId) return;
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('stripeSubscriptionId', '==', subscriptionId)
+    .limit(1)
+    .get();
+
+  if (!subSnap.empty) {
+    await subSnap.docs[0].ref.update({
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+    } as any);
+  }
+}
+
+export async function handlePaymentFailed(event: any): Promise<void> {
+  const subscriptionId = event.subscription;
+  if (!subscriptionId) return;
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('stripeSubscriptionId', '==', subscriptionId)
+    .limit(1)
+    .get();
+
+  if (!subSnap.empty) {
+    await subSnap.docs[0].ref.update({
+      status: 'past_due',
+      updatedAt: new Date().toISOString(),
+    } as any);
+  }
+}
+
+export async function handleSubscriptionPaused(event: any): Promise<void> {
+  const subscriptionId = event.id;
+  if (!subscriptionId) return;
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('stripeSubscriptionId', '==', subscriptionId)
+    .limit(1)
+    .get();
+
+  if (!subSnap.empty) {
+    await subSnap.docs[0].ref.update({
+      status: 'paused',
+      pausedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any);
+  }
+}
+
+export async function handleSubscriptionResumed(event: any): Promise<void> {
+  const subscriptionId = event.id;
+  if (!subscriptionId) return;
+
+  const subSnap = await adminDb
+    .collection('subscriptions')
+    .where('stripeSubscriptionId', '==', subscriptionId)
+    .limit(1)
+    .get();
+
+  if (!subSnap.empty) {
+    await subSnap.docs[0].ref.update({
+      status: 'active',
+      resumedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any);
+  }
+}

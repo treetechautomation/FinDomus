@@ -6,6 +6,7 @@ import {
   BookCopy,
   Building2,
   CreditCard,
+  Crown,
   LayoutDashboard,
   Repeat2,
   Settings,
@@ -40,6 +41,7 @@ const menuItems = [
   { href: '/fiscal-contabil', label: 'Fiscal & Contábil', icon: BookCopy },
   { href: '/importacoes', label: 'Importações', icon: Upload },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+  { href: '/planos', label: 'Planos', icon: Crown },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 
@@ -95,6 +97,7 @@ export function SidebarNav() {
                           '/fiscal-contabil': 'text-yellow-400',
                           '/importacoes': 'text-sky-400',
                           '/relatorios': 'text-purple-400',
+                          '/planos': 'text-amber-400',
                           '/configuracoes': 'text-gray-400',
                         }[item.href] || 'text-muted-foreground'
                   )}

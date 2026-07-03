@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Wallet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Wallet, Loader2, RefreshCw, AlertCircle, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
+import Script from 'next/script';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,17 +10,269 @@ import { Button } from '@/components/ui/button';
 import { Importer } from '@/components/import/importer';
 import { B3Importer } from '@/components/import/b3/b3-importer';
 import { CorretorasImporter } from '@/components/import/corretoras/corretoras-importer';
+import { useAuth } from '@/providers/auth-provider';
+import { getIdToken } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { getFeatureFlags } from '@/lib/feature-flags';
+import { useToast } from '@/hooks/use-toast';
+
+interface BankConnection {
+  id: string;
+  itemId: string;
+  connectorId: number;
+  status: 'PENDING' | 'SYNCING' | 'ACTIVE' | 'ERROR' | 'REVOKED';
+  institution: string;
+  lastSuccessfulSync?: string;
+  lastSync?: string;
+  lastTransactionDate?: string;
+  lastWebhook?: string;
+  lastManualSync?: string;
+  failureCount?: number;
+  lastError?: string;
+  lastErrorAt?: string;
+  lastSyncAISummary?: string;
+  createdAt: string;
+  lastLog?: {
+    durationMs: number;
+    transactionsImported: number;
+    transactionsIgnored: number;
+    transactionsDuplicated: number;
+    investmentsImported: number;
+    status: string;
+    trigger: string;
+    importRate?: number;
+    duplicateRate?: number;
+    skippedClosedMonths?: number;
+  } | null;
+}
 
 export function ImportCenter() {
-  const [activeSource, setActiveSource] = useState<'financeiro' | 'b3' | 'corretoras' | 'cripto'>('financeiro');
+  const [activeSource, setActiveSource] = useState<'financeiro' | 'open-finance' | 'b3' | 'corretoras' | 'cripto'>('financeiro');
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [pluggyEnabled, setPluggyEnabled] = useState(false);
+  const [connections, setConnections] = useState<BankConnection[]>([]);
+  const [loadingFlags, setLoadingFlags] = useState(true);
+  const [loadingConnections, setLoadingConnections] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  // 1. Carregar Feature Flag do Pluggy
+  useEffect(() => {
+    if (user) {
+      setLoadingFlags(true);
+      getFeatureFlags(user.uid)
+        .then((flags) => {
+          setPluggyEnabled(flags.pluggyEnabled || false);
+        })
+        .catch((err) => {
+          console.error('[ImportCenter] Failed to load feature flags:', err);
+        })
+        .finally(() => {
+          setLoadingFlags(false);
+        });
+    }
+  }, [user]);
+
+  // 2. Carregar Conexões Bancárias Salvas e seus respectivos últimos logs de auditoria
+  const loadConnections = async () => {
+    if (!user) return;
+    setLoadingConnections(true);
+    try {
+      const q = query(
+        collection(db, 'bank_connections'),
+        where('userId', '==', user.uid)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map((doc) => doc.data() as BankConnection);
+      
+      const enrichedList = [];
+      for (const conn of list) {
+        let lastLog = null;
+        try {
+          const logQ = query(
+            collection(db, 'pluggy_sync_logs'),
+            where('itemId', '==', conn.itemId),
+            orderBy('startedAt', 'desc'),
+            limit(1)
+          );
+          const logSnap = await getDocs(logQ);
+          if (!logSnap.empty) {
+            lastLog = logSnap.docs[0].data() as any;
+          }
+        } catch (logErr) {
+          console.warn(`[ImportCenter] Failed to fetch sync log for item ${conn.itemId}:`, logErr);
+        }
+        enrichedList.push({
+          ...conn,
+          lastLog
+        });
+      }
+      setConnections(enrichedList);
+    } catch (e) {
+      console.error('[ImportCenter] Failed to load bank connections:', e);
+    } finally {
+      setLoadingConnections(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pluggyEnabled && user) {
+      loadConnections();
+    }
+  }, [pluggyEnabled, user]);
+
+  // 3. Iniciar Conexão via Pluggy Widget (ou reconexão)
+  const handleConnectBank = async (updateItemId?: string) => {
+    if (!user) return;
+    setConnecting(true);
+    try {
+      const token = await getIdToken(auth.currentUser!);
+      
+      const res = await fetch('/api/pluggy/connect-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('Falha ao obter connect token da Pluggy');
+      }
+
+      const { accessToken } = await res.json();
+
+      if (typeof window !== 'undefined' && (window as any).PluggyConnect) {
+        const pluggyConnect = new (window as any).PluggyConnect({
+          connectToken: accessToken,
+          includeSandbox: true,
+          updateItemId: updateItemId || undefined,
+          onSuccess: async (itemData: any) => {
+            toast({
+              title: "Banco conectado na Pluggy",
+              description: "Salvando conexão e sincronizando dados iniciais...",
+            });
+
+            const saveRes = await fetch('/api/pluggy/connect', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ itemId: itemData.item.id }),
+            });
+
+            if (!saveRes.ok) {
+              throw new Error('Falha ao salvar conexão no servidor');
+            }
+
+            await handleSyncConnection(itemData.item.id);
+            await loadConnections();
+          },
+          onError: (error: any) => {
+            console.error('[Pluggy Connect Error]', error);
+            toast({
+              title: "Erro na conexão",
+              description: "Houve uma falha ao conectar a conta pelo widget.",
+              variant: "destructive",
+            });
+          },
+        });
+
+        pluggyConnect.init();
+      } else {
+        throw new Error('Widget da Pluggy Connect não carregado na página.');
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "Erro ao abrir integração",
+        description: e.message || "Não foi possível abrir o portal Open Finance.",
+        variant: "destructive",
+      });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // 4. Sincronizar Conexão Existente
+  const handleSyncConnection = async (itemId: string) => {
+    if (!user) return;
+    setSyncingId(itemId);
+    try {
+      const token = await getIdToken(auth.currentUser!);
+      const res = await fetch('/api/pluggy/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ itemId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao sincronizar lançamentos.');
+      }
+
+      toast({
+        title: "Sincronização Concluída",
+        description: `Contas e saldos atualizados. Sincronizadas ${data.transactionsSynced} transações e ${data.investmentsSynced} investimentos.`,
+      });
+
+      await loadConnections();
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "Erro na Sincronização",
+        description: e.message || "Ocorreu um erro ao sincronizar dados com o banco.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  // Renderizar o badge de status com cores e emojis correspondentes
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-semibold gap-1">🟢 Conectado</Badge>;
+      case 'SYNCING':
+        return (
+          <Badge className="bg-sky-500/20 text-sky-400 border-sky-500/30 animate-pulse flex items-center gap-1 font-semibold">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            🟡 Sincronizando
+          </Badge>
+        );
+      case 'PENDING':
+        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 font-semibold">🟡 Pendente</Badge>;
+      case 'ERROR':
+        return <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30 font-semibold">🔴 Erro</Badge>;
+      case 'REVOKED':
+        return <Badge className="bg-zinc-800 text-zinc-400 border-zinc-700 font-semibold">⚫ Revogado</Badge>;
+      default:
+        return <Badge className="bg-zinc-500/20 text-zinc-400 border-zinc-500/30 font-semibold">{status}</Badge>;
+    }
+  };
 
   return (
     <div className="space-y-6">
+      <Script src="https://cdn.pluggy.ai/pluggy-connect/v2/index.js" strategy="lazyOnload" />
+
       <Tabs defaultValue="financeiro" value={activeSource} onValueChange={(val) => setActiveSource(val as any)} className="w-full">
-        <TabsList className="bg-slate-900/60 border border-white/5 grid w-full grid-cols-2 md:grid-cols-4 p-1 h-auto rounded-xl">
+        <TabsList className="bg-slate-900/60 border border-white/5 grid w-full grid-cols-2 md:grid-cols-5 p-1 h-auto rounded-xl">
           <TabsTrigger value="financeiro" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             Financeiro
           </TabsTrigger>
+          {pluggyEnabled && (
+            <TabsTrigger value="open-finance" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              Open Finance
+            </TabsTrigger>
+          )}
           <TabsTrigger value="b3" className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             Carteira B3
           </TabsTrigger>
@@ -34,6 +287,172 @@ export function ImportCenter() {
         <TabsContent value="financeiro" className="space-y-6 mt-6 animate-in fade-in duration-300">
           <Importer />
         </TabsContent>
+
+        {pluggyEnabled && (
+          <TabsContent value="open-finance" className="space-y-6 mt-6 animate-in fade-in duration-300">
+            <Card className="border-white/10 bg-slate-950/40 backdrop-blur-xl relative overflow-hidden">
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                      <Wallet className="h-6 w-6 text-primary" />
+                      Integração Open Finance
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Conecte suas contas bancárias automaticamente de forma segura e rápida (Ambiente Sandbox).
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={() => handleConnectBank()}
+                    disabled={connecting}
+                    className="bg-primary hover:bg-primary/80 text-primary-foreground font-semibold self-start md:self-auto"
+                  >
+                    {connecting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Iniciando...
+                      </>
+                    ) : (
+                      'Conectar Banco via Open Finance'
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="py-6">
+                <div className="space-y-6">
+                  <h3 className="text-sm font-semibold text-zinc-300 border-b border-white/5 pb-2">Contas Conectadas</h3>
+
+                  {loadingConnections ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+                    </div>
+                  ) : connections.length === 0 ? (
+                    <div className="border border-dashed border-white/10 rounded-xl p-8 text-center bg-white/5">
+                      <AlertCircle className="mx-auto h-8 w-8 text-zinc-500 mb-2" />
+                      <p className="text-sm text-zinc-400 font-medium">Nenhum banco ou conta conectada via Open Finance ainda.</p>
+                      <p className="text-xs text-zinc-500 mt-1">Conecte sua primeira conta em modo Sandbox para começar a monitorar em tempo real.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+                      {connections.map((conn) => (
+                        <Card key={conn.id} className="border-white/5 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between">
+                          <CardContent className="p-5 space-y-4 flex-1">
+                            <div className="flex items-start justify-between border-b border-white/5 pb-3">
+                              <div className="space-y-1">
+                                <p className="font-bold text-zinc-100 text-lg">{conn.institution}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {renderStatusBadge(conn.status)}
+                                </div>
+                              </div>
+                              
+                              <div className="flex gap-2">
+                                {(conn.status === 'ERROR' || conn.status === 'REVOKED') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleConnectBank(conn.itemId)}
+                                    className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs font-semibold"
+                                  >
+                                    Reautorizar
+                                  </Button>
+                                )}
+                                
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleSyncConnection(conn.itemId)}
+                                  disabled={syncingId === conn.itemId || conn.status === 'REVOKED' || conn.status === 'SYNCING'}
+                                  className="text-zinc-400 hover:text-white"
+                                >
+                                  {syncingId === conn.itemId ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                  ) : (
+                                    <RefreshCw className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Informações estendidas da Conexão */}
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs text-zinc-400">
+                              <div>
+                                <span className="text-zinc-500 block">Última Sincronização:</span>
+                                <span className="font-medium text-zinc-300">
+                                  {conn.lastSuccessfulSync 
+                                    ? new Date(conn.lastSuccessfulSync).toLocaleString('pt-BR') 
+                                    : conn.lastSync 
+                                      ? new Date(conn.lastSync).toLocaleString('pt-BR') 
+                                      : 'Nunca'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block">Trigger / Tipo:</span>
+                                <span className="font-medium text-zinc-300 uppercase">
+                                  {conn.lastLog?.trigger || 'N/A'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block">Tempo de Execução:</span>
+                                <span className="font-medium text-zinc-300">
+                                  {conn.lastLog?.durationMs ? `${(conn.lastLog.durationMs / 1000).toFixed(1)}s` : 'N/A'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block">Lançamentos / Ativos:</span>
+                                <span className="font-medium text-zinc-300 flex items-center gap-1">
+                                  {conn.lastLog?.transactionsImported ?? 0} tx / {conn.lastLog?.investmentsImported ?? 0} inv
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block">Duplicadas / Ignoradas:</span>
+                                <span className="font-medium text-zinc-300">
+                                  {conn.lastLog?.transactionsDuplicated ?? 0} dup / {conn.lastLog?.transactionsIgnored ?? 0} ign
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block">Economia de Gravação (Taxa):</span>
+                                <span className="font-medium text-emerald-400">
+                                  {conn.lastLog?.duplicateRate ? `${conn.lastLog.duplicateRate}% economia` : '0%'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Resumo do Copiloto IA (Premium Highlight) */}
+                            {conn.lastSyncAISummary && (
+                              <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 mt-3 space-y-2 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3 opacity-15">
+                                  <Sparkles className="h-10 w-10 text-primary" />
+                                </div>
+                                <p className="text-xs font-semibold text-primary flex items-center gap-1.5 uppercase tracking-wider">
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  Copiloto IA Domus
+                                </p>
+                                <div className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-line">
+                                  {conn.lastSyncAISummary}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Mensagem de Erro Crônico */}
+                            {conn.status === 'ERROR' && conn.lastError && (
+                              <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 text-xs text-rose-400 flex items-start gap-2 mt-2">
+                                <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-semibold">Erro de Conexão ({conn.failureCount} falhas):</p>
+                                  <p className="opacity-90">{conn.lastError}</p>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         <TabsContent value="b3" className="mt-6 animate-in fade-in duration-300">
           <B3Importer />

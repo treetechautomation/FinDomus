@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe/server';
-import { PLANS } from '@/services/firestore/plans';
+import { getPlanById } from '@/services/firestore/plans';
+import { createCheckoutSession, getEffectivePrice, canUpgrade } from '@/lib/billing/billing-engine';
 import { verifyIdToken } from '@/lib/verify-id-token';
 
 export const runtime = 'nodejs';
@@ -40,7 +40,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const plan = PLANS[planId];
+    const canUpgradeResult = await canUpgrade(userId, planId);
+    if (!canUpgradeResult.allowed) {
+      return NextResponse.json(
+        { success: false, error: canUpgradeResult.reason || 'UPGRADE_NOT_ALLOWED' },
+        { status: 403 }
+      );
+    }
+
+    const plan = await getPlanById(planId);
     if (!plan) {
       return NextResponse.json(
         { success: false, error: 'PLAN_NOT_FOUND' },
@@ -48,60 +56,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
-    const priceInCents = Math.round(plan.price * 100);
+    const pricing = await getEffectivePrice(planId);
+    const priceInCents = Math.round(pricing.price * 100);
 
-    // Se o preço for 0 (plano gratuito), não cria sessão de checkout no Stripe
     if (priceInCents === 0) {
+      return NextResponse.json({
+        success: true,
+        checkoutUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/dashboard`,
+      });
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+
+    const result = await createCheckoutSession({ planId, email, userId, householdId, appUrl });
+
+    if (!result) {
       return NextResponse.json({
         success: true,
         checkoutUrl: `${appUrl}/dashboard`,
       });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      customer_email: email,
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            recurring: {
-              interval: 'month',
-            },
-            product_data: {
-              name: `FinDomus - Plano ${plan.name}`,
-              description: `Assinatura mensal do plano ${plan.name}`,
-            },
-            unit_amount: priceInCents,
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        type: 'findomus_subscription',
-        planId,
-        userId,
-        householdId,
-        email,
-      },
-      subscription_data: {
-        metadata: {
-          type: 'findomus_subscription',
-          planId,
-          userId,
-          householdId,
-        },
-      },
-      success_url: `${appUrl}/planos?checkout=success`,
-      cancel_url: `${appUrl}/planos?checkout=cancel`,
-    });
-
     return NextResponse.json({
       success: true,
-      checkoutUrl: session.url,
-      sessionId: session.id,
+      checkoutUrl: result.checkoutUrl,
+      sessionId: result.sessionId,
     });
   } catch (error: any) {
     console.error('[POST /api/stripe/checkout]', error);

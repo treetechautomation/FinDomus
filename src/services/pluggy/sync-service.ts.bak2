@@ -1,0 +1,615 @@
+import { PluggyClient } from 'pluggy-sdk';
+import { adminDb } from '@/lib/firebase-admin';
+import { resolveUserHouseholdId } from '@/services/firestore/users';
+import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date';
+import { generateImportHash } from '@/services/firestore/transactions';
+import { buildClassificationContext, classifyTransactionWithContext } from '@/core/finance/transaction-classifier';
+import { financialEvents } from '@/core/finance/events';
+
+/**
+ * Mapeia os tipos de conta da Pluggy para os tipos internos do FinDomus
+ */
+function mapAccountType(pluggyType: string, pluggySubtype: string): string {
+  if (pluggyType === 'CREDIT' || pluggySubtype === 'CREDIT_CARD') {
+    return 'credit_card';
+  }
+  if (pluggySubtype === 'SAVINGS_ACCOUNT') {
+    return 'savings';
+  }
+  if (pluggySubtype === 'INVESTMENT') {
+    return 'investment';
+  }
+  return 'checking'; // Default checking (Conta Corrente)
+}
+
+/**
+ * Verifica se um mês de competência está fechado no FinDomus
+ */
+async function isMonthClosed(userId: string, owner: 'PF' | 'PJ', monthKey: string): Promise<boolean> {
+  if (!monthKey) return false;
+  try {
+    const closureSnap = await adminDb
+      .collection('monthly_closures')
+      .where('userId', '==', userId)
+      .where('owner', '==', owner)
+      .where('month', '==', monthKey)
+      .limit(1)
+      .get();
+    
+    if (closureSnap.empty) return false;
+    const closureData = closureSnap.docs[0].data();
+    return closureData.status === 'CLOSED';
+  } catch (e) {
+    console.error(`[Pluggy Sync] Error checking monthly closure for month ${monthKey}:`, e);
+    return false;
+  }
+}
+
+/**
+ * Executa a sincronização completa das Contas, Saldos, Transações e Investimentos do Item.
+ * Com suporte a sincronização incremental, auditoria de logs e métricas.
+ */
+export async function syncItem(
+  userId: string,
+  itemId: string,
+  trigger: 'MANUAL' | 'SCHEDULER' | 'WEBHOOK' = 'MANUAL'
+): Promise<{
+  success: boolean;
+  accountsSynced: number;
+  transactionsSynced: number;
+  investmentsSynced: number;
+}> {
+  const startedAt = new Date();
+  console.log(`[Pluggy Sync] [${trigger}] Starting sync for user ${userId}, itemId ${itemId}`);
+
+  let status: 'SUCCESS' | 'FAILED' = 'SUCCESS';
+  let errors: string[] = [];
+  let accountsImported = 0;
+  let transactionsImported = 0;
+  let transactionsIgnored = 0;
+  let transactionsDuplicated = 0;
+  let investmentsImported = 0;
+  let maxDateISO: string | null = null;
+
+  const clientId = process.env.PLUGGY_CLIENT_ID;
+  const clientSecret = process.env.PLUGGY_CLIENT_SECRET;
+
+  const connectionRef = adminDb.collection('bank_connections').doc(itemId);
+  let connectionData: any = {};
+
+  try {
+    // 1. Carregar conexão e definir status como SYNCING
+    const connDoc = await connectionRef.get();
+    if (connDoc.exists) {
+      connectionData = connDoc.data();
+    } else {
+      throw new Error(`Connection connection ${itemId} not found in database.`);
+    }
+
+    await connectionRef.update({
+      status: 'SYNCING',
+      updatedAt: startedAt.toISOString()
+    });
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Pluggy API credentials missing on server');
+    }
+
+    const client = new PluggyClient({
+      clientId,
+      clientSecret,
+    });
+
+    // 2. Resolver householdId do usuário
+    let householdId = null;
+    try {
+      householdId = await resolveUserHouseholdId(userId);
+    } catch (e) {
+      console.warn(`[Pluggy Sync] Could not resolve householdId for user ${userId}:`, e);
+    }
+
+    // 3. Sincronizar Contas e Saldos
+    const accountsMap = await syncAccountsAndBalances(userId, itemId, client, householdId);
+    accountsImported = accountsMap.size;
+    
+    // 4. Sincronizar Transações (Incremental ou Fallback 30 dias)
+    const lastTransactionDate = connectionData?.lastTransactionDate || null;
+    const txResult = await syncTransactions(userId, itemId, client, accountsMap, householdId, lastTransactionDate);
+    
+    transactionsImported = txResult.imported;
+    transactionsDuplicated = txResult.duplicated;
+    transactionsIgnored = txResult.ignored;
+    maxDateISO = txResult.maxDateISO;
+
+    // 5. Sincronizar Investimentos
+    investmentsImported = await syncInvestments(userId, itemId, client, householdId);
+
+    // 6. Atualizar conexão como ACTIVE e resetar falhas
+    const updatePayload: any = {
+      status: 'ACTIVE',
+      failureCount: 0,
+      lastError: null,
+      lastErrorAt: null,
+      lastSuccessfulSync: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (maxDateISO) {
+      const currentMax = connectionData?.lastTransactionDate || '';
+      if (maxDateISO > currentMax) {
+        updatePayload.lastTransactionDate = maxDateISO;
+      }
+    }
+
+    if (trigger === 'MANUAL') {
+      updatePayload.lastManualSync = new Date().toISOString();
+    } else if (trigger === 'WEBHOOK') {
+      updatePayload.lastWebhook = new Date().toISOString();
+    }
+
+    await connectionRef.update(updatePayload);
+
+  } catch (error: any) {
+    status = 'FAILED';
+    const errorMsg = error.message || String(error);
+    errors.push(errorMsg);
+    console.error(`[Pluggy Sync] [${trigger}] Error during synchronization:`, error);
+
+    // Tratar política de erro e resiliência de falhas
+    try {
+      const errorMsgLower = errorMsg.toLowerCase();
+      const isRevoked = errorMsgLower.includes('consent expired') || 
+                        errorMsgLower.includes('revoked') || 
+                        errorMsgLower.includes('unauthorized') || 
+                        errorMsgLower.includes('401') ||
+                        errorMsgLower.includes('403') ||
+                        (error.status && (error.status === 401 || error.status === 403));
+      
+      let nextStatus = 'ACTIVE';
+      const failureCount = (connectionData?.failureCount || 0) + 1;
+      
+      if (isRevoked) {
+        nextStatus = 'REVOKED';
+      } else if (failureCount >= 3) {
+        nextStatus = 'ERROR';
+      }
+
+      const updatePayload: any = {
+        status: nextStatus,
+        failureCount,
+        lastError: errorMsg,
+        lastErrorAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (trigger === 'MANUAL') {
+        updatePayload.lastManualSync = new Date().toISOString();
+      } else if (trigger === 'WEBHOOK') {
+        updatePayload.lastWebhook = new Date().toISOString();
+      }
+
+      await connectionRef.update(updatePayload);
+    } catch (e) {
+      console.error('[Pluggy Sync] Error updating connection with failure states:', e);
+    }
+  }
+
+  // 7. Salvar Auditoria (pluggy_sync_logs)
+  const finishedAt = new Date();
+  const durationMs = finishedAt.getTime() - startedAt.getTime();
+  
+  try {
+    await adminDb.collection('pluggy_sync_logs').add({
+      userId,
+      itemId,
+      institution: connectionData?.institution || 'Instituição Financeira',
+      startedAt: startedAt.toISOString(),
+      finishedAt: finishedAt.toISOString(),
+      durationMs,
+      accountsImported,
+      transactionsImported,
+      transactionsIgnored,
+      transactionsDuplicated,
+      investmentsImported,
+      errors,
+      status,
+      trigger,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('[Pluggy Sync] Error saving audit logs:', e);
+  }
+
+  // 8. Registrar Métricas de Performance em system_metrics
+  try {
+    await adminDb.collection('system_metrics').add({
+      userId,
+      metric: 'pluggy_sync_duration_ms',
+      value: durationMs,
+      domain: 'pluggy',
+      extra: { trigger, status, itemId },
+      timestamp: new Date().toISOString(),
+    });
+
+    if (transactionsImported > 0) {
+      await adminDb.collection('system_metrics').add({
+        userId,
+        metric: 'pluggy_sync_transactions_imported',
+        value: transactionsImported,
+        domain: 'pluggy',
+        extra: { itemId },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (transactionsDuplicated > 0) {
+      await adminDb.collection('system_metrics').add({
+        userId,
+        metric: 'pluggy_sync_transactions_duplicated',
+        value: transactionsDuplicated,
+        domain: 'pluggy',
+        extra: { itemId },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    await adminDb.collection('system_metrics').add({
+      userId,
+      metric: status === 'SUCCESS' ? 'pluggy_sync_success_rate' : 'pluggy_sync_failures',
+      value: status === 'SUCCESS' ? 100 : 1,
+      domain: 'pluggy',
+      extra: { itemId, trigger },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('[Pluggy Sync] Error logging system metrics:', e);
+  }
+
+  return {
+    success: status === 'SUCCESS',
+    accountsSynced: accountsImported,
+    transactionsSynced: transactionsImported,
+    investmentsSynced: investmentsImported,
+  };
+}
+
+/**
+ * Busca e sincroniza as contas bancárias associadas ao Item
+ * Retorna um Map unindo o pluggyAccountId -> accountId (interno do FinDomus)
+ */
+async function syncAccountsAndBalances(
+  userId: string,
+  itemId: string,
+  client: PluggyClient,
+  householdId: string | null
+): Promise<Map<string, string>> {
+  const accountsMap = new Map<string, string>();
+  
+  // 1. Obter contas da Pluggy
+  const pluggyAccountsResponse = await client.fetchAccounts(itemId);
+  const pluggyAccounts = pluggyAccountsResponse.results;
+  
+  // 2. Obter contas existentes do usuário no FinDomus
+  const existingAccountsSnap = await adminDb
+    .collection('accounts')
+    .where('userId', '==', userId)
+    .get();
+
+  const existingAccounts = existingAccountsSnap.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as any[];
+
+  // 3. Mapear e atualizar/criar cada conta
+  for (const pAcc of pluggyAccounts) {
+    const matched = existingAccounts.find(acc => acc.pluggyAccountId === pAcc.id);
+    
+    // Mapeamento de tipo e proprietário (PF/PJ)
+    const type = mapAccountType(pAcc.type, pAcc.subtype);
+    const isPj = pAcc.taxNumber && pAcc.taxNumber.replace(/\D/g, '').length === 14;
+    const owner = isPj ? 'PJ' : 'PF';
+
+    const accountData: any = {
+      name: pAcc.name || pAcc.marketingName || 'Conta Integrada',
+      type,
+      owner,
+      balance: Number(pAcc.balance || 0),
+      userId,
+      householdId,
+      pluggyAccountId: pAcc.id,
+      pluggyItemId: itemId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    let accountId = '';
+    if (matched) {
+      // Atualiza conta existente
+      accountId = matched.id;
+      await adminDb.collection('accounts').doc(accountId).update(accountData);
+    } else {
+      // Cria nova conta
+      accountData.createdAt = new Date().toISOString();
+      const newDocRef = await adminDb.collection('accounts').add(accountData);
+      accountId = newDocRef.id;
+    }
+
+    accountsMap.set(pAcc.id, accountId);
+
+    // Emitir evento de atualização da conta
+    financialEvents.emit({
+      type: 'account:updated',
+      payload: { accountId },
+      timestamp: new Date().toISOString(),
+      source: 'pluggySync:accounts',
+    });
+  }
+
+  return accountsMap;
+}
+
+/**
+ * Sincroniza as transações de forma incremental ou fallback de 30 dias
+ */
+async function syncTransactions(
+  userId: string,
+  itemId: string,
+  client: PluggyClient,
+  accountsMap: Map<string, string>,
+  householdId: string | null,
+  lastTransactionDate: string | null
+): Promise<{
+  imported: number;
+  duplicated: number;
+  ignored: number;
+  maxDateISO: string | null;
+}> {
+  if (accountsMap.size === 0) {
+    return { imported: 0, duplicated: 0, ignored: 0, maxDateISO: null };
+  }
+
+  // 1. Determinar o dateFrom (Incremental vs Fallback de 30 dias na primeira sincronização)
+  let dateFromStr = '';
+  if (lastTransactionDate) {
+    dateFromStr = lastTransactionDate;
+  } else {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    dateFromStr = thirtyDaysAgo.toISOString().slice(0, 10);
+  }
+
+  let totalInserted = 0;
+  let totalDuplicated = 0;
+  let totalIgnored = 0;
+  let globalMaxDateISO = '';
+
+  // Carregar contexto de classificação para rodar síncrono no loop
+  const classificationContext = await buildClassificationContext(userId);
+
+  for (const [pluggyAccountId, internalAccountId] of accountsMap.entries()) {
+    // Buscar transações da conta na Pluggy
+    let pluggyTxResponse;
+    try {
+      pluggyTxResponse = await client.fetchAllTransactions(pluggyAccountId, {
+        dateFrom: dateFromStr
+      });
+    } catch (e) {
+      console.error(`[Pluggy Sync] Error fetching transactions for account ${pluggyAccountId}:`, e);
+      continue;
+    }
+
+    if (!pluggyTxResponse || pluggyTxResponse.length === 0) continue;
+
+    // Obter dados da conta interna para ver o owner
+    const accDoc = await adminDb.collection('accounts').doc(internalAccountId).get();
+    const accData = accDoc.data();
+    const owner = (accData?.owner || 'PF') as 'PF' | 'PJ';
+
+    // Normalizar as transações da Pluggy para o formato do FinDomus
+    const candidates = [];
+    for (const pTx of pluggyTxResponse) {
+      const amount = Math.abs(pTx.amount || 0);
+      if (!amount) continue;
+
+      const dateStr = pTx.date instanceof Date 
+        ? pTx.date.toISOString().slice(0, 10)
+        : typeof pTx.date === 'string'
+          ? (pTx.date as string).slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
+
+      // Acompanhar a maior data de transação
+      if (dateStr > globalMaxDateISO) {
+        globalMaxDateISO = dateStr;
+      }
+
+      const normalizedDate = normalizeTransactionDate(dateStr);
+      const monthKey = normalizedDate.monthKey;
+
+      // Se o mês estiver fechado no FinDomus, ignoramos a transação para evitar quebras contábeis
+      const isClosed = await isMonthClosed(userId, owner, monthKey);
+      if (isClosed) {
+        totalIgnored++;
+        continue;
+      }
+
+      const description = pTx.description || pTx.descriptionRaw || 'Transação';
+      
+      // Classifica usando o classificador local com o contexto em memória
+      const classified = classifyTransactionWithContext(description, pTx.amount, classificationContext);
+
+      // Mapeamento correto de type:
+      // Se a Pluggy diz DEBIT, é uma despesa. Se CREDIT, é receita.
+      const type = pTx.type === 'DEBIT' ? 'expense' : 'income';
+
+      const importHash = generateImportHash({
+        date: normalizedDate.dateISO || normalizedDate.date,
+        amount,
+        description,
+        merchant: pTx.descriptionRaw || '',
+        owner,
+        externalId: pTx.id,
+      });
+
+      candidates.push({
+        userId,
+        householdId,
+        accountId: internalAccountId,
+        type,
+        amount,
+        category: classified.category || 'Outros',
+        description,
+        merchant: pTx.descriptionRaw || description,
+        date: normalizedDate.date,
+        dateISO: normalizedDate.dateISO,
+        monthKey: normalizedDate.monthKey,
+        competenceMonthKey: normalizedDate.monthKey,
+        owner,
+        importHash,
+        externalId: pTx.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (candidates.length === 0) continue;
+
+    // Deduplicação usando importHash
+    const hashes = candidates.map(c => c.importHash);
+    const existingHashes = new Set<string>();
+
+    // Buscar hashes já existentes no Firestore em pedaços de 30
+    for (let i = 0; i < hashes.length; i += 30) {
+      const chunk = hashes.slice(i, i + 30);
+      const snap = await adminDb
+        .collection('transactions')
+        .where('userId', '==', userId)
+        .where('owner', '==', owner)
+        .where('importHash', 'in', chunk)
+        .get();
+
+      snap.docs.forEach(doc => {
+        const hash = doc.data().importHash;
+        if (hash) existingHashes.add(hash);
+      });
+    }
+
+    // Filtrar somente as que ainda não existem
+    const toInsert = candidates.filter(c => !existingHashes.has(c.importHash));
+    totalDuplicated += (candidates.length - toInsert.length);
+
+    if (toInsert.length > 0) {
+      const batch = adminDb.batch();
+      for (const item of toInsert) {
+        const docRef = adminDb.collection('transactions').doc();
+        batch.set(docRef, item);
+      }
+      await batch.commit();
+      totalInserted += toInsert.length;
+    }
+  }
+
+  if (totalInserted > 0) {
+    financialEvents.emit({
+      type: 'transaction:created',
+      payload: { count: totalInserted },
+      timestamp: new Date().toISOString(),
+      source: 'pluggySync:transactions',
+    });
+  }
+
+  return {
+    imported: totalInserted,
+    duplicated: totalDuplicated,
+    ignored: totalIgnored,
+    maxDateISO: globalMaxDateISO || null,
+  };
+}
+
+/**
+ * Sincroniza investimentos
+ */
+async function syncInvestments(
+  userId: string,
+  itemId: string,
+  client: PluggyClient,
+  householdId: string | null
+): Promise<number> {
+  let pluggyInvestmentsResponse;
+  try {
+    pluggyInvestmentsResponse = await client.fetchInvestments(itemId);
+  } catch (e) {
+    console.warn(`[Pluggy Sync] Investments not supported or failed to fetch:`, e);
+    return 0;
+  }
+
+  const pluggyInvestments = pluggyInvestmentsResponse.results;
+  if (!pluggyInvestments || pluggyInvestments.length === 0) return 0;
+
+  // Buscar investimentos existentes no FinDomus
+  const existingInvestmentsSnap = await adminDb
+    .collection('investments')
+    .where('userId', '==', userId)
+    .get();
+
+  const existingInvestments = existingInvestmentsSnap.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as any[];
+
+  let updatedOrCreatedCount = 0;
+
+  for (const pInv of pluggyInvestments) {
+    // 1. Procurar duplicado por ticker ou por pluggyInvestmentId/externalId
+    const ticker = pInv.code ? String(pInv.code).trim().toUpperCase() : '';
+    
+    let matched = null;
+    if (ticker) {
+      matched = existingInvestments.find(inv => inv.ticker === ticker);
+    }
+    if (!matched) {
+      matched = existingInvestments.find(inv => inv.pluggyInvestmentId === pInv.id || inv.externalId === pInv.id);
+    }
+
+    const value = Number(pInv.balance || pInv.amount || 0);
+
+    const investmentData: any = {
+      type: pInv.type || pInv.subtype || 'OUTROS',
+      institution: pInv.itemId,
+      ticker,
+      quantity: 1,
+      averagePrice: value,
+      currentPrice: value,
+      currentValue: value,
+      contributions: Number(pInv.amountOriginal || value),
+      updatedAt: new Date().toISOString(),
+      pluggyInvestmentId: pInv.id,
+      externalId: pInv.id,
+      userId,
+      householdId,
+    };
+
+    if (matched) {
+      // Atualizar
+      await adminDb.collection('investments').doc(matched.id).update(investmentData);
+      financialEvents.emit({
+        type: 'investment:updated',
+        payload: { investmentId: matched.id },
+        timestamp: new Date().toISOString(),
+        source: 'pluggySync:investments',
+      });
+    } else {
+      // Criar
+      investmentData.createdAt = new Date().toISOString();
+      const newDocRef = await adminDb.collection('investments').add(investmentData);
+      financialEvents.emit({
+        type: 'investment:created',
+        payload: { investmentId: newDocRef.id },
+        timestamp: new Date().toISOString(),
+        source: 'pluggySync:investments',
+      });
+    }
+
+    updatedOrCreatedCount++;
+  }
+
+  return updatedOrCreatedCount;
+}

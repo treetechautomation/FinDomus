@@ -44,6 +44,9 @@ import { buildPFDRE } from '@/core/finance/dre-engine';
 import { buildPFWealthAnalysis } from '@/core/finance/wealth-engine';
 import { getCurrentMonthKey, isTransactionInMonth, addMonths } from '@/core/finance/financial-period-engine';
 import { useAuth } from '@/providers/auth-provider';
+import { PlanBadge } from '@/components/billing/plan-badge';
+import { getIdToken } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 // Copiloto da Liberdade Financeira
 import { FreedomIndexCard } from '@/components/dashboard/freedom-index-card';
@@ -118,6 +121,27 @@ export default function DashboardPage() {
   const { result: kernel } = useFinancialKernel(context);
   const [hasNoData, setHasNoData] = useState<boolean>(false);
   const { showFinancialValues } = useVisibility();
+  const [planInfo, setPlanInfo] = useState<{ planName: string; isTrial: boolean; trialDaysRemaining: number | null; isCampaignPrice: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getIdToken(auth.currentUser!).then(async (token) => {
+      try {
+        const res = await fetch('/api/user/plan', { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            setPlanInfo({
+              planName: json.data.planName,
+              isTrial: json.data.trial?.isActive ?? false,
+              trialDaysRemaining: json.data.trial?.daysRemaining ?? null,
+              isCampaignPrice: json.data.isCampaignPrice ?? false,
+            });
+          }
+        }
+      } catch { /* ignore */ }
+    });
+  }, [user]);
 
   const freedomData = kernel ? {
     index: kernel.freedom.index,
@@ -238,6 +262,15 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">Seu progresso real em direção à independência financeira.</p>
         </div>
       </div>
+
+      {planInfo && (
+        <PlanBadge
+          planName={planInfo.planName}
+          isTrial={planInfo.isTrial}
+          trialDaysRemaining={planInfo.trialDaysRemaining}
+          isCampaignPrice={planInfo.isCampaignPrice}
+        />
+      )}
 
       {/* Grid Principal do Copiloto (Âncora Superior Sempre Visível) */}
       {freedomData && (

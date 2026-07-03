@@ -20,7 +20,7 @@ export default function PlanosPage() {
   }, []);
 
   const getCheckoutLink = (planId: string) => {
-    return `https://treetechautomation.com/checkout?productId=findomus&planId=${planId}`;
+    return `/api/stripe/checkout`;
   };
 
   return (

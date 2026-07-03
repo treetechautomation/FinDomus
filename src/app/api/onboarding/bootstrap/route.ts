@@ -78,12 +78,18 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    // 4. Create active subscription
+    // 4. Create trial subscription (7 days)
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + 7);
+
     batch.set(subRef, {
       householdId,
       planId: 'individual',
-      status: 'active',
+      status: 'trialing',
       currentPeriodEnd: null,
+      trialStartedAt: now,
+      trialEndsAt: trialEnd.toISOString(),
+      trialUsed: true,
       createdAt: now,
       updatedAt: now,
     });

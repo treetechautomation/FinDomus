@@ -1,110 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { adminDb } from '@/lib/firebase-admin';
 import { stripe } from '@/lib/stripe/server';
+import {
+  handleCheckoutCompleted,
+  handleSubscriptionUpdated,
+  handleInvoicePaid,
+  handlePaymentFailed,
+  handleSubscriptionPaused,
+  handleSubscriptionResumed,
+} from '@/lib/billing/billing-engine';
 
 export const runtime = 'nodejs';
-
-async function handleSubscriptionCompleted(session: Stripe.Checkout.Session) {
-  const metadata = session.metadata || {};
-  const planId = metadata.planId;
-  const householdId = metadata.householdId;
-  const subscriptionId = session.subscription as string;
-
-  if (!planId || !householdId) {
-    console.warn('[Stripe Webhook] Missing planId or householdId in metadata:', metadata);
-    return;
-  }
-
-  const nowStr = new Date().toISOString();
-
-  // 1. Atualizar o plano do household
-  await adminDb.collection('households').doc(householdId).update({
-    planId,
-    updatedAt: nowStr,
-  });
-
-  // 2. Obter período final da assinatura se disponível
-  let currentPeriodEnd: string | null = null;
-  if (subscriptionId) {
-    try {
-      const sub = await stripe.subscriptions.retrieve(subscriptionId) as any;
-      currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
-    } catch (e) {
-      console.error('[Stripe Webhook] Failed to retrieve subscription details:', e);
-    }
-  }
-
-  // 3. Salvar assinatura
-  const subData = {
-    householdId,
-    planId,
-    status: 'active',
-    currentPeriodEnd,
-    updatedAt: nowStr,
-  };
-
-  const subSnap = await adminDb.collection('subscriptions')
-    .where('householdId', '==', householdId)
-    .limit(1)
-    .get();
-
-  if (!subSnap.empty) {
-    await subSnap.docs[0].ref.update(subData);
-  } else {
-    await adminDb.collection('subscriptions').add({
-      ...subData,
-      createdAt: nowStr,
-    });
-  }
-
-  console.log(`[Stripe Webhook] Subscription completed and saved for household ${householdId} with plan ${planId}`);
-}
-
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const metadata = subscription.metadata || {};
-  const planId = metadata.planId;
-  const householdId = metadata.householdId;
-
-  if (!planId || !householdId) return;
-
-  const nowStr = new Date().toISOString();
-  const status = subscription.status === 'active' || subscription.status === 'trialing' ? 'active' :
-                 subscription.status === 'past_due' ? 'past_due' : 'canceled';
-
-  // 1. Atualizar household status se cancelado
-  if (status === 'canceled') {
-    await adminDb.collection('households').doc(householdId).update({
-      planId: 'individual', // fallback default
-      updatedAt: nowStr,
-    });
-  }
-
-  // 2. Atualizar assinatura
-  const currentPeriodEnd = new Date((subscription as any).current_period_end * 1000).toISOString();
-
-  const subData = {
-    householdId,
-    planId,
-    status,
-    currentPeriodEnd,
-    updatedAt: nowStr,
-  };
-
-  const subSnap = await adminDb.collection('subscriptions')
-    .where('householdId', '==', householdId)
-    .limit(1)
-    .get();
-
-  if (!subSnap.empty) {
-    await subSnap.docs[0].ref.update(subData);
-  } else {
-    await adminDb.collection('subscriptions').add({
-      ...subData,
-      createdAt: nowStr,
-    });
-  }
-}
 
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -143,7 +49,7 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.metadata?.type === 'findomus_subscription') {
-          await handleSubscriptionCompleted(session);
+          await handleCheckoutCompleted(session);
         }
         break;
       }
@@ -155,6 +61,36 @@ export async function POST(req: NextRequest) {
         if (sub.metadata?.type === 'findomus_subscription') {
           await handleSubscriptionUpdated(sub);
         }
+        break;
+      }
+
+      case 'invoice.paid': {
+        const invoice = event.data.object as any;
+        const subId = invoice.subscription as string;
+        if (invoice.metadata?.type === 'findomus_subscription' && subId) {
+          await handleInvoicePaid({ subscription: subId });
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as any;
+        const subId = invoice.subscription as string;
+        if (subId) {
+          await handlePaymentFailed({ subscription: subId });
+        }
+        break;
+      }
+
+      case 'customer.subscription.paused': {
+        const sub = event.data.object as Stripe.Subscription;
+        await handleSubscriptionPaused(sub);
+        break;
+      }
+
+      case 'customer.subscription.resumed': {
+        const sub = event.data.object as Stripe.Subscription;
+        await handleSubscriptionResumed(sub);
         break;
       }
 

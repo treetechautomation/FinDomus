@@ -180,8 +180,12 @@ export function Importer() {
         formData.append('userId', user?.uid || '');
         if (pdfPassword) formData.append('password', pdfPassword);
 
+        const token = await auth.currentUser?.getIdToken();
         const response = await fetch('/api/import/pdf', {
           method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           body: formData
         });
 

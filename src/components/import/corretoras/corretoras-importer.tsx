@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/auth-provider';
+import { auth } from '@/lib/firebase';
 import { CorretorasPreview } from './corretoras-preview';
 import type { NormalizedBrokerImport } from '@/services/import/brokers/broker-types';
 
@@ -67,8 +68,12 @@ export function CorretorasImporter() {
         formData.append('password', pdfPassword);
       }
 
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/import/brokers', {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData
       });
 

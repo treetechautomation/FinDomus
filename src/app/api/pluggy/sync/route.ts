@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { verifyIdToken } from '@/lib/verify-id-token';
+import { syncItem } from '@/services/pluggy/sync-service';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization');
+    let decodedToken;
+    try {
+      decodedToken = await verifyIdToken(authHeader);
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    const userId = decodedToken.uid;
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    const { itemId } = await req.json();
+    if (!itemId) {
+      return NextResponse.json(
+        { success: false, error: 'Missing itemId parameter' },
+        { status: 400 }
+      );
+    }
+
+    // 1. Validar Feature Flag
+    const { isPluggyEnabledAdmin } = await import('@/services/pluggy/feature-flag-check');
+    const isEnabled = await isPluggyEnabledAdmin(userId);
+    if (!isEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'Feature disabled' },
+        { status: 403 }
+      );
+    }
+
+    // Executa a sincronização de contas, saldos e transações
+    const syncResult = await syncItem(userId, itemId, 'MANUAL');
+
+    return NextResponse.json(syncResult);
+  } catch (error: any) {
+    console.error('[Pluggy Sync Route Error]:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}

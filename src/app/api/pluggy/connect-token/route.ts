@@ -1,0 +1,79 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PluggyClient } from 'pluggy-sdk';
+import { verifyIdToken } from '@/lib/verify-id-token';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization');
+    let decodedToken;
+    try {
+      decodedToken = await verifyIdToken(authHeader);
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    const userId = decodedToken.uid;
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    // 1. Validar Feature Flag
+    const { isPluggyEnabledAdmin } = await import('@/services/pluggy/feature-flag-check');
+    const isEnabled = await isPluggyEnabledAdmin(userId);
+    if (!isEnabled) {
+      return NextResponse.json({ success: false, error: 'Feature disabled' }, { status: 403 });
+    }
+
+    // 2. Validar limite de bancos do plano
+    const { canConnectBank } = await import('@/lib/billing/billing-engine');
+    const bankCheck = await canConnectBank(userId);
+    if (!bankCheck.allowed) {
+      return NextResponse.json({
+        success: false,
+        error: bankCheck.reason || 'PLAN_LIMIT_REACHED',
+        current: bankCheck.current,
+        max: bankCheck.max,
+        planName: bankCheck.planName,
+        upgradeMessage: bankCheck.upgradeMessage,
+        upgradeUrl: bankCheck.upgradeUrl,
+      }, { status: 402 });
+    }
+
+    const clientId = process.env.PLUGGY_CLIENT_ID;
+    const clientSecret = process.env.PLUGGY_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      console.error('[Pluggy Connect Token] Missing Pluggy environment credentials.');
+      return NextResponse.json(
+        { success: false, error: 'Pluggy integration not configured on server' },
+        { status: 500 }
+      );
+    }
+
+    const client = new PluggyClient({
+      clientId,
+      clientSecret,
+    });
+
+    const connectToken = await client.createConnectToken(undefined, {
+      clientUserId: userId,
+    });
+
+    return NextResponse.json({ accessToken: connectToken.accessToken });
+  } catch (error: any) {
+    console.error('[Pluggy Connect Token Error]:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,135 @@
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Plan } from '@/lib/billing/billing-types';
+
+export type { Plan } from '@/lib/billing/billing-types';
+
+export const PLANS: Record<string, Plan> = {
+  individual: {
+    id: 'individual',
+    name: 'Individual',
+    officialPrice: 39.90,
+    campaignPrice: 29.90,
+    billingPeriod: 'monthly',
+    maxBankConnections: 1,
+    maxMembers: 1,
+    maxManualImports: 100,
+    aiTier: 'basic',
+    monthlyCredits: 100,
+    allowPluggy: true,
+    allowInvestments: true,
+    allowCompanies: false,
+    allowReports: true,
+    allowFamily: false,
+    allowAcademyPremium: false,
+    supportLevel: 'standard',
+    trialDays: 7,
+    features: [
+      '1 membro',
+      '1 banco (Open Finance)',
+      'Importação OFX, PDF e CSV',
+      'IA Financeira básica',
+      'Academia FinDomus',
+      'Freedom Index',
+    ],
+    isActive: true,
+    sortOrder: 1,
+    recommended: false,
+  },
+  family: {
+    id: 'family',
+    name: 'Família',
+    officialPrice: 69.90,
+    campaignPrice: 49.90,
+    billingPeriod: 'monthly',
+    maxBankConnections: 5,
+    maxMembers: 5,
+    maxManualImports: 500,
+    aiTier: 'full',
+    monthlyCredits: 500,
+    allowPluggy: true,
+    allowInvestments: true,
+    allowCompanies: false,
+    allowReports: true,
+    allowFamily: true,
+    allowAcademyPremium: true,
+    supportLevel: 'standard',
+    trialDays: 7,
+    features: [
+      'Até 5 membros',
+      'Até 5 bancos (Open Finance)',
+      'Planejamento compartilhado',
+      'Consolidação financeira',
+      'IA Financeira completa',
+      'Academia Premium',
+      'Todos os recursos do Individual',
+    ],
+    isActive: true,
+    sortOrder: 2,
+    recommended: true,
+  },
+  family_premium: {
+    id: 'family_premium',
+    name: 'Família Premium',
+    officialPrice: 99.00,
+    campaignPrice: 59.90,
+    billingPeriod: 'monthly',
+    maxBankConnections: null,
+    maxMembers: 10,
+    maxManualImports: null,
+    aiTier: 'advanced',
+    monthlyCredits: null,
+    allowPluggy: true,
+    allowInvestments: true,
+    allowCompanies: true,
+    allowReports: true,
+    allowFamily: true,
+    allowAcademyPremium: true,
+    supportLevel: 'priority',
+    trialDays: 7,
+    features: [
+      'Até 10 membros',
+      'Bancos ilimitados',
+      'IA Premium',
+      'Planejamento patrimonial',
+      'Recursos Enterprise',
+      'Prioridade de sincronização',
+      'Suporte prioritário',
+    ],
+    isActive: true,
+    sortOrder: 3,
+    recommended: false,
+  },
+};
+
+export async function getPlanById(planId: string): Promise<Plan | null> {
+  try {
+    const docRef = doc(db, 'plans', planId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as Plan;
+    }
+  } catch (error) {
+    console.error('Error fetching plan from firestore:', error);
+  }
+  return PLANS[planId] || null;
+}
+
+export async function getPlans(): Promise<Plan[]> {
+  try {
+    const snap = await getDocs(collection(db, 'plans'));
+    if (!snap.empty) {
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as Plan));
+    }
+  } catch (error) {
+    console.error('Error fetching plans from firestore:', error);
+  }
+  return Object.values(PLANS);
+}
+
+export async function seedPlans(): Promise<void> {
+  for (const [id, plan] of Object.entries(PLANS)) {
+    const docRef = doc(db, 'plans', id);
+    await setDoc(docRef, plan, { merge: true });
+  }
+}

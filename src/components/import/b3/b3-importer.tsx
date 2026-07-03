@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/auth-provider';
+import { auth } from '@/lib/firebase';
 import { B3ParseResult } from '@/types/import/b3';
 import { B3Preview } from './b3-preview';
 
@@ -94,10 +95,12 @@ export function B3Importer() {
     setIsConfirming(true);
 
     try {
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/import/b3/confirm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           userId: user.uid,
