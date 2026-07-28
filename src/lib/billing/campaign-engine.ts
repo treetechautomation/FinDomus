@@ -105,7 +105,7 @@ export async function initDefaultCampaign(): Promise<void> {
     plans: {
       individual: { officialPrice: 39.90, campaignPrice: 29.90 },
       family: { officialPrice: 69.90, campaignPrice: 49.90 },
-      family_premium: { officialPrice: 99.00, campaignPrice: 59.90 },
+      family_premium: { officialPrice: 99.90, campaignPrice: 59.90 },
     },
     startsAt: null,
     endsAt: null,

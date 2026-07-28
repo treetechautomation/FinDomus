@@ -93,7 +93,7 @@ export function AiChatWidget() {
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: `❌ Erro: ${err.message || 'Houve um problema de conexão com a IA.'}`,
+          content: 'Não foi possível processar sua solicitação no momento. Tente novamente.',
           timestamp: new Date(),
         },
       ]);

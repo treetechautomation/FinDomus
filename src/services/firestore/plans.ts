@@ -72,7 +72,7 @@ export const PLANS: Record<string, Plan> = {
   family_premium: {
     id: 'family_premium',
     name: 'Família Premium',
-    officialPrice: 99.00,
+    officialPrice: 99.90,
     campaignPrice: 59.90,
     billingPeriod: 'monthly',
     maxBankConnections: null,

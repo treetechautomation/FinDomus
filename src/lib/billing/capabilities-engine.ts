@@ -3,7 +3,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import type { PlanCapabilities, Plan, Subscription } from '@/lib/billing/billing-types';
 import { UNLIMITED_CAPABILITIES } from '@/lib/billing/billing-types';
 import { getTrialStatus } from './trial-engine';
-import { isTrialEnabled, isPluggyEnabled } from './feature-flags-admin';
+import { isTrialEnabled, isPluggyEnabled, isMonetizationEnabled } from './feature-flags-admin';
 
 export async function getPlanCapabilities(planId: string): Promise<PlanCapabilities> {
   const plan = await getPlanById(planId) ?? PLANS[planId];
@@ -36,7 +36,10 @@ export async function getPlanCapabilities(planId: string): Promise<PlanCapabilit
 export async function getUserCapabilities(userId: string): Promise<PlanCapabilities> {
   const trialEnabled = await isTrialEnabled(userId);
   if (!trialEnabled) {
-    return getPlanCapabilities('family_premium');
+    const monetizationEnabled = await isMonetizationEnabled(userId);
+    if (!monetizationEnabled) {
+      return getPlanCapabilities('family_premium');
+    }
   }
 
   const householdSnap = await adminDb

@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Erro na API de Assessor Financeiro IA:', error);
     return NextResponse.json(
-      { error: error.message || 'Erro interno no Assessor Financeiro de IA' },
+      { error: 'Não foi possível processar sua solicitação no momento. Tente novamente.' },
       { status: 500 }
     );
   }
