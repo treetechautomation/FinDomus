@@ -21,6 +21,7 @@ export type Category = {
   updatedAt?: string;
   isDefault?: boolean;
   userId?: string | null;
+  categoryType?: 'income' | 'expense' | 'transfer' | 'investment';
 };
 
 export async function getCategories(userId?: string): Promise<Category[]> {

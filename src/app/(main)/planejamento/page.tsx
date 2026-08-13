@@ -33,6 +33,8 @@ import { getAccountsWithBalance } from '@/services/firestore/accounts';
 import { getInvestments } from '@/services/firestore/investments';
 import { runFinancialKernel } from '@/core/finance/kernel';
 import { useAuth } from '@/providers/auth-provider';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobilePlanejamentoView } from '@/app/(main)/planejamento/mobile-planejamento-view';
 import { LEGACY_MERCHANT_CATEGORY_MAP } from '@/lib/constants/categories';
 import { formatCurrencyBRL } from '@/lib/utils';
 import { PlanningOverviewCards } from '@/components/planejamento/planning-overview-cards';
@@ -114,6 +116,7 @@ export default function PlanejamentoPage() {
   const [selectedMonth, setSelectedMonth] = useState(() => {
     return getCurrentMonthKey();
   });
+  const isMobile = useIsMobile();
 
   const total = useMemo(() => getDistributionTotal(categories), [categories]);
   const insight = useMemo(() => getWealthInsight(categories), [categories]);
@@ -383,6 +386,16 @@ export default function PlanejamentoPage() {
           Tentar novamente
         </Button>
       </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <MobilePlanejamentoView
+        loading={loading}
+        kernel={kernelResult}
+        wealthCategories={categories}
+      />
     );
   }
 

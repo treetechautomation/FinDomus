@@ -78,7 +78,18 @@ export function AcademyProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user?.uid, progress]);
 
-  // Spotlight target detection
+  // Lock body scroll during active Academy tour
+  useEffect(() => {
+    if (isActive) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isActive]);
+
+  // Spotlight target detection with stable position sync
   useEffect(() => {
     if (!isActive || !currentStep) {
       setTargetRect(null);
@@ -98,10 +109,35 @@ export function AcademyProvider({ children }: { children: React.ReactNode }) {
       const el = document.querySelector(currentStep.target);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => {
+
+        let lastRect: DOMRect | null = null;
+        let stableCount = 0;
+        const pollStart = Date.now();
+
+        function pollStable() {
           if (cancelled) return;
-          setTargetRect(el.getBoundingClientRect());
-        }, 150);
+          const rect = el!.getBoundingClientRect();
+          if (lastRect) {
+            const dx = Math.abs(rect.left - lastRect.left);
+            const dy = Math.abs(rect.top - lastRect.top);
+            if (dx <= 1 && dy <= 1) {
+              stableCount++;
+              if (stableCount >= 2) {
+                setTargetRect(rect);
+                return;
+              }
+            } else {
+              stableCount = 0;
+            }
+          }
+          lastRect = rect;
+          if (Date.now() - pollStart < 3000) {
+            requestAnimationFrame(pollStable);
+          } else {
+            setTargetRect(rect);
+          }
+        }
+        requestAnimationFrame(pollStable);
       } else if (retryRef.current < 40) {
         retryRef.current++;
         requestAnimationFrame(() => setTimeout(find, 200));

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=390, initial-scale=1.0">
+<title>FinDomus — Planejamento Mobile Master Visual v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════ FDL 1.0 FROZEN ═══════════════ */
+:root {
+  --canvas:#0A0E14;--surface:#11161D;--raised:#161C26;--floating:#1C2330;
+  --text-primary:#EDF0F5;--text-secondary:#8B949E;--text-tertiary:#555D68;
+  --text-disabled:#383D45;--action-primary:#00B4D8;--action-soft:rgba(0,180,216,0.10);
+  --state-positive:#22C55E;--state-positive-soft:rgba(34,197,94,0.08);
+  --state-warning:#F59E0B;--state-negative:#EF4444;--premium:#C8A951;
+  --border-subtle:rgba(255,255,255,0.06);--border-default:rgba(255,255,255,0.10);
+  --border-emphasis:rgba(255,255,255,0.20);--radius-md:16px;--radius-sm:8px;
+  /* pillar colors from WealthProfile */
+  --pillar-essenciais:#38bdf8;--pillar-qualidade:#34d399;--pillar-patrimonio:#facc15;
+  --pillar-estilo:#e879f9;--pillar-independencia:#60a5fa;--pillar-intelectual:#fb923c;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#05070A;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px 0 32px;-webkit-font-smoothing:antialiased}
+.master-header{text-align:center;padding:16px;max-width:600px}
+.master-header h1{font-size:18px;font-weight:700;color:#EDF0F5;letter-spacing:-0.3px;margin-bottom:4px}
+.master-header .sub{font-size:12px;color:#8B949E}
+.badges{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.badge{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;padding:3px 10px;border-radius:4px}
+.badge-fdl{color:#22C55E;background:rgba(34,197,94,.08)}
+.badge-wf{color:#F59E0B;background:rgba(245,158,11,.08)}
+.state-tabs{display:flex;gap:3px;margin:0 auto 12px;max-width:390px;padding:0 2px;flex-wrap:wrap}
+.state-tab{flex:0 0 auto;padding:6px 8px;font-size:10px;font-weight:600;text-align:center;cursor:pointer;border-radius:6px;color:var(--text-tertiary);background:var(--surface);border:1px solid var(--border-subtle);user-select:none;transition:all 120ms}
+.state-tab:hover{color:var(--text-secondary)}
+.state-tab.active{color:var(--action-primary);background:var(--action-soft);border-color:rgba(0,180,216,.25)}
+.phone{width:390px;min-height:844px;background:var(--canvas);position:relative;overflow-y:auto;overflow-x:hidden}
+
+/* Status Bar */
+.status-bar{height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 8px;color:var(--text-primary);font-size:14px;font-weight:600}
+.status-bar .icons{display:flex;gap:6px;align-items:center}
+
+/* Header */
+.mod-header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border-subtle)}
+.mod-header .back{display:flex;align-items:center;gap:4px;color:var(--text-secondary);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.mod-header .back svg{width:16px;height:16px}
+.mod-header .title{font-size:16px;font-weight:600;color:var(--text-primary);letter-spacing:-0.2px}
+.mod-header .header-actions{display:flex;align-items:center;gap:4px}
+.mod-header .header-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--text-tertiary);cursor:pointer}
+
+/* Tabs */
+.mod-tabs{display:flex;border-bottom:1px solid var(--border-subtle);padding:0 16px}
+.mod-tab{flex:1;text-align:center;padding:12px 4px 10px;font-size:13px;font-weight:500;color:var(--text-tertiary);cursor:pointer;position:relative}
+.mod-tab.active{color:var(--text-primary);font-weight:600}
+.mod-tab.active::after{content:'';position:absolute;bottom:0;left:25%;right:25%;height:2px;background:var(--action-primary);border-radius:1px}
+
+/* Scroll */
+.scroll-content{padding:16px 16px 0;display:flex;flex-direction:column;min-height:0}
+.state-panel{display:none;flex-direction:column}
+.state-panel.active{display:flex}
+
+/* Cards */
+.surface-card{background:var(--surface);border-radius:var(--radius-md);padding:16px}
+.raised-card{background:var(--raised);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px}
+.section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:8px}
+
+/* Strategy Summary */
+.summary-strategy .summary-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:6px}
+.summary-strategy .summary-body{font-size:13px;font-weight:400;color:var(--text-secondary);line-height:1.5}
+
+/* Month nav */
+.month-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px}
+.month-nav .arrow{width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);cursor:pointer;border-radius:var(--radius-sm);font-size:16px;font-weight:600}
+.month-nav .label{font-size:15px;font-weight:600;color:var(--text-primary)}
+
+/* Unified KPIs */
+.kpi-unified{background:var(--surface);border-radius:var(--radius-md);padding:16px;margin-bottom:16px}
+.kpi-unified .kpi-period{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:10px}
+.kpi-unified .kpi-row{display:flex;gap:8px}
+.kpi-unified .kpi-col{flex:1;text-align:center}
+.kpi-unified .kpi-col .kpi-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-tertiary);margin-bottom:4px}
+.kpi-unified .kpi-col .kpi-value{font-size:20px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;letter-spacing:-0.3px}
+.kpi-unified .kpi-col .kpi-meta{font-size:10px;font-weight:500;color:var(--text-tertiary);margin-top:2px}
+
+/* Insight */
+.insight-card{background:var(--surface);border-radius:var(--radius-md);padding:16px;border-left:2px solid var(--action-primary);margin-bottom:16px}
+.insight-card .insight-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--action-primary);opacity:.8;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.insight-card .insight-dot{width:5px;height:5px;border-radius:50%;background:var(--action-primary)}
+.insight-card .insight-body{font-size:13px;font-weight:400;color:var(--text-secondary);line-height:1.5;margin-bottom:8px}
+.insight-card .insight-cta{font-size:12px;font-weight:600;color:var(--action-primary);cursor:pointer}
+
+/* Recomendações */
+.rec-item{background:var(--raised);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.rec-item .rec-left{flex:1}
+.rec-item .rec-badge{font-size:9px;font-weight:600;text-transform:uppercase;padding:2px 8px;border-radius:4px;margin-bottom:6px;display:inline-block}
+.rec-badge.critica{color:var(--state-negative);background:var(--state-negative-soft)}
+.rec-badge.alta{color:var(--state-warning);background:rgba(245,158,11,.08)}
+.rec-item .rec-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+.rec-item .rec-impact{font-size:11px;font-weight:500;color:var(--text-secondary)}
+.rec-item .rec-chevron{color:var(--text-tertiary);opacity:.4;flex-shrink:0}
+
+/* Secondary action */
+.secondary-action{font-size:13px;font-weight:600;color:var(--action-primary);cursor:pointer;margin-top:8px}
+
+/* Budget Card */
+.budget-card{background:var(--surface);border-radius:var(--radius-md);padding:14px;margin-bottom:8px;cursor:pointer}
+.budget-card .budget-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.budget-card .budget-name{font-size:14px;font-weight:600;color:var(--text-primary)}
+.budget-card .budget-status{font-size:11px;font-weight:600}
+.budget-card .budget-status.ok{color:var(--state-positive)}
+.budget-card .budget-status.warn{color:var(--state-warning)}
+.budget-card .budget-status.over{color:var(--state-negative)}
+.budget-card .budget-values{display:flex;gap:4px;margin-bottom:8px}
+.budget-card .budget-val{flex:1;font-size:12px}
+.budget-card .budget-val .vl{font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.budget-card .budget-val .lb{font-size:10px;color:var(--text-tertiary)}
+.budget-card .budget-bar{height:3px;background:var(--raised);border-radius:2px;overflow:hidden;margin-bottom:2px}
+.budget-card .budget-bar-fill{height:100%;border-radius:2px;background:var(--text-tertiary);transition:width 300ms}
+.budget-card .budget-bar-fill.warn{background:var(--state-warning)}
+.budget-card .budget-bar-fill.over{background:var(--state-negative)}
+.budget-card .budget-pct{font-size:10px;font-weight:500;color:var(--text-tertiary);text-align:right}
+
+/* Strategy Bar */
+.strategy-bar{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;cursor:pointer}
+.strategy-bar .strat-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-radius:var(--radius-sm)}
+.strategy-bar .strat-row:hover{background:var(--raised)}
+.strategy-bar .strat-name{width:150px;flex-shrink:0;font-size:13px;font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.strategy-bar .strat-bar-bg{flex:1;height:6px;background:var(--raised);border-radius:3px;overflow:hidden}
+.strategy-bar .strat-bar-fill{height:100%;border-radius:3px}
+.strategy-bar .strat-pct{width:36px;text-align:right;font-size:14px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.strategy-bar .strat-meta{font-size:10px;color:var(--text-tertiary);padding-left:160px;margin-top:-2px}
+
+/* Summary total */
+.strat-total{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:8px 0}
+.strat-total .total-label{font-size:13px;font-weight:600;color:var(--text-primary)}
+.strat-total .total-value{font-size:14px;font-weight:700;color:var(--state-positive);font-variant-numeric:tabular-nums}
+.strat-total .total-value.warn{color:var(--state-warning)}
+
+/* Buttons */
+.btn-primary{display:flex;align-items:center;justify-content:center;width:100%;height:44px;background:var(--action-primary);color:var(--canvas);font-size:14px;font-weight:600;border:none;border-radius:var(--radius-sm);cursor:pointer;letter-spacing:.2px}
+.btn-secondary{display:flex;align-items:center;justify-content:center;width:100%;height:44px;background:transparent;color:var(--text-primary);font-size:14px;font-weight:600;border:1px solid var(--border-default);border-radius:var(--radius-sm);cursor:pointer;letter-spacing:.2px}
+
+/* Edit Strategy */
+.edit-pillar{background:var(--raised);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;margin-bottom:8px;cursor:pointer}
+.edit-pillar .edit-top{display:flex;align-items:center;justify-content:space-between}
+.edit-pillar .edit-name{font-size:14px;font-weight:600;color:var(--text-primary)}
+.edit-pillar .edit-pct{font-size:14px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.edit-pillar.expanded .edit-body{display:block;margin-top:12px}
+.edit-pillar .edit-body{display:none}
+.edit-pillar .edit-slider{width:100%;margin:8px 0;accent-color:var(--action-primary)}
+.edit-pillar .edit-color{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-default);cursor:pointer;margin:8px 0}
+.edit-pillar .edit-chips{display:flex;flex-wrap:wrap;gap:4px}
+.edit-pillar .edit-chip{font-size:11px;font-weight:500;padding:3px 8px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:4px}
+
+/* Detail Pillar */
+.detail-block{background:var(--surface);border-radius:var(--radius-md);padding:16px;margin-bottom:16px}
+.detail-block .detail-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:8px}
+.detail-block .detail-value{font-size:20px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.detail-block .detail-meta{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.txn-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle)}
+.txn-row:last-child{border-bottom:none}
+.txn-row .txn-date{font-size:12px;font-weight:500;color:var(--text-tertiary);width:40px;font-variant-numeric:tabular-nums}
+.txn-row .txn-desc{flex:1;font-size:13px;font-weight:400;color:var(--text-primary);padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txn-row .txn-val{font-size:13px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums}
+
+/* Simulation */
+.sim-chips{display:flex;gap:6px;margin-bottom:16px}
+.sim-chip{padding:8px 14px;font-size:12px;font-weight:600;border-radius:var(--radius-sm);background:var(--raised);border:1px solid var(--border-subtle);color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.sim-chip.active{background:var(--action-soft);border-color:rgba(0,180,216,.25);color:var(--action-primary)}
+.sim-slider-block{background:var(--surface);border-radius:var(--radius-md);padding:16px;margin-bottom:16px}
+.sim-slider-block .sim-param-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:4px}
+.sim-slider-block .sim-param-value{font-size:20px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;margin-bottom:8px}
+.sim-slider-block .sim-slider{width:100%;accent-color:var(--action-primary);margin:8px 0}
+.sim-slider-block .sim-range{display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary)}
+.sim-compare{display:flex;gap:8px;margin-bottom:16px}
+.sim-compare .sim-col{flex:1;background:var(--surface);border-radius:var(--radius-md);padding:14px;text-align:center}
+.sim-compare .sim-col.highlight{background:var(--action-soft);border:1px solid rgba(0,180,216,.15)}
+.sim-compare .sim-col .sim-col-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:10px}
+.sim-compare .sim-metric{margin-bottom:8px}
+.sim-compare .sim-metric .metric-name{font-size:10px;color:var(--text-tertiary)}
+.sim-compare .sim-metric .metric-value{font-size:16px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.sim-compare .sim-delta{font-size:11px;font-weight:600}
+.sim-delta.pos{color:var(--state-positive)}
+.sim-disclaimer{font-size:11px;color:var(--text-tertiary);line-height:1.4;margin-top:8px;text-align:center}
+
+/* Empty */
+.empty-state{text-align:center;padding:48px 16px}
+.empty-state .empty-icon{width:48px;height:48px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:var(--text-tertiary)}
+.empty-state .empty-title{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px}
+.empty-state .empty-desc{font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:280px;margin:0 auto 24px}
+
+/* Privacy masked */
+.masked{letter-spacing:2px}
+
+/* Bottom Nav */
+.bottom-nav{height:82px;flex-shrink:0}
+.nav-inner{display:flex;align-items:flex-start;justify-content:space-around;width:100%;padding:10px 0 0}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:25%}
+.nav-item .nav-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm)}
+.nav-item .nav-label{font-size:10px;font-weight:500}
+.nav-item.inactive .nav-icon{color:var(--text-tertiary)}
+.nav-item.inactive .nav-label{color:var(--text-tertiary)}
+.nav-item.active .nav-icon{color:var(--action-primary)}
+.nav-item.active .nav-label{color:var(--action-primary);font-weight:600}
+
+.spacer{flex:1}
+.gap-s4{margin-bottom:16px}
+.gap-s6{margin-bottom:24px}
+.gap-s8{margin-bottom:32px}
+
+/* Error/offline banner */
+.info-banner{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--state-warning);font-weight:500;display:flex;align-items:center;gap:8px}
+.error-banner{background:var(--state-negative-soft);border:1px solid rgba(239,68,68,.15);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--state-negative);font-weight:500}
+</style>
+</head>
+<body>
+
+<div class="master-header">
+  <h1>PLANEJAMENTO MOBILE MASTER VISUAL v1</h1>
+  <div class="sub">390×844px · Dark Mode · PF · Agosto 2026</div>
+  <div class="badges">
+    <span class="badge badge-fdl">FDL 1.0</span>
+    <span class="badge badge-wf">Wireframe v1</span>
+  </div>
+</div>
+
+<div class="state-tabs">
+  <div class="state-tab active" onclick="switchState('overview')">Visão Geral</div>
+  <div class="state-tab" onclick="switchState('budget')">Orçamento</div>
+  <div class="state-tab" onclick="switchState('strategy')">Estratégia</div>
+  <div class="state-tab" onclick="switchState('edit')">Editar</div>
+  <div class="state-tab" onclick="switchState('pillar')">Pilar</div>
+  <div class="state-tab" onclick="switchState('sim')">Simulação</div>
+  <div class="state-tab" onclick="switchState('empty')">Vazio</div>
+  <div class="state-tab" onclick="switchState('privacy')">Privacidade</div>
+  <div class="state-tab" onclick="switchState('error')">Erro</div>
+  <div class="state-tab" onclick="switchState('offline')">Offline</div>
+</div>
+
+<div class="phone" id="phone">
+  <div class="status-bar">
+    <span style="font-variant-numeric:tabular-nums">9:41</span>
+    <span class="icons">
+      <svg width="16" height="11" viewBox="0 0 16 11"><rect x="0" y="6" width="2" height="5" rx=".4" fill="currentColor" opacity=".9"/><rect x="3" y="4.5" width="2" height="6.5" rx=".4" fill="currentColor" opacity=".9"/><rect x="6" y="2.5" width="2" height="8.5" rx=".4" fill="currentColor" opacity=".9"/><rect x="9" y="0" width="2" height="11" rx=".4" fill="currentColor" opacity=".9"/></svg>
+      <span style="font-size:12px;font-weight:600">●●●●○</span>
+      <svg width="24" height="11" viewBox="0 0 24 11"><rect x="0" y="3" width="19" height="5" rx="1.2" stroke="currentColor" stroke-width="1" fill="none" opacity=".6"/><rect x="20" y="1.5" width="2" height="8" rx=".8" fill="currentColor" opacity=".4"/><rect x="17" y="0" width="2.5" height="11" rx=".8" fill="currentColor" opacity=".55"/></svg>
+    </span>
+  </div>
+
+  <!-- ════════ VISÃO GERAL ════════ -->
+  <div class="state-panel active" id="panel-overview">
+    <div class="mod-header">
+      <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div>
+      <div class="title">Planejamento</div>
+      <div class="header-actions"><div class="header-icon" title="Domus"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div>
+    </div>
+    <div class="mod-tabs">
+      <div class="mod-tab active">Visão Geral</div>
+      <div class="mod-tab" onclick="switchState('budget')">Orçamento</div>
+      <div class="mod-tab" onclick="switchState('strategy')">Estratégia</div>
+    </div>
+    <div class="scroll-content">
+      <div class="surface-card summary-strategy gap-s4">
+        <div class="summary-label">Estratégia atual</div>
+        <div class="summary-body">Sua renda está distribuída em 6 pilares. A maior alocação é em <strong style="color:var(--text-primary);font-weight:600">Essenciais (30%)</strong>, seguida por Independência financeira (25%).</div>
+      </div>
+      <div class="month-nav gap-s4"><span class="arrow">←</span><span class="label">agosto 2026</span><span class="arrow">→</span></div>
+      <div class="kpi-unified">
+        <div class="kpi-period">Este mês</div>
+        <div class="kpi-row">
+          <div class="kpi-col"><div class="kpi-label">Receita</div><div class="kpi-value">R$ 6.200</div></div>
+          <div class="kpi-col"><div class="kpi-label">Despesas</div><div class="kpi-value">R$ 4.280</div><div class="kpi-meta">69% da receita</div></div>
+          <div class="kpi-col"><div class="kpi-label">Saldo</div><div class="kpi-value">R$ 1.920</div><div class="kpi-meta">31% da receita</div></div>
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-label"><span class="insight-dot"></span>Domus</div>
+        <div class="insight-body">Sua margem de 31% está acima da média dos últimos 3 meses (24%). A redução em Estilo de vida contribuiu.</div>
+        <span class="insight-cta">Entender</span>
+      </div>
+      <div class="section-label">Recomendações</div>
+      <div class="rec-item"><div class="rec-left"><span class="rec-badge critica">Crítica</span><div class="rec-title">Completar reserva de emergência</div><div class="rec-impact">Impacto: R$ 680 · +3 pts no índice</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="rec-chevron"><path d="M9 18l6-6-6-6"/></svg></div>
+      <div class="rec-item"><div class="rec-left"><span class="rec-badge alta">Alta</span><div class="rec-title">Aumentar aporte em Construção patrimonial</div><div class="rec-impact">Impacto: R$ 500/mês · +2 pts no índice</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="rec-chevron"><path d="M9 18l6-6-6-6"/></svg></div>
+      <div class="secondary-action" onclick="switchState('sim')">Simular cenário →</div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ ORÇAMENTO ════════ -->
+  <div class="state-panel" id="panel-budget">
+    <div class="mod-header">
+      <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div>
+      <div class="title">Planejamento</div>
+      <div class="header-actions"><div class="header-icon" title="Domus"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div>
+    </div>
+    <div class="mod-tabs">
+      <div class="mod-tab" onclick="switchState('overview')">Visão Geral</div>
+      <div class="mod-tab active">Orçamento</div>
+      <div class="mod-tab" onclick="switchState('strategy')">Estratégia</div>
+    </div>
+    <div class="scroll-content">
+      <div class="month-nav"><span class="arrow">←</span><span class="label">agosto 2026</span><span class="arrow">→</span></div>
+      <div class="surface-card gap-s4" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px;color:var(--text-secondary)">Receita do mês</span><span style="font-size:15px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums">R$ 6.200</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="font-size:13px;color:var(--text-secondary)">Total gasto</span><span style="font-size:15px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums">R$ 4.700</span></div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">76% da receita · Acima do planejado em 2 categorias</div>
+      </div>
+
+      <div class="budget-card"><div class="budget-top"><span class="budget-name">Essenciais</span><span class="budget-status ok">Dentro</span></div><div class="budget-values"><div class="budget-val"><div class="lb">Teto</div><div class="vl">R$ 1.860</div></div><div class="budget-val"><div class="lb">Gasto</div><div class="vl">R$ 1.720</div></div><div class="budget-val"><div class="lb">Restam</div><div class="vl" style="color:var(--state-positive)">R$ 140</div></div></div><div class="budget-bar"><div class="budget-bar-fill" style="width:92%"></div></div><div class="budget-pct">92% utilizado</div></div>
+      <div class="budget-card"><div class="budget-top"><span class="budget-name">Qualidade de vida</span><span class="budget-status ok">Dentro</span></div><div class="budget-values"><div class="budget-val"><div class="lb">Teto</div><div class="vl">R$ 620</div></div><div class="budget-val"><div class="lb">Gasto</div><div class="vl">R$ 540</div></div><div class="budget-val"><div class="lb">Restam</div><div class="vl" style="color:var(--state-positive)">R$ 80</div></div></div><div class="budget-bar"><div class="budget-bar-fill" style="width:87%"></div></div><div class="budget-pct">87% utilizado</div></div>
+      <div class="budget-card"><div class="budget-top"><span class="budget-name">Construção patrimonial</span><span class="budget-status ok">Dentro</span></div><div class="budget-values"><div class="budget-val"><div class="lb">Teto</div><div class="vl">R$ 1.240</div></div><div class="budget-val"><div class="lb">Gasto</div><div class="vl">R$ 980</div></div><div class="budget-val"><div class="lb">Restam</div><div class="vl" style="color:var(--state-positive)">R$ 260</div></div></div><div class="budget-bar"><div class="budget-bar-fill" style="width:79%"></div></div><div class="budget-pct">79% utilizado</div></div>
+      <div class="budget-card"><div class="budget-top"><span class="budget-name">Estilo de vida</span><span class="budget-status over">Acima</span></div><div class="budget-values"><div class="budget-val"><div class="lb">Teto</div><div class="vl">R$ 620</div></div><div class="budget-val"><div class="lb">Gasto</div><div class="vl">R$ 890</div></div><div class="budget-val"><div class="lb">Acima em</div><div class="vl" style="color:var(--state-negative)">R$ 270</div></div></div><div class="budget-bar"><div class="budget-bar-fill over" style="width:100%"></div></div><div class="budget-pct" style="color:var(--state-negative)">143% utilizado</div></div>
+      <div class="budget-card"><div class="budget-top"><span class="budget-name">Independência financeira</span><span class="budget-status ok">Dentro</span></div><div class="budget-values"><div class="budget-val"><div class="lb">Teto</div><div class="vl">R$ 1.550</div></div><div class="budget-val"><div class="lb">Gasto</div><div class="vl">R$ 380</div></div><div class="budget-val"><div class="lb">Restam</div><div class="vl" style="color:var(--state-positive)">R$ 1.170</div></div></div><div class="budget-bar"><div class="budget-bar-fill" style="width:25%"></div></div><div class="budget-pct">25% utilizado</div></div>
+      <div class="budget-card"><div class="budget-top"><span class="budget-name">Capital intelectual</span><span class="budget-status ok">Dentro</span></div><div class="budget-values"><div class="budget-val"><div class="lb">Teto</div><div class="vl">R$ 310</div></div><div class="budget-val"><div class="lb">Gasto</div><div class="vl">R$ 190</div></div><div class="budget-val"><div class="lb">Restam</div><div class="vl" style="color:var(--state-positive)">R$ 120</div></div></div><div class="budget-bar"><div class="budget-bar-fill" style="width:61%"></div></div><div class="budget-pct">61% utilizado</div></div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ ESTRATÉGIA ════════ -->
+  <div class="state-panel" id="panel-strategy">
+    <div class="mod-header">
+      <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div>
+      <div class="title">Planejamento</div>
+      <div class="header-actions"><div class="header-icon" title="Domus"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div>
+    </div>
+    <div class="mod-tabs">
+      <div class="mod-tab" onclick="switchState('overview')">Visão Geral</div>
+      <div class="mod-tab" onclick="switchState('budget')">Orçamento</div>
+      <div class="mod-tab active">Estratégia</div>
+    </div>
+    <div class="scroll-content">
+      <div class="surface-card gap-s4">
+        <div class="summary-label">Distribuição da renda</div>
+        <div class="strat-total" style="margin-bottom:12px;padding:0"><span class="total-label">Total alocado</span><span class="total-value">100%</span></div>
+        <div class="summary-body" style="font-size:12px">Cada pilar define um teto de gastos baseado na sua receita mensal. Os percentuais podem ser ajustados a qualquer momento.</div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="strategy-bar"><div class="strat-row"><span class="strat-name">Essenciais</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:60%;background:var(--pillar-essenciais)"></div></div><span class="strat-pct">30%</span></div><div class="strat-meta">5 categorias vinculadas</div></div>
+        <div class="strategy-bar"><div class="strat-row"><span class="strat-name">Qualidade de vida</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:20%;background:var(--pillar-qualidade)"></div></div><span class="strat-pct">10%</span></div><div class="strat-meta">4 categorias vinculadas</div></div>
+        <div class="strategy-bar"><div class="strat-row"><span class="strat-name">Construção patrimonial</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:40%;background:var(--pillar-patrimonio)"></div></div><span class="strat-pct">20%</span></div><div class="strat-meta">3 categorias vinculadas</div></div>
+        <div class="strategy-bar"><div class="strat-row"><span class="strat-name">Estilo de vida</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:20%;background:var(--pillar-estilo)"></div></div><span class="strat-pct">10%</span></div><div class="strat-meta">8 categorias vinculadas</div></div>
+        <div class="strategy-bar"><div class="strat-row"><span class="strat-name">Independência financeira</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:50%;background:var(--pillar-independencia)"></div></div><span class="strat-pct">25%</span></div><div class="strat-meta">2 categorias vinculadas</div></div>
+        <div class="strategy-bar"><div class="strat-row"><span class="strat-name">Capital intelectual</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:10%;background:var(--pillar-intelectual)"></div></div><span class="strat-pct">5%</span></div><div class="strat-meta">6 categorias vinculadas</div></div>
+      </div>
+
+      <div class="gap-s6"></div>
+      <button class="btn-primary" onclick="switchState('edit')">Ajustar estratégia</button>
+      <div style="height:8px"></div>
+      <button class="btn-secondary">Restaurar padrão</button>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ EDITAR ESTRATÉGIA ════════ -->
+  <div class="state-panel" id="panel-edit">
+    <div class="mod-header">
+      <div class="back" onclick="switchState('strategy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Estratégia</div>
+      <div class="title">Ajustar</div>
+      <div></div>
+    </div>
+    <div class="scroll-content">
+      <div class="surface-card gap-s4">
+        <div class="strat-total" style="margin:0;padding:0"><span class="total-label">Distribuição total</span><span class="total-value">100%</span></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="edit-pillar expanded"><div class="edit-top"><span class="edit-name">Essenciais</span><span class="edit-pct">30%</span></div><div class="edit-body"><input type="range" class="edit-slider" min="0" max="100" value="30"><div class="edit-color" style="background:var(--pillar-essenciais)"></div><div class="edit-chips"><span class="edit-chip">Moradia ×</span><span class="edit-chip">Alimentação ×</span><span class="edit-chip">Transporte ×</span><span class="edit-chip">Energia ×</span><span class="edit-chip">Internet ×</span><span class="edit-chip" style="border-style:dashed">+ Adicionar</span></div></div></div>
+        <div class="edit-pillar"><div class="edit-top"><span class="edit-name">Qualidade de vida</span><span class="edit-pct">10%</span></div><div class="edit-body"><input type="range" class="edit-slider" min="0" max="100" value="10"><div class="edit-color" style="background:var(--pillar-qualidade)"></div></div></div>
+        <div class="edit-pillar"><div class="edit-top"><span class="edit-name">Construção patrimonial</span><span class="edit-pct">20%</span></div><div class="edit-body"><input type="range" class="edit-slider" min="0" max="100" value="20"><div class="edit-color" style="background:var(--pillar-patrimonio)"></div></div></div>
+        <div class="edit-pillar"><div class="edit-top"><span class="edit-name">Estilo de vida</span><span class="edit-pct">10%</span></div><div class="edit-body"><input type="range" class="edit-slider" min="0" max="100" value="10"><div class="edit-color" style="background:var(--pillar-estilo)"></div></div></div>
+        <div class="edit-pillar"><div class="edit-top"><span class="edit-name">Independência financeira</span><span class="edit-pct">25%</span></div><div class="edit-body"><input type="range" class="edit-slider" min="0" max="100" value="25"><div class="edit-color" style="background:var(--pillar-independencia)"></div></div></div>
+        <div class="edit-pillar"><div class="edit-top"><span class="edit-name">Capital intelectual</span><span class="edit-pct">5%</span></div><div class="edit-body"><input type="range" class="edit-slider" min="0" max="100" value="5"><div class="edit-color" style="background:var(--pillar-intelectual)"></div></div></div>
+      </div>
+
+      <div class="gap-s6"></div>
+      <button class="btn-primary">Salvar estratégia</button>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ DETALHE DO PILAR ════════ -->
+  <div class="state-panel" id="panel-pillar">
+    <div class="mod-header">
+      <div class="back" onclick="switchState('strategy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Estratégia</div>
+      <div class="title">Essenciais</div>
+      <div></div>
+    </div>
+    <div class="scroll-content">
+      <div class="detail-block"><div class="detail-label">Alocação</div><div class="detail-value">30%</div><div class="detail-meta">da renda mensal</div></div>
+      <div class="detail-block"><div class="detail-label">Teto atual (renda de R$ 6.200)</div><div class="detail-value">R$ 1.860</div></div>
+      <div class="detail-block"><div class="detail-label">Gasto este mês</div><div class="detail-value">R$ 1.720</div><div class="detail-meta" style="color:var(--state-positive)">R$ 140 abaixo do teto</div><div class="budget-bar" style="margin-top:8px"><div class="budget-bar-fill" style="width:92%"></div></div></div>
+      <div class="detail-block"><div class="detail-label">Categorias vinculadas</div><div style="display:flex;flex-wrap:wrap;gap:4px"><span class="edit-chip">Moradia</span><span class="edit-chip">Alimentação</span><span class="edit-chip">Transporte</span><span class="edit-chip">Energia</span><span class="edit-chip">Internet</span></div></div>
+      <div class="detail-block"><div class="detail-label">Transações do mês</div>
+        <div class="txn-row"><span class="txn-date">15/08</span><span class="txn-desc">Supermercado</span><span class="txn-val">R$ 620</span></div>
+        <div class="txn-row"><span class="txn-date">10/08</span><span class="txn-desc">Aluguel</span><span class="txn-val">R$ 800</span></div>
+        <div class="txn-row"><span class="txn-date">05/08</span><span class="txn-desc">Posto gasolina</span><span class="txn-val">R$ 200</span></div>
+        <div class="txn-row"><span class="txn-date">02/08</span><span class="txn-desc">Conta de luz</span><span class="txn-val">R$ 100</span></div>
+        <div style="font-size:12px;font-weight:600;color:var(--action-primary);cursor:pointer;margin-top:8px">Ver todas as transações →</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ SIMULAÇÃO ════════ -->
+  <div class="state-panel" id="panel-sim">
+    <div class="mod-header">
+      <div class="back" onclick="switchState('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Planejamento</div>
+      <div class="title">Simular</div>
+      <div></div>
+    </div>
+    <div class="scroll-content">
+      <div class="sim-chips"><span class="sim-chip active">Aporte mensal</span><span class="sim-chip">Quitar dívida</span><span class="sim-chip">Cortar gastos</span></div>
+      <div class="sim-slider-block"><div class="sim-param-label">Valor do aporte mensal</div><div class="sim-param-value">R$ 1.000</div><input type="range" class="sim-slider" min="100" max="5000" value="1000" step="100"><div class="sim-range"><span>R$ 100</span><span>R$ 5.000</span></div></div>
+      <div class="sim-compare">
+        <div class="sim-col"><div class="sim-col-label">Atual</div><div class="sim-metric"><div class="metric-name">Índice</div><div class="metric-value">67</div></div><div class="sim-metric"><div class="metric-name">Patrimônio</div><div class="metric-value">R$ 46.850</div></div><div class="sim-metric"><div class="metric-name">Reserva</div><div class="metric-value">4,2 m.</div></div></div>
+        <div class="sim-col highlight"><div class="sim-col-label">Simulado</div><div class="sim-metric"><div class="metric-name">Índice</div><div class="metric-value">74 <span class="sim-delta pos">+7</span></div></div><div class="sim-metric"><div class="metric-name">Patrimônio</div><div class="metric-value">R$ 52.850 <span class="sim-delta pos">+6.000</span></div></div><div class="sim-metric"><div class="metric-name">Reserva</div><div class="metric-value">5,1 m. <span class="sim-delta pos">+0,9</span></div></div></div>
+      </div>
+      <div class="sim-disclaimer">Esta é uma projeção baseada em rentabilidade média histórica de mercado. Ela não garante resultado futuro.</div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ EMPTY ════════ -->
+  <div class="state-panel" id="panel-empty">
+    <div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Planejamento</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+    <div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Orçamento</div><div class="mod-tab">Estratégia</div></div>
+    <div class="scroll-content">
+      <div class="empty-state">
+        <div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
+        <div class="empty-title">Você ainda não definiu sua estratégia</div>
+        <div class="empty-desc">Distribua sua renda entre os 6 pilares da vida financeira para criar tetos de gastos e acompanhar seu orçamento.</div>
+        <button class="btn-primary">Criar estratégia</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ PRIVACY ════════ -->
+  <div class="state-panel" id="panel-privacy">
+    <div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Planejamento</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+    <div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Orçamento</div><div class="mod-tab">Estratégia</div></div>
+    <div class="scroll-content">
+      <div class="surface-card summary-strategy gap-s4"><div class="summary-label">Estratégia atual</div><div class="summary-body">Sua renda está distribuída em 6 pilares. A maior alocação é em Essenciais (30%), seguida por Independência financeira (25%).</div></div>
+      <div class="month-nav gap-s4"><span class="arrow">←</span><span class="label">agosto 2026</span><span class="arrow">→</span></div>
+      <div class="kpi-unified">
+        <div class="kpi-period">Este mês</div>
+        <div class="kpi-row">
+          <div class="kpi-col"><div class="kpi-label">Receita</div><div class="kpi-value"><span class="masked">R$ ••••••</span></div></div>
+          <div class="kpi-col"><div class="kpi-label">Despesas</div><div class="kpi-value"><span class="masked">R$ ••••••</span></div></div>
+          <div class="kpi-col"><div class="kpi-label">Saldo</div><div class="kpi-value"><span class="masked">R$ ••••••</span></div></div>
+        </div>
+      </div>
+      <div class="insight-card"><div class="insight-label"><span class="insight-dot"></span>Domus</div><div class="insight-body">Sua margem continua positiva este mês. As despesas estão controladas em relação à sua estratégia.</div><span class="insight-cta">Entender</span></div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ ERROR PARCIAL ════════ -->
+  <div class="state-panel" id="panel-error">
+    <div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Planejamento</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+    <div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Orçamento</div><div class="mod-tab">Estratégia</div></div>
+    <div class="scroll-content">
+      <div class="surface-card summary-strategy gap-s4"><div class="summary-label">Estratégia atual</div><div class="summary-body">Sua renda está distribuída em 6 pilares. A maior alocação é em Essenciais (30%).</div></div>
+      <div class="month-nav gap-s4"><span class="arrow">←</span><span class="label">agosto 2026</span><span class="arrow">→</span></div>
+      <div class="kpi-unified"><div class="kpi-period">Este mês</div><div class="kpi-row"><div class="kpi-col"><div class="kpi-label">Receita</div><div class="kpi-value">R$ 6.200</div></div><div class="kpi-col"><div class="kpi-label">Despesas</div><div class="kpi-value">R$ 4.280</div></div><div class="kpi-col"><div class="kpi-label">Saldo</div><div class="kpi-value">R$ 1.920</div></div></div></div>
+      <div class="error-banner gap-s4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Não foi possível carregar as recomendações. <span style="color:var(--text-secondary);cursor:pointer;text-decoration:underline;margin-left:4px">Tentar novamente</span></div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ════════ OFFLINE ════════ -->
+  <div class="state-panel" id="panel-offline">
+    <div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Planejamento</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+    <div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Orçamento</div><div class="mod-tab">Estratégia</div></div>
+    <div class="scroll-content">
+      <div class="info-banner gap-s4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1l22 22"/><circle cx="12" cy="12" r="10"/></svg>Você está offline. Dados de 28 de julho.</div>
+      <div class="surface-card summary-strategy gap-s4"><div class="summary-label">Estratégia atual</div><div class="summary-body">Sua renda está distribuída em 6 pilares. A maior alocação é em Essenciais (30%).</div></div>
+      <div class="month-nav gap-s4"><span class="arrow" style="color:var(--text-disabled)">←</span><span class="label">agosto 2026</span><span class="arrow" style="color:var(--text-disabled)">→</span></div>
+      <div class="kpi-unified"><div class="kpi-period">Este mês</div><div class="kpi-row"><div class="kpi-col"><div class="kpi-label">Receita</div><div class="kpi-value">R$ 6.200</div></div><div class="kpi-col"><div class="kpi-label">Despesas</div><div class="kpi-value">R$ 4.280</div></div><div class="kpi-col"><div class="kpi-label">Saldo</div><div class="kpi-value">R$ 1.920</div></div></div></div>
+      <div class="spacer"></div>
+      <div class="bottom-nav"><div class="nav-inner">
+        <div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+        <div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchState(id) {
+  document.querySelectorAll('.state-tab').forEach(function(t){t.classList.remove('active')});
+  document.querySelectorAll('.state-panel').forEach(function(p){p.classList.remove('active')});
+  var panel = document.getElementById('panel-'+id);
+  if(panel) panel.classList.add('active');
+  var tabs = document.querySelectorAll('.state-tab');
+  for(var i=0;i<tabs.length;i++){if(tabs[i].textContent.trim().toLowerCase().indexOf(id.replace('-',' '))>-1||(id==='overview'&&tabs[i].textContent.trim()==='Visão Geral')||(id==='budget'&&tabs[i].textContent.trim()==='Orçamento')||(id==='strategy'&&tabs[i].textContent.trim()==='Estratégia')||(id==='edit'&&tabs[i].textContent.trim()==='Editar')||(id==='pillar'&&tabs[i].textContent.trim()==='Pilar')||(id==='sim'&&tabs[i].textContent.trim()==='Simulação')||(id==='empty'&&tabs[i].textContent.trim()==='Vazio')||(id==='privacy'&&tabs[i].textContent.trim()==='Privacidade')||(id==='error'&&tabs[i].textContent.trim()==='Erro')||(id==='offline'&&tabs[i].textContent.trim()==='Offline')){tabs[i].classList.add('active')}}
+  document.querySelector('.phone').scrollTop = 0;
+}
+</script>
+
+</body>
+</html>

@@ -11,16 +11,19 @@ import { AcademyAvatar } from './academy-avatar';
 import { AcademyTimeline } from './academy-timeline';
 
 export function AcademyPanel() {
-  const { progress, startAcademy, resetAcademy, level } = useAcademy();
+  const { progress, isActive, startAcademy, resetAcademy, level } = useAcademy();
   const [isOpen, setIsOpen] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
+
+  if (isActive) return null;
 
   if (!progress) {
     if (!isOpen) {
       return (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-24 right-6 h-10 px-3 rounded-full bg-slate-900/90 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 text-xs font-semibold flex items-center gap-1.5 z-40 transition-all"
+          className="fixed right-4 h-10 px-3 rounded-full bg-slate-900/90 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 text-xs font-semibold flex items-center gap-1.5 z-40 transition-all"
+          style={{ bottom: 'calc(var(--fd-bottom-nav-height) + var(--fd-safe-area-bottom) + 72px)' }}
         >
           <Trophy className="h-3.5 w-3.5 text-amber-400" />
           Academia
@@ -43,7 +46,8 @@ export function AcademyPanel() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-6 h-10 px-3 rounded-full bg-slate-900/90 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 text-xs font-semibold flex items-center gap-1.5 z-40 transition-all"
+        className="fixed right-4 h-10 px-3 rounded-full bg-slate-900/90 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 text-xs font-semibold flex items-center gap-1.5 z-40 transition-all"
+        style={{ bottom: 'calc(var(--fd-bottom-nav-height) + var(--fd-safe-area-bottom) + 72px)' }}
       >
         <Trophy className="h-3.5 w-3.5 text-amber-400" />
         {unlocked.length} conquistas
@@ -52,7 +56,10 @@ export function AcademyPanel() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-80 max-h-[500px] rounded-2xl border border-cyan-500/20 bg-slate-950/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden flex flex-col">
+    <div
+      className="fixed right-4 w-80 max-h-[500px] rounded-2xl border border-cyan-500/20 bg-slate-950/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden flex flex-col"
+      style={{ bottom: 'calc(var(--fd-bottom-nav-height) + var(--fd-safe-area-bottom) + 16px)' }}
+    >
       {/* Header + Avatar */}
       <div className="bg-gradient-to-r from-cyan-950/80 to-blue-950/80 border-b border-cyan-500/20 px-4 py-2">
         <div className="flex items-center justify-between">

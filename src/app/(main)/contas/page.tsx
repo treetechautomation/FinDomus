@@ -12,6 +12,8 @@ import { useVisibility } from '@/providers/visibility-provider';
 import { calculateEmergencyReserve } from '@/core/finance/financial-core';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobileContasView } from '@/app/(main)/contas/mobile-contas-view';
 
 function accountTypeLabel(type: string) {
   switch (type) {
@@ -92,6 +94,7 @@ export default function ContasPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const isMobile = useIsMobile();
 
   const loadAccounts = () => {
     if (!user?.uid) return;
@@ -106,6 +109,10 @@ export default function ContasPage() {
     loadAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, refreshTrigger]);
+
+  if (isMobile) {
+    return <MobileContasView accounts={accounts} loading={loading} />;
+  }
 
   const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
   const pfAccounts = accounts.filter((a) => a.owner === 'PF');

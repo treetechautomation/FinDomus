@@ -5,11 +5,26 @@ import {
   buildClassificationContext,
   classifyTransactionWithContext,
   type ParsedTransaction,
+  type ClassificationContext,
 } from './transaction-classifier';
 
 function getTag(block: string, tag: string) {
   const match = block.match(new RegExp(`<${tag}>([^<\r\n]+)`));
   return match ? match[1].trim() : '';
+}
+
+// Replica localmente a regra de identidade interna já usada por
+// classifyTransactionWithContext (transaction-classifier.ts), sem alterar aquele
+// módulo compartilhado com CSV/PDF/Pluggy. Serve só para distinguir um
+// type='transfer' com evidência real de conta própria de um type='transfer'
+// vindo apenas do match textual genérico de isTransfer().
+function hasInternalIdentityMatch(text: string, context: ClassificationContext) {
+  const norm = normalizeText(text);
+  return context.accountIdentities.some((identity) => {
+    if (!identity.isActive) return false;
+    const aliases = [identity.normalizedName, ...(identity.aliases || [])];
+    return aliases.some((alias) => alias && norm.includes(alias));
+  });
 }
 
 function formatOfxDate(value: string) {
@@ -195,25 +210,37 @@ function isUsefulDescription(value?: string | null): boolean {
   return true;
 }
 
-export async function parseOFX(text: string, userId?: string): Promise<ParsedTransaction[]> {
-  const context = await buildClassificationContext(userId);
-
-  const transactions = text
-    .split('<STMTTRN>')
-    .slice(1)
-    .map((block) => {
+// Extraído de parseOFX para permitir teste determinístico e isolado (sem I/O),
+// dado um `context` já carregado. Comportamento idêntico ao anterior — mesma lógica,
+// apenas fatiada em função própria.
+export function resolveOfxTransaction(
+  block: string,
+  context: ClassificationContext
+): ParsedTransaction | null {
       const rawAmount = getTag(block, "TRNAMT");
       const amount = parseImportAmount(rawAmount);
 
       const rawName = getTag(block, "NAME");
       const rawMemo = getTag(block, "MEMO");
       const fitId = getTag(block, "FITID");
+      const trnType = getTag(block, "TRNTYPE").toUpperCase();
 
+      // Descrição exibida ao usuário — comportamento preservado (NAME tem prioridade).
       const memo =
         isUsefulDescription(rawName) ? rawName :
         isUsefulDescription(rawMemo) ? rawMemo :
         fitId ||
         "Lançamento OFX";
+
+      // Texto usado só para CLASSIFICAR: une NAME + MEMO quando ambos trazem
+      // informação útil e distinta (ex.: NAME genérico do banco + MEMO com o
+      // favorecido/fornecedor real), sem alterar a descrição exibida acima.
+      const nameUseful = isUsefulDescription(rawName);
+      const memoUseful = isUsefulDescription(rawMemo);
+      const classificationText =
+        nameUseful && memoUseful && normalizeText(rawName) !== normalizeText(rawMemo)
+          ? `${rawName} ${rawMemo}`
+          : memo;
 
       const date = formatOfxDate(getTag(block, 'DTPOSTED'));
       const descLower = normalizeText(memo);
@@ -227,12 +254,25 @@ export async function parseOFX(text: string, userId?: string): Promise<ParsedTra
         return null;
       }
 
-      // Classifica usando o motor unificado
-      const classified = classifyTransactionWithContext(memo, amount, context);
+      // Classifica usando o motor unificado (compartilhado com CSV/PDF/Pluggy — não alterado)
+      const classified = classifyTransactionWithContext(classificationText, amount, context);
       let category = classified.category;
+      let type = classified.type;
+
+      // Natureza financeira do OFX (TRNTYPE + TRNAMT) tem precedência sobre uma
+      // keyword textual genérica de transferência. Só sobrescreve quando o
+      // 'transfer' NÃO veio de identidade interna comprovada (conta própria/família),
+      // preservando a regra de transferência interna já existente.
+      if (type === 'transfer' && !hasInternalIdentityMatch(classificationText, context)) {
+        if (trnType === 'CREDIT' && amount > 0) {
+          type = 'income';
+        } else if (trnType === 'DEBIT' && amount < 0) {
+          type = 'expense';
+        }
+      }
 
       if (category === "Outros") {
-        const fallback = inferCategoryFromMemo(descLower);
+        const fallback = inferCategoryFromMemo(normalizeText(classificationText));
         if (fallback) {
           category = fallback;
         }
@@ -248,9 +288,17 @@ export async function parseOFX(text: string, userId?: string): Promise<ParsedTra
         amount: Math.abs(amount),
         ...installment,
         category,
-        type: classified.type,
+        type,
       } as unknown as ParsedTransaction;
-    })
+}
+
+export async function parseOFX(text: string, userId?: string): Promise<ParsedTransaction[]> {
+  const context = await buildClassificationContext(userId);
+
+  const transactions = text
+    .split('<STMTTRN>')
+    .slice(1)
+    .map((block) => resolveOfxTransaction(block, context))
     .filter(
       (item): item is ParsedTransaction =>
         Boolean(item && item.date && item.amount)

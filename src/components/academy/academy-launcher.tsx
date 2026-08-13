@@ -4,18 +4,19 @@ import { useAcademy } from './academy-provider';
 import { GraduationCap } from 'lucide-react';
 
 export function AcademyLauncher() {
-  const { isActive, startAcademy, pauseAcademy, progress, isReady } = useAcademy();
+  const { isActive, startAcademy, progress, isReady } = useAcademy();
 
-  if (!isReady) return null;
+  if (!isReady || isActive) return null;
 
   const total = progress?.completedLessons?.length || 0;
-
-  if (isActive) return null;
 
   return (
     <button
       onClick={startAcademy}
-      className="fixed bottom-6 right-6 h-14 px-4 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/20 text-white flex items-center gap-2 border border-cyan-400/30 transition-all duration-300 hover:scale-105 z-50"
+      className="fixed right-4 h-12 px-3 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/20 text-white flex items-center gap-2 border border-cyan-400/30 transition-all duration-300 hover:scale-105 z-50"
+      style={{
+        bottom: 'calc(var(--fd-bottom-nav-height) + var(--fd-safe-area-bottom) + 16px)',
+      }}
       title="Academia FinDomus"
     >
       <GraduationCap className="h-5 w-5" />

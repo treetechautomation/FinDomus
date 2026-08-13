@@ -2,6 +2,8 @@
 
 import { useAcademy } from './academy-provider';
 import { AcademyLevels } from '@/academy/academy-levels';
+import { useOrientation } from '@/hooks/mobile/use-orientation';
+import { useVirtualKeyboard } from '@/hooks/mobile/use-virtual-keyboard';
 import { X, ChevronRight, ChevronLeft, GraduationCap, Trophy } from 'lucide-react';
 
 export function AcademyCard() {
@@ -15,6 +17,9 @@ export function AcademyCard() {
     progress,
     level,
   } = useAcademy();
+
+  const { landscape } = useOrientation();
+  const { keyboardOpen, keyboardHeight } = useVirtualKeyboard();
 
   if (!currentLesson || !currentStep) return null;
 
@@ -32,53 +37,66 @@ export function AcademyCard() {
     currentStep.placement === 'right' ? 'right-4 top-1/2 -translate-y-1/2' :
     'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2';
 
+  const maxHeightStyle: React.CSSProperties = {};
+  if (landscape || keyboardOpen) {
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
+    const kbOffset = keyboardOpen ? keyboardHeight : 0;
+    const available = vh - kbOffset - 32;
+    maxHeightStyle.maxHeight = `${Math.max(available, 280)}px`;
+  }
+
   return (
-    <div className={`fixed z-[1000] w-[340px] sm:w-[400px] ${placementClass}`}>
-      <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/95 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 overflow-hidden">
+    <div
+      className={`fixed z-[1000] w-[calc(100vw-32px)] max-w-[400px] ${placementClass}`}
+      style={maxHeightStyle}
+    >
+      <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/95 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-cyan-950/80 to-blue-950/80 border-b border-cyan-500/20 px-4 py-3 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-cyan-950/80 to-blue-950/80 border-b border-cyan-500/20 px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-lg">{currentLesson.icon}</span>
             <div>
               <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-                {levelDef?.icon} Nível {level} — {levelDef?.name}
+                {levelDef?.icon} Nivel {level} — {levelDef?.name}
               </p>
               <p className="text-xs text-zinc-300 font-semibold truncate max-w-[200px]">
                 {currentLesson.title}
               </p>
             </div>
           </div>
-          <button onClick={pauseAcademy} className="text-zinc-500 hover:text-zinc-300 p-1">
+          <button onClick={pauseAcademy} className="text-zinc-500 hover:text-zinc-300 p-1 shrink-0">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 space-y-3">
-          <h3 className="text-sm font-bold text-white leading-snug">
-            {currentStep.title}
-          </h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            {currentStep.description}
-          </p>
+        {/* Scrollable content */}
+        <div className="overflow-y-auto overflow-x-hidden flex-1">
+          <div className="p-4 space-y-3">
+            <h3 className="text-sm font-bold text-white leading-snug">
+              {currentStep.title}
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {currentStep.description}
+            </p>
 
-          {/* Progress bar */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-[10px] text-zinc-500">
-              <span>Passo {stepNum} de {totalSteps}</span>
-              <span>{completed}/12 aulas</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
-                style={{ width: `${pct}%` }}
-              />
+            {/* Progress bar */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-zinc-500">
+                <span>Passo {stepNum} de {totalSteps}</span>
+                <span>{completed}/12 aulas</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-800/50 bg-zinc-900/30">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-800/50 bg-zinc-900/30 shrink-0">
           <button
             onClick={prevStep}
             disabled={currentStepIdx <= 0}
@@ -102,7 +120,7 @@ export function AcademyCard() {
               </>
             ) : (
               <>
-                Próximo <ChevronRight className="h-3.5 w-3.5" />
+                Proximo <ChevronRight className="h-3.5 w-3.5" />
               </>
             )}
           </button>

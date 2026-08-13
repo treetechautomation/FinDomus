@@ -9,6 +9,9 @@ import { useVisibility } from '@/providers/visibility-provider';
 import { FinancialSection } from '@/components/onboarding/FinancialSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobileHomeView } from '@/app/(main)/mobile-home-view';
+import { buildMobileHomeData } from '@/app/(main)/mobile-home-data';
 
 const ConsolidatedBalance = dynamic(
   () => import('@/components/overview/consolidated-balance').then(m => ({ default: m.ConsolidatedBalance })),
@@ -122,6 +125,7 @@ export default function DashboardPage() {
   const [hasNoData, setHasNoData] = useState<boolean>(false);
   const { showFinancialValues } = useVisibility();
   const [planInfo, setPlanInfo] = useState<{ planName: string; isTrial: boolean; trialDaysRemaining: number | null; isCampaignPrice: boolean } | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!user) return;
@@ -226,6 +230,14 @@ export default function DashboardPage() {
   }, [user?.uid]);
 
 
+  if (isMobile) {
+    const mobileData = buildMobileHomeData({
+      dashboard,
+      kernel,
+      contextTransactions: (context as any)?.transactions || [],
+    });
+    return <MobileHomeView data={mobileData} />;
+  }
 
   if (!dashboard) {
     return <DashboardSkeleton />;

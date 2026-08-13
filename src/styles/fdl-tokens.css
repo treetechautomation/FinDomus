@@ -1,0 +1,320 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FDL 1.0 — Design Tokens · FinDomus Design Language
+   Frozen: 2026-07-28 · Baseline: bc19adb
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── SAFE AREAS ─────────────────────────────────────────────────────────── */
+
+:root {
+  --fd-safe-area-top: env(safe-area-inset-top, 0px);
+  --fd-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --fd-safe-area-left: env(safe-area-inset-left, 0px);
+  --fd-safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+/* ─── SPACING SCALE (multiples of 4px) ───────────────────────────────────── */
+
+:root {
+  --fd-space-1: 4px;
+  --fd-space-2: 8px;
+  --fd-space-3: 12px;
+  --fd-space-4: 16px;
+  --fd-space-6: 24px;
+  --fd-space-8: 32px;
+  --fd-space-12: 48px;
+  --fd-space-16: 64px;
+
+  --fd-margin-mobile: var(--fd-space-4);
+  --fd-margin-tablet: var(--fd-space-6);
+  --fd-gutter-mobile: 12px;
+}
+
+/* ─── BORDER RADIUS ──────────────────────────────────────────────────────── */
+
+:root {
+  --fd-radius-sm: 8px;
+  --fd-radius-control: 10px;
+  --fd-radius-md: 16px;
+  --fd-radius-lg: 24px;
+  --fd-radius-full: 9999px;
+}
+
+/* ─── SHADOWS ────────────────────────────────────────────────────────────── */
+
+.dark {
+  --fd-shadow-none: none;
+  --fd-shadow-float: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --fd-shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+:root:not(.dark) {
+  --fd-shadow-none: none;
+  --fd-shadow-float: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --fd-shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── BLUR ───────────────────────────────────────────────────────────────── */
+
+:root {
+  --fd-blur-subtle: blur(8px);
+  --fd-blur-standard: blur(12px);
+  --fd-blur-strong: blur(20px);
+}
+
+/* ─── TYPOGRAPHY ─────────────────────────────────────────────────────────── */
+
+:root {
+  --fd-font-family-primary: 'Inter', sans-serif;
+  --fd-font-family-mono: 'JetBrains Mono', monospace;
+
+  /* Scale */
+  --fd-type-financial-hero-size: 36px;
+  --fd-type-financial-hero-weight: 800;
+  --fd-type-financial-hero-line-height: 1.1;
+
+  --fd-type-heading-1-size: 24px;
+  --fd-type-heading-1-weight: 700;
+  --fd-type-heading-1-line-height: 1.25;
+
+  --fd-type-heading-2-size: 20px;
+  --fd-type-heading-2-weight: 600;
+  --fd-type-heading-2-line-height: 1.3;
+
+  --fd-type-heading-3-size: 16px;
+  --fd-type-heading-3-weight: 600;
+  --fd-type-heading-3-line-height: 1.4;
+
+  --fd-type-body-size: 15px;
+  --fd-type-body-weight: 400;
+  --fd-type-body-line-height: 1.5;
+
+  --fd-type-supporting-size: 13px;
+  --fd-type-supporting-weight: 400;
+  --fd-type-supporting-line-height: 1.5;
+
+  --fd-type-caption-size: 11px;
+  --fd-type-caption-weight: 500;
+  --fd-type-caption-line-height: 1.4;
+
+  --fd-type-button-size: 15px;
+  --fd-type-button-weight: 600;
+  --fd-type-button-line-height: 1.0;
+}
+
+/* ─── ICON SCALE ─────────────────────────────────────────────────────────── */
+
+:root {
+  --fd-icon-sm: 16px;
+  --fd-icon-md: 20px;
+  --fd-icon-lg: 24px;
+  --fd-icon-xl: 32px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK PALETTE — Assinatura FinDomus
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dark {
+  /* Canvas & Surfaces */
+  --fd-color-canvas: #0A0E14;
+  --fd-color-surface: #11161D;
+  --fd-color-surface-raised: #161C26;
+  --fd-color-surface-floating: #1C2330;
+  --fd-color-overlay: #11161D;
+  --fd-color-overlay-scrim: rgba(0, 0, 0, 0.6);
+
+  /* Text */
+  --fd-color-text-primary: #EDF0F5;
+  --fd-color-text-secondary: #8B949E;
+  --fd-color-text-tertiary: #555D68;
+  --fd-color-text-disabled: #383D45;
+
+  /* Borders */
+  --fd-color-border-subtle: rgba(255, 255, 255, 0.06);
+  --fd-color-border-default: rgba(255, 255, 255, 0.10);
+  --fd-color-border-emphasis: rgba(255, 255, 255, 0.20);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT PALETTE — Opção de Acessibilidade e Contexto
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root:not(.dark) {
+  /* Canvas & Surfaces */
+  --fd-color-canvas: #F8F9FB;
+  --fd-color-surface: #FFFFFF;
+  --fd-color-surface-raised: #F8F9FB;
+  --fd-color-surface-floating: #FFFFFF;
+  --fd-color-overlay: #FFFFFF;
+  --fd-color-overlay-scrim: rgba(0, 0, 0, 0.4);
+
+  /* Text */
+  --fd-color-text-primary: #1A1D23;
+  --fd-color-text-secondary: #5A6270;
+  --fd-color-text-tertiary: #8E95A2;
+  --fd-color-text-disabled: #C5C9D2;
+
+  /* Borders */
+  --fd-color-border-subtle: rgba(0, 0, 0, 0.06);
+  --fd-color-border-default: rgba(0, 0, 0, 0.10);
+  --fd-color-border-emphasis: rgba(0, 0, 0, 0.20);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEMANTIC COLORS — Independent of theme
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Action — Azul FinDomus */
+  --fd-color-action-primary: #00B4D8;
+  --fd-color-action-primary-hover: #0096B4;
+  --fd-color-action-primary-pressed: #00809A;
+  --fd-color-action-primary-soft: rgba(0, 180, 216, 0.10);
+  --fd-color-action-focus: #00B4D8;
+
+  /* State — Positive (Verde) */
+  --fd-color-state-positive: #22C55E;
+  --fd-color-state-positive-soft: rgba(34, 197, 94, 0.10);
+
+  /* State — Warning (Âmbar) */
+  --fd-color-state-warning: #F59E0B;
+  --fd-color-state-warning-soft: rgba(245, 158, 11, 0.10);
+
+  /* State — Negative (Vermelho) */
+  --fd-color-state-negative: #EF4444;
+  --fd-color-state-negative-soft: rgba(239, 68, 68, 0.10);
+
+  /* State — Information */
+  --fd-color-state-information: rgba(0, 180, 216, 0.10);
+
+  /* Premium (Dourado) */
+  --fd-color-premium: #C8A951;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CATEGORY PALETTE (8 dessaturadas)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fd-category-1: #5B7F95;
+  --fd-category-2: #6B9080;
+  --fd-category-3: #8B7E74;
+  --fd-category-4: #7B8EA0;
+  --fd-category-5: #9B8E84;
+  --fd-category-6: #6B8290;
+  --fd-category-7: #8B9E8A;
+  --fd-category-8: #7B8A94;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRID / LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fd-layout-columns-mobile: 4;
+  --fd-layout-columns-tablet: 8;
+  --fd-layout-columns-desktop: 12;
+  --fd-layout-max-width-text: 640px;
+  --fd-layout-max-width-content: 960px;
+  --fd-layout-max-width-analytics: 1200px;
+
+  /* Bottom Nav + Header Heights */
+  --fd-bottom-nav-height: 64px;
+  --fd-mobile-header-height: 56px;
+  --fd-fab-size: 56px;
+  --fd-fab-margin: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINANCIAL NUMBER STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fd-financial-hero {
+  font-size: var(--fd-type-financial-hero-size);
+  font-weight: var(--fd-type-financial-hero-weight);
+  line-height: var(--fd-type-financial-hero-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.fd-heading-1 {
+  font-size: var(--fd-type-heading-1-size);
+  font-weight: var(--fd-type-heading-1-weight);
+  line-height: var(--fd-type-heading-1-line-height);
+}
+
+.fd-heading-2 {
+  font-size: var(--fd-type-heading-2-size);
+  font-weight: var(--fd-type-heading-2-weight);
+  line-height: var(--fd-type-heading-2-line-height);
+}
+
+.fd-heading-3 {
+  font-size: var(--fd-type-heading-3-size);
+  font-weight: var(--fd-type-heading-3-weight);
+  line-height: var(--fd-type-heading-3-line-height);
+}
+
+.fd-body {
+  font-size: var(--fd-type-body-size);
+  font-weight: var(--fd-type-body-weight);
+  line-height: var(--fd-type-body-line-height);
+}
+
+.fd-supporting {
+  font-size: var(--fd-type-supporting-size);
+  font-weight: var(--fd-type-supporting-weight);
+  line-height: var(--fd-type-supporting-line-height);
+}
+
+.fd-caption {
+  font-size: var(--fd-type-caption-size);
+  font-weight: var(--fd-type-caption-weight);
+  line-height: var(--fd-type-caption-line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fd-button-text {
+  font-size: var(--fd-type-button-size);
+  font-weight: var(--fd-type-button-weight);
+  line-height: var(--fd-type-button-line-height);
+}
+
+.fd-tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SURFACE LEVELS (utility)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fd-surface-canvas {
+  background-color: var(--fd-color-canvas);
+}
+
+.fd-surface-1 {
+  background-color: var(--fd-color-surface);
+  border-radius: var(--fd-radius-md);
+}
+
+.fd-surface-raised {
+  background-color: var(--fd-color-surface-raised);
+  border: 1px solid var(--fd-color-border-default);
+  border-radius: var(--fd-radius-md);
+}
+
+.fd-surface-floating {
+  background-color: var(--fd-color-surface-floating);
+  border: 1px solid var(--fd-color-border-emphasis);
+  border-radius: var(--fd-radius-md);
+  box-shadow: var(--fd-shadow-float);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRIVACY MASK
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fd-privacy-hidden {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 2px;
+}

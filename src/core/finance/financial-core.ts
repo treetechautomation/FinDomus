@@ -63,6 +63,30 @@ export function getActiveLiabilities(liabilities: FinancialLiability[] = []) {
   });
 }
 
+/**
+ * FINANCIAL CORE — SOURCE OF TRUTH
+ *
+ * `calculateFinancialCore()` é o único proprietário autorizado dos cálculos
+ * financeiros canônicos do FinDomus. Nenhum outro componente pode recalcular
+ * estas métricas independentemente.
+ *
+ * Métricas canônicas:
+ *   - cashBalance, investmentValue, investedAmount
+ *   - activeLiabilityBalance, monthlyDebtPayment
+ *   - grossAssets, netWorth
+ *   - debtRatio, investmentProfit, investmentProfitPercent
+ *   - diversificationScore, wealthScore, wealthStatus, recommendation
+ *
+ * Consumidores autorizados:
+ *   - runFinancialKernel() (orquestrador)
+ *   - calculateEmergencyReserve() (usa LIQUID_ACCOUNT_TYPES para reserva)
+ *
+ * Exceções documentadas:
+ *   - buildMonthlySnapshot() — contexto contábil mensal (snapshot-engine.ts)
+ *   - ContasPage.totalBalance — escopo de UI local (contas/page.tsx)
+ *
+ * Versão: 1
+ */
 export function calculateFinancialCore(input: FinancialCoreInput) {
   const accounts = input.accounts || [];
   const investments = input.investments || [];
@@ -70,6 +94,7 @@ export function calculateFinancialCore(input: FinancialCoreInput) {
 
   const cashBalance = accounts
     .filter((account) => account.owner !== "PJ")
+    .filter((account) => LIQUID_ACCOUNT_TYPES.includes(account.type || 'checking'))
     .reduce((sum, account) => sum + Number(account.balance || 0), 0);
 
   const investmentValue = investments.reduce(
@@ -158,7 +183,7 @@ export function calculateFinancialCore(input: FinancialCoreInput) {
   };
 }
 
-const LIQUID_ACCOUNT_TYPES = ['checking', 'savings', 'wallet'];
+export const LIQUID_ACCOUNT_TYPES = ['checking', 'savings', 'wallet'];
 const LIQUID_INVESTMENT_CLASSES = ['Renda Fixa'];
 
 export type EmergencyReserveResult = {

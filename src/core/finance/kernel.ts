@@ -79,6 +79,31 @@ class KernelCache {
 
 export const kernelCache = new KernelCache();
 
+/**
+ * KERNEL — ORQUESTRADOR OFICIAL
+ *
+ * `runFinancialKernel()` é o único ponto de entrada autorizado para componentes
+ * de Presentation, Planning, AI e Persistence que precisam de métricas
+ * financeiras consolidadas.
+ *
+ * Este orquestrador agrega resultados de 7 engines especializadas:
+ *   1. buildPFDRE() — DRE do período
+ *   2. calculateFinancialCore() — métricas financeiras canônicas
+ *   3. buildMonthlyProjection() — projeções de passivos
+ *   4. buildForecast() — forecast financeiro
+ *   5. buildPFWealthAnalysis() — análise de riqueza
+ *   6. calculateFreedomIndex() + calculateFreedomTimeline() — índice de liberdade
+ *   7. getFinancialAIInsights() — insights da Domus
+ *
+ * Regra de consumo:
+ *   Componentes de alto nível NÃO devem chamar calculateFinancialCore()
+ *   diretamente. Devem usar kernelResult.financialCore.
+ *
+ * Cache:
+ *   KernelCache com invalidação baseada em hash dos inputs.
+ *
+ * Versão: 1
+ */
 export function runFinancialKernel(context: KernelContext): KernelResult {
   const start = performance.now();
   const baseMonth = context.baseMonth || getCurrentMonthKey();

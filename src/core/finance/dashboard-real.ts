@@ -7,6 +7,7 @@ import { getInvestments } from '@/services/firestore/investments';
 import { getCashflowProjection } from '@/core/finance/cashflow';
 import { buildDRE } from "@/core/finance/dre-engine";
 import { getMonthData } from "@/core/finance/month-reader";
+import { calculateFinancialCore } from '@/core/finance/financial-core';
 import {
   getCurrentMonthKey,
   getLastMonths,
@@ -122,7 +123,7 @@ export async function getDashboardReal(userId: string) {
   // União PF+PJ para o gráfico de 6 meses e cálculos mensais combinados
   const transactions = [...pfTransactions, ...pjTransactions];
 
-  // ===== SALDOS =====
+  // ===== SALDOS (UI: PF/PJ breakdown) =====
   const totalPF = accounts
     .filter((a: any) => a.owner === 'PF')
     .reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
@@ -133,31 +134,12 @@ export async function getDashboardReal(userId: string) {
 
   const total = totalPF + totalPJ;
 
-  // ===== NET WORTH =====
-  const totalAccounts = totalPF + totalPJ;
-
-  const totalInvestments = investments.reduce((sum: number, item: any) => {
-    let value = 0;
-    if (item.currentValue !== undefined && item.currentValue !== null) {
-      value = Number(item.currentValue);
-    } else if (item.quantity && item.currentPrice) {
-      value = Number(item.quantity) * Number(item.currentPrice);
-    }
-    return sum + (isNaN(value) ? 0 : value);
-  }, 0);
-
-  const activeLiabilities = liabilities.filter((item: any) => {
-    const balance = Number(item.remainingBalance || 0);
-    return balance > 0;
+  // ===== FINANCIAL CORE (canonical metrics) =====
+  const core = calculateFinancialCore({
+    accounts,
+    investments,
+    liabilities,
   });
-
-  const totalLiabilities = activeLiabilities.reduce(
-    (sum: number, item: any) => sum + Number(item.remainingBalance || 0),
-    0
-  );
-
-  const netWorthValue = totalAccounts + totalInvestments - totalLiabilities;
-  const totalAssets = totalAccounts + totalInvestments;
 
 
 
@@ -233,11 +215,11 @@ export async function getDashboardReal(userId: string) {
       dre,
       cashflow,
       netWorth: {
-        totalAccounts,
-        totalInvestments,
-        totalAssets,
-        totalLiabilities,
-        value: netWorthValue,
+        totalAccounts: core.cashBalance + core.investmentValue,
+        totalInvestments: core.investmentValue,
+        totalAssets: core.grossAssets,
+        totalLiabilities: core.activeLiabilityBalance,
+        value: core.netWorth,
       },
     };
   }

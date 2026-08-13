@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=390, initial-scale=1.0">
+<title>FinDomus — Home Mobile Master Visual v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   FDL 1.0 FROZEN — DARK PALETTE
+   ═══════════════════════════════════════════ */
+:root {
+  --canvas: #0A0E14;
+  --surface: #11161D;
+  --raised: #161C26;
+  --floating: #1C2330;
+  --text-primary: #EDF0F5;
+  --text-secondary: #8B949E;
+  --text-tertiary: #555D68;
+  --text-disabled: #383D45;
+  --action-primary: #00B4D8;
+  --action-primary-hover: #0096B4;
+  --action-primary-pressed: #00809A;
+  --action-primary-soft: rgba(0,180,216,0.10);
+  --state-positive: #22C55E;
+  --state-positive-soft: rgba(34,197,94,0.10);
+  --state-warning: #F59E0B;
+  --state-negative: #EF4444;
+  --state-negative-soft: rgba(239,68,68,0.10);
+  --premium: #C8A951;
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.10);
+  --border-emphasis: rgba(255,255,255,0.20);
+
+  /* spacing scale */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s6: 24px;
+  --s8: 32px;
+  --s12: 48px;
+  --s16: 64px;
+
+  /* radius */
+  --radius-md: 16px;
+  --radius-sm: 8px;
+  --radius-full: 9999px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #05070A;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 20px 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.phone {
+  width: 390px;
+  min-height: 844px;
+  background: var(--canvas);
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 0;
+}
+
+/* ═══════════════════════════════════════════
+   STATUS BAR
+   ═══════════════════════════════════════════ */
+.status-bar {
+  height: 54px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 var(--s6);
+  padding-bottom: var(--s2);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.status-bar .time { font-variant-numeric: tabular-nums; }
+.status-bar .icons { display: flex; gap: 6px; align-items: center; }
+
+/* ═══════════════════════════════════════════
+   CONTEXT BAR
+   ═══════════════════════════════════════════ */
+.context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 var(--s4);
+}
+.context-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  padding: var(--s2) var(--s1);
+  border-radius: var(--radius-sm);
+}
+.context-switcher .label {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+.context-switcher .chevron {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-left: 2px;
+}
+.privacy-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.privacy-toggle svg {
+  width: 20px;
+  height: 20px;
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════
+   SCROLL CONTENT
+   ═══════════════════════════════════════════ */
+.scroll-content {
+  padding: var(--s6) var(--s4) 0;
+}
+
+/* ═══════════════════════════════════════════
+   FREEDOM INDEX CARD (Surface, nível 1)
+   ═══════════════════════════════════════════ */
+.freedom-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--s4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.freedom-card .eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-tertiary);
+  margin-bottom: var(--s2);
+}
+.freedom-card .score {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-primary);
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: var(--s3);
+}
+.freedom-card .meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.freedom-card .level {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.freedom-card .trend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--state-positive);
+  font-weight: 600;
+}
+.freedom-card .trend svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ═══════════════════════════════════════════
+   DOMUS INSIGHT (Surface, tratamento especial)
+   ═══════════════════════════════════════════ */
+.domus-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--s4);
+  border-left: 2px solid var(--action-primary);
+}
+.domus-card .domus-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--s2);
+}
+.domus-card .domus-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--action-primary);
+  opacity: 0.8;
+}
+.domus-card .domus-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--action-primary);
+  opacity: 0.8;
+}
+.domus-card .domus-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.domus-card .domus-cta {
+  display: inline-block;
+  margin-top: var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--action-primary);
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════
+   PRIORITY ACTION (Raised, nível 2)
+   ═══════════════════════════════════════════ */
+.priority-card {
+  background: var(--raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--s4);
+}
+.priority-card .priority-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--s2);
+}
+.priority-card .priority-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--state-warning);
+}
+.priority-card .priority-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--state-warning);
+}
+.priority-card .priority-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin-bottom: var(--s1);
+}
+.priority-card .priority-desc {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: var(--s3);
+}
+.priority-card .priority-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  background: var(--action-primary);
+  color: var(--canvas);
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  letter-spacing: 0.2px;
+}
+
+/* ═══════════════════════════════════════════
+   SECTION LABEL
+   ═══════════════════════════════════════════ */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-tertiary);
+  padding: 0 0 var(--s3) 0;
+}
+
+/* ═══════════════════════════════════════════
+   SUMMARY CARDS (Raised)
+   ═══════════════════════════════════════════ */
+.module-card {
+  background: var(--raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--s4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  margin-bottom: var(--s4);
+}
+.module-card:last-child { margin-bottom: 0; }
+.module-card .module-left {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.module-card .module-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.module-card .module-icon svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
+}
+.module-card .module-info {
+  display: flex;
+  flex-direction: column;
+}
+.module-card .module-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.module-card .module-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+.module-card .module-meta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.module-card .module-meta.positive {
+  color: var(--state-positive);
+  font-weight: 500;
+}
+.module-card .module-chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+
+/* ═══════════════════════════════════════════
+   CONTINUITY CARD
+   ═══════════════════════════════════════════ */
+.continuity-card {
+  background: var(--raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--s4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.continuity-card .cont-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+.continuity-card .cont-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-tertiary);
+}
+.continuity-card .cont-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.continuity-card .cont-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.continuity-card .cont-bar-bg {
+  width: 80px;
+  height: 3px;
+  background: var(--surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.continuity-card .cont-bar-fill {
+  height: 100%;
+  width: 62%;
+  background: var(--action-primary);
+  border-radius: 2px;
+  opacity: 0.6;
+}
+.continuity-card .cont-chevron {
+  color: var(--text-tertiary);
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   BOTTOM NAV PLACEHOLDER
+   ═══════════════════════════════════════════ */
+.bottom-nav-placeholder {
+  height: 88px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--canvas);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-around;
+  padding-top: var(--s2);
+  margin-top: var(--s16);
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--s1) var(--s3);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+}
+.nav-item.active {
+  color: var(--action-primary);
+}
+.nav-item svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ═══════════════════════════════════════════
+   MICRO INTERACTIONS
+   ═══════════════════════════════════════════ */
+.module-card:active,
+.continuity-card:active {
+  background: var(--floating);
+  transition: background 100ms ease;
+}
+</style>
+</head>
+<body>
+
+<div class="phone" id="phone">
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">
+      <svg width="16" height="11" viewBox="0 0 16 11"><rect x="0" y="6" width="2" height="5" rx="0.4" fill="currentColor" opacity="0.9"/><rect x="3" y="4.5" width="2" height="6.5" rx="0.4" fill="currentColor" opacity="0.9"/><rect x="6" y="2.5" width="2" height="8.5" rx="0.4" fill="currentColor" opacity="0.9"/><rect x="9" y="0" width="2" height="11" rx="0.4" fill="currentColor" opacity="0.9"/></svg>
+      <span style="font-size:12px;font-weight:600;">●●●●○</span>
+      <svg width="24" height="11" viewBox="0 0 24 11"><rect x="0" y="3" width="19" height="5" rx="1.2" stroke="currentColor" stroke-width="1" fill="none" opacity="0.6"/><rect x="20" y="1.5" width="2" height="8" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="17" y="0" width="2.5" height="11" rx="0.8" fill="currentColor" opacity="0.55"/></svg>
+    </span>
+  </div>
+
+  <!-- Context Bar -->
+  <div class="context-bar">
+    <div class="context-switcher">
+      <span class="label">Pessoal</span>
+      <svg class="chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+    </div>
+    <div class="privacy-toggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="scroll-content">
+
+    <!-- CAMADA 2 — FREEDOM INDEX -->
+    <div class="freedom-card" style="margin-bottom:var(--s8);">
+      <div class="eyebrow">Índice de Liberdade Financeira</div>
+      <div class="score">72</div>
+      <div class="meta">
+        <span class="level">Nível Construção</span>
+        <span class="trend">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+          +3 este mês
+        </span>
+      </div>
+    </div>
+
+    <!-- CAMADA 3 — DOMUS -->
+    <div class="domus-card" style="margin-bottom:var(--s8);">
+      <div class="domus-header">
+        <div class="domus-dot"></div>
+        <span class="domus-label">Domus</span>
+      </div>
+      <div class="domus-body">
+        Seu custo fixo caiu 8% neste mês.<br>
+        Isso liberou cerca de R$&nbsp;420 para<br>
+        suas metas financeiras.
+      </div>
+      <span class="domus-cta">Entender</span>
+    </div>
+
+    <!-- CAMADA 4 — PRIORITY ACTION -->
+    <div class="priority-card" style="margin-bottom:var(--s8);">
+      <div class="priority-header">
+        <div class="priority-dot"></div>
+        <span class="priority-label">Próximo Passo</span>
+      </div>
+      <div class="priority-title">Complete sua reserva de emergência</div>
+      <div class="priority-desc">Faltam R$ 680 para 3 meses de cobertura.</div>
+      <button class="priority-btn">Fazer aporte</button>
+    </div>
+
+    <!-- CAMADA 5 — MÓDULOS -->
+    <div class="section-label">Para você</div>
+
+    <div class="module-card">
+      <div class="module-left">
+        <div class="module-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+          </svg>
+        </div>
+        <div class="module-info">
+          <span class="module-name">Investimentos</span>
+          <span class="module-meta positive">+R$ 1.200 no mês</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <span class="module-value">R$ 42.800</span>
+      </div>
+      <svg class="module-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <div class="module-card">
+      <div class="module-left">
+        <div class="module-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+          </svg>
+        </div>
+        <div class="module-info">
+          <span class="module-name">Planejamento</span>
+          <span class="module-meta">3 metas ativas · Reserva: 68%</span>
+        </div>
+      </div>
+      <svg class="module-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <div class="module-card">
+      <div class="module-left">
+        <div class="module-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </div>
+        <div class="module-info">
+          <span class="module-name">Fluxo Financeiro</span>
+          <span class="module-meta">Saldo do mês: +R$ 3.240</span>
+        </div>
+      </div>
+      <svg class="module-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <div class="module-card">
+      <div class="module-left">
+        <div class="module-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+          </svg>
+        </div>
+        <div class="module-info">
+          <span class="module-name">Academia</span>
+          <span class="module-meta">Liberdade Financeira · Aula 4 de 8</span>
+        </div>
+      </div>
+      <svg class="module-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- CAMADA 6 — CONTINUIDADE -->
+    <div class="continuity-card" style="margin-top:var(--s8);">
+      <div class="cont-left">
+        <span class="cont-label">Continuar</span>
+        <span class="cont-title">Planejamento da aposentadoria</span>
+        <div class="cont-progress">
+          <div class="cont-bar-bg"><div class="cont-bar-fill"></div></div>
+          <span>62%</span>
+        </div>
+      </div>
+      <svg class="cont-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- Bottom Nav Placeholder -->
+    <div class="bottom-nav-placeholder">
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Início</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Módulos</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        <span>Domus</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Ajustes</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

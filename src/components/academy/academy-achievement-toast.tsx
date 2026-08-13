@@ -7,13 +7,13 @@ import { Trophy, X } from 'lucide-react';
 import type { Achievement } from '@/academy/academy-types';
 
 export function AcademyAchievementToast() {
-  const { progress } = useAcademy();
+  const { progress, isActive } = useAcademy();
   const [lastAchievement, setLastAchievement] = useState<Achievement | null>(null);
   const [show, setShow] = useState(false);
   const prevLenRef = { current: progress?.achievements?.length || 0 };
 
   useEffect(() => {
-    if (!progress) return;
+    if (!progress || isActive) return;
     const current = progress.achievements.length;
     if (current > prevLenRef.current) {
       const last = progress.achievements[current - 1];
@@ -25,9 +25,9 @@ export function AcademyAchievementToast() {
       }
     }
     prevLenRef.current = current;
-  }, [progress?.achievements]);
+  }, [progress?.achievements, isActive]);
 
-  if (!show || !lastAchievement) return null;
+  if (!show || !lastAchievement || isActive) return null;
 
   return (
     <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] animate-in slide-in-from-top-4 fade-in duration-500">

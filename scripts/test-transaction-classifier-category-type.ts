@@ -1,0 +1,182 @@
+// CLASSIFIER.3 — FASE B — Suíte determinística da barreira central (somente leitura).
+//
+// Verifica a barreira category.categoryType × transaction.type implementada em
+// transaction-classifier.ts (classifyTransactionWithContext).
+//
+// Não depende de Firestore/rede: constrói um ClassificationContext sintético
+// e chama classifyTransactionWithContext() diretamente — a mesma função síncrona
+// usada por OFX/CSV/PDF/Pluggy.
+//
+// CASOS (matriz homologada):
+//   A) income  × categoryType=income    -> mantém
+//   B) income  × categoryType=expense   -> BLOQUEIA (fallback 'Outros')
+//   C) expense × categoryType=expense   -> mantém
+//   D) expense × categoryType=income    -> BLOQUEIA (fallback 'Outros')
+//   E) transfer × categoryType=transfer -> mantém
+//   F) expense × categoryType=transfer  -> BLOQUEIA (fallback 'Outros')  [residual OFX.3-R]
+//   G) categoryType ausente             -> comportamento legado (mantém)
+//   H) categoria custom sem categoryType-> comportamento legado (mantém)
+//   I) investment                       -> DEFER (sem asserção, apenas registro)
+//
+// Execução: npx tsx scripts/test-transaction-classifier-category-type.ts
+
+import {
+  classifyTransactionWithContext,
+  type ClassificationContext,
+} from '../src/core/finance/transaction-classifier';
+import type { Category } from '../src/services/firestore/categories';
+
+type CatType = 'income' | 'expense' | 'transfer' | 'investment';
+
+type SyntheticCategory = {
+  name: string;
+  keywords: string[];
+  categoryType?: CatType;
+};
+
+const syntheticCategories: SyntheticCategory[] = [
+  { name: 'Salário', keywords: ['salario mensal'], categoryType: 'income' },
+  { name: 'Supermercado', keywords: ['supermercado'], categoryType: 'expense' },
+  { name: 'Transferência entre contas', keywords: ['ted mesma titularidade'], categoryType: 'transfer' },
+  { name: 'Custom Sem Tipo', keywords: ['customkey'], categoryType: undefined },
+  { name: 'Aporte investimento', keywords: ['aporte investimento'], categoryType: 'investment' },
+];
+
+function buildContext(): ClassificationContext {
+  return {
+    categories: syntheticCategories as unknown as Category[],
+    accountIdentities: [],
+    learningMap: new Map(),
+  };
+}
+
+type Case = {
+  id: string;
+  label: string;
+  description: string;
+  amount: number;
+  expectType?: 'income' | 'expense' | 'transfer';
+  expectCategory?: string;
+  // Se true, o caso DESEJA que a categoria seja barrada para o fallback 'Outros'.
+  expectBlocked?: boolean;
+  defer?: boolean;
+};
+
+const cases: Case[] = [
+  {
+    id: 'A',
+    label: 'income × categoryType=income',
+    description: 'Salário mensal de janeiro',
+    amount: 5000,
+    expectType: 'income',
+    expectCategory: 'Salário',
+  },
+  {
+    id: 'B',
+    label: 'income × categoryType=expense',
+    description: 'Supermercado do bairro',
+    amount: 100,
+    expectType: 'income',
+    expectBlocked: true,
+  },
+  {
+    id: 'C',
+    label: 'expense × categoryType=expense',
+    description: 'Supermercado do bairro',
+    amount: -100,
+    expectType: 'expense',
+    expectCategory: 'Supermercado',
+  },
+  {
+    id: 'D',
+    label: 'expense × categoryType=income',
+    description: 'Salário mensal de janeiro',
+    amount: -5000,
+    expectType: 'expense',
+    expectBlocked: true,
+  },
+  {
+    id: 'E',
+    label: 'transfer × categoryType=transfer',
+    description: 'Transferência entre contas própria',
+    amount: -500,
+    expectType: 'transfer',
+  },
+  {
+    id: 'F',
+    label: 'expense × categoryType=transfer (residual OFX.3-R)',
+    description: 'TED mesma titularidade',
+    amount: -500,
+    expectType: 'expense',
+    expectBlocked: true,
+  },
+  {
+    id: 'G',
+    label: 'categoryType ausente (legado)',
+    description: 'Customkey despesa qualquer',
+    amount: -100,
+    expectType: 'expense',
+    expectCategory: 'Custom Sem Tipo',
+  },
+  {
+    id: 'H',
+    label: 'categoria custom sem categoryType (legado)',
+    description: 'Customkey recebimento',
+    amount: 100,
+    expectType: 'income',
+    expectCategory: 'Custom Sem Tipo',
+  },
+  {
+    id: 'I',
+    label: 'investment (DEFER — sem asserção)',
+    description: 'Aporte investimento',
+    amount: -1000,
+    defer: true,
+  },
+];
+
+let failures = 0;
+
+console.log('CLASSIFIER.3 — TESTE DA BARREIRA CENTRAL (pós-patch)\n');
+
+for (const c of cases) {
+  const result = classifyTransactionWithContext(c.description, c.amount, buildContext());
+  const observed = `type=${result.type} category="${result.category}"`;
+
+  if (c.defer) {
+    console.log(`DEFER — ${c.id} ${c.label}: ${observed} (sem asserção — ver FASE A §11)`);
+    continue;
+  }
+
+  try {
+    if (c.expectType && result.type !== c.expectType) {
+      throw new Error(`type incorreto: esperado ${c.expectType}, veio ${result.type}`);
+    }
+    if (c.expectBlocked) {
+      if (result.category === 'Outros') {
+        console.log(`PASS — ${c.id} ${c.label}: bloqueado para fallback (${observed})`);
+      } else {
+        throw new Error(
+          `esperado bloqueio para "Outros", mas categoria permaneceu "${result.category}" (${observed})`
+        );
+      }
+    } else if (c.expectCategory && result.category !== c.expectCategory) {
+      throw new Error(
+        `categoria incorreta: esperado "${c.expectCategory}", veio "${result.category}" (${observed})`
+      );
+    } else {
+      console.log(`PASS — ${c.id} ${c.label}: ${observed}`);
+    }
+  } catch (err) {
+    failures++;
+    console.error(`FAIL — ${c.id} ${c.label}: ${(err as Error).message}`);
+  }
+}
+
+console.log('');
+if (failures > 0) {
+  console.error(`${failures}/${cases.length} casos falharam. A barreira central não está se comportando conforme a matriz homologada.`);
+  process.exit(1);
+} else {
+  console.log(`${cases.length}/${cases.length} casos passaram (matriz homologada validada).`);
+}

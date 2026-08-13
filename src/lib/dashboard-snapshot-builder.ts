@@ -98,17 +98,6 @@ export async function buildDashboardSnapshot(
   const totalPF = accounts.filter((a: any) => a.owner === 'PF').reduce((s: number, a: any) => s + Number(a.balance || 0), 0);
   const totalPJ = accounts.filter((a: any) => a.owner === 'PJ').reduce((s: number, a: any) => s + Number(a.balance || 0), 0);
 
-  const totalInvestments = investments.reduce((s: number, i: any) => {
-    if (i.currentValue !== undefined && i.currentValue !== null) return s + Number(i.currentValue);
-    if (i.quantity && i.currentPrice) return s + Number(i.quantity) * Number(i.currentPrice);
-    return s;
-  }, 0);
-
-  const activeLiabilities = liabilities.filter((l: any) => Number(l.remainingBalance || 0) > 0);
-  const totalLiabilities = activeLiabilities.reduce((s: number, l: any) => s + Number(l.remainingBalance || 0), 0);
-
-  const netWorth = (totalPF + totalPJ + totalInvestments) - totalLiabilities;
-
   const monthTransactions = transactions.filter((t: any) =>
     isTransactionInMonth(t, currentMonth) && t.type !== 'transfer'
   );
@@ -135,9 +124,9 @@ export async function buildDashboardSnapshot(
   const data: DashboardSnapshotData = {
     totalPF,
     totalPJ,
-    totalInvestments,
-    totalLiabilities,
-    netWorth,
+    totalInvestments: kernelResult.financialCore.investmentValue,
+    totalLiabilities: kernelResult.financialCore.activeLiabilityBalance,
+    netWorth: kernelResult.financialCore.netWorth,
     monthlyIncome,
     monthlyExpenses,
     monthlyBalance,

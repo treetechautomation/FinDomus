@@ -277,6 +277,44 @@ async function classifyByAI(text: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// BARREIRA CENTRAL — category.categoryType × transaction.type
+// ─────────────────────────────────────────────────────────────────────────────
+// O tipo financeiro tem precedência sobre a categoria: NUNCA redefine `type`.
+// Apenas invalida uma categoria cuja categoryType (metadata persistida no
+// Firestore) contradiga o type já decidido. A origem da categoria (learning,
+// keyword, IA ou inferência) é indiferente.
+//
+// categoryType ausente (custom/legacy) → comportamento legado (mantém).
+// categoryType='investment'            → DEFER: não existe type='investment';
+//   aportes são expense e resgates/rendimentos são income. Mantém legado.
+function findCategoryType(
+  categoryName: string,
+  categories: Category[]
+): Category['categoryType'] {
+  const norm = normalizeText(categoryName);
+  const found = categories.find((cat) => normalizeText(cat.name) === norm);
+  return found?.categoryType;
+}
+
+function ensureCategoryTypeCompatibility(
+  category: string,
+  type: 'income' | 'expense' | 'transfer',
+  categories: Category[]
+): string {
+  const categoryType = findCategoryType(category, categories);
+
+  if (!categoryType || categoryType === 'investment') {
+    return category;
+  }
+
+  if (categoryType !== type) {
+    return 'Outros';
+  }
+
+  return category;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CONTEXTO DE CLASSIFICAÇÃO — carregado 1 única vez por sessão de importação
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -389,13 +427,24 @@ export function classifyTransactionWithContext(
   const ai = categoryByKeyword ? null : classifyByAISync(text);
   const category = categoryByKeyword || ai || 'Outros';
 
+  const type: 'income' | 'expense' | 'transfer' =
+    inferred?.type || (amount >= 0 ? 'income' : 'expense');
+
+  // Barreira central categoria × tipo — roda somente após category e type
+  // estarem ambos resolvidos. Nunca altera type.
+  const safeCategory = ensureCategoryTypeCompatibility(
+    category,
+    type,
+    context.categories
+  );
+
   return {
     date: '',
     description: rawText,
     merchant: rawText,
-    category,
+    category: safeCategory,
     amount: Math.abs(amount),
-    type: inferred?.type || (amount >= 0 ? 'income' : 'expense'),
+    type,
   };
 }
 

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=390,initial-scale=1.0">
+<title>FinDomus — Passivos Mobile Master Visual v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--canvas:#0A0E14;--surface:#11161D;--raised:#161C26;--floating:#1C2330;--text-primary:#EDF0F5;--text-secondary:#8B949E;--text-tertiary:#555D68;--text-disabled:#383D45;--action-primary:#00B4D8;--action-soft:rgba(0,180,216,0.10);--state-positive:#22C55E;--state-positive-soft:rgba(34,197,94,0.08);--state-warning:#F59E0B;--state-negative:#EF4444;--state-negative-soft:rgba(239,68,68,0.08);--border-subtle:rgba(255,255,255,0.06);--border-default:rgba(255,255,255,0.10);--border-emphasis:rgba(255,255,255,0.20);--radius-md:16px;--radius-sm:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#05070A;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px 0 32px;-webkit-font-smoothing:antialiased}
+.master-header{text-align:center;padding:16px;max-width:600px}
+.master-header h1{font-size:18px;font-weight:700;color:#EDF0F5;letter-spacing:-0.3px;margin-bottom:4px}
+.master-header .sub{font-size:12px;color:#8B949E}
+.badges{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.badge{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;padding:3px 10px;border-radius:4px}
+.badge-green{color:#22C55E;background:rgba(34,197,94,.08)}
+.badge-amber{color:#F59E0B;background:rgba(245,158,11,.08)}
+.state-tabs{display:flex;gap:3px;margin:0 auto 12px;max-width:390px;padding:0 2px;flex-wrap:wrap}
+.state-tab{flex:0 0 auto;padding:6px 8px;font-size:10px;font-weight:600;text-align:center;cursor:pointer;border-radius:6px;color:var(--text-tertiary);background:var(--surface);border:1px solid var(--border-subtle);user-select:none;transition:all 120ms}
+.state-tab:hover{color:var(--text-secondary)}
+.state-tab.active{color:var(--action-primary);background:var(--action-soft);border-color:rgba(0,180,216,.25)}
+.phone{width:390px;min-height:844px;background:var(--canvas);position:relative;overflow-y:auto;overflow-x:hidden}
+.status-bar{height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 8px;color:var(--text-primary);font-size:14px;font-weight:600}
+.status-bar .icons{display:flex;gap:6px;align-items:center}
+.mod-header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border-subtle)}
+.mod-header .back{display:flex;align-items:center;gap:4px;color:var(--text-secondary);font-size:13px;font-weight:500;cursor:pointer}
+.mod-header .back svg{width:16px;height:16px}
+.mod-header .title{font-size:16px;font-weight:600;color:var(--text-primary);letter-spacing:-0.2px}
+.mod-header .header-actions{display:flex;align-items:center;gap:4px}
+.mod-header .header-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--text-tertiary);cursor:pointer}
+.mod-tabs{display:flex;border-bottom:1px solid var(--border-subtle);padding:0 16px}
+.mod-tab{flex:1;text-align:center;padding:12px 4px 10px;font-size:13px;font-weight:500;color:var(--text-tertiary);cursor:pointer;position:relative}
+.mod-tab.active{color:var(--text-primary);font-weight:600}
+.mod-tab.active::after{content:'';position:absolute;bottom:0;left:25%;right:25%;height:2px;background:var(--action-primary);border-radius:1px}
+.scroll-content{padding:16px 16px 0;display:flex;flex-direction:column}
+.state-panel{display:none;flex-direction:column}
+.state-panel.active{display:flex}
+.surface-card{background:var(--surface);border-radius:var(--radius-md);padding:16px;margin-bottom:16px}
+.section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:8px}
+
+.summary-card{background:var(--surface);border-radius:var(--radius-md);padding:16px;margin-bottom:16px}
+.summary-card .sum-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-tertiary);margin-bottom:6px}
+.summary-card .sum-hero{font-size:36px;font-weight:800;color:var(--text-primary);letter-spacing:-1.5px;font-variant-numeric:tabular-nums;line-height:1;margin-bottom:10px}
+.summary-card .sum-row{display:flex;gap:8px}
+.summary-card .sum-col{flex:1}
+.summary-card .sum-col .sum-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-tertiary);margin-bottom:2px}
+.summary-card .sum-col .sum-val{font-size:15px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.summary-card .sum-col .sum-pct{font-size:12px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.summary-card .sum-meta{font-size:10px;color:var(--text-tertiary);margin-top:6px}
+
+.insight-card{background:var(--surface);border-radius:var(--radius-md);padding:14px 16px;border-left:2px solid var(--action-primary);margin-bottom:16px}
+.insight-card .insight-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--action-primary);opacity:.8;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.insight-card .insight-dot{width:5px;height:5px;border-radius:50%;background:var(--action-primary)}
+.insight-card .insight-body{font-size:13px;font-weight:400;color:var(--text-secondary);line-height:1.5;margin-bottom:6px}
+.insight-card .insight-cta{font-size:12px;font-weight:600;color:var(--action-primary);cursor:pointer}
+
+.proj-row{display:flex;gap:4px;margin-bottom:6px}
+.proj-col{flex:1;text-align:center}
+.proj-col .proj-month{font-size:10px;font-weight:500;color:var(--text-tertiary);margin-bottom:2px}
+.proj-col .proj-val{font-size:14px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.proj-col .proj-bar{height:3px;background:var(--raised);border-radius:2px;margin-top:4px;overflow:hidden}
+.proj-col .proj-bar-fill{height:100%;background:var(--text-tertiary);border-radius:2px}
+
+.btn-primary{display:flex;align-items:center;justify-content:center;width:100%;height:44px;background:var(--action-primary);color:var(--canvas);font-size:14px;font-weight:600;border:none;border-radius:var(--radius-sm);cursor:pointer;letter-spacing:.2px}
+.btn-secondary-line{font-size:12px;font-weight:600;color:var(--action-primary);cursor:pointer}
+
+.filt-chips{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filt-chip{padding:6px 12px;font-size:12px;font-weight:500;border-radius:16px;background:var(--raised);border:1px solid var(--border-subtle);color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.filt-chip.active{background:var(--action-soft);border-color:rgba(0,180,216,.25);color:var(--action-primary)}
+
+.debt-item{padding:12px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer}
+.debt-item .di-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+.debt-item .di-name{font-size:14px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.debt-item .di-saldo{font-size:14px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums;flex-shrink:0;margin-left:8px}
+.debt-item .di-meta{font-size:12px;font-weight:400;color:var(--text-secondary);margin-bottom:6px}
+.debt-item .di-bar-bg{height:4px;background:var(--raised);border-radius:2px;overflow:hidden;margin-bottom:2px}
+.debt-item .di-bar-fill{height:100%;border-radius:2px;background:var(--text-tertiary)}
+.debt-item .di-progress{font-size:10px;color:var(--text-tertiary);text-align:right;font-variant-numeric:tabular-nums}
+.debt-item .di-chevron{color:var(--text-tertiary);opacity:.4;flex-shrink:0;margin-left:4px}
+.debt-count{font-size:11px;color:var(--text-tertiary);padding:8px 0}
+
+.detail-hero{font-size:28px;font-weight:700;color:var(--text-primary);letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1;margin-bottom:6px}
+.detail-sub{font-size:13px;color:var(--text-secondary);margin-bottom:16px}
+.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle)}
+.detail-row .dr-label{font-size:12px;color:var(--text-secondary);font-weight:400}
+.detail-row .dr-value{font-size:13px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.detail-honesty{font-size:10px;color:var(--text-tertiary);margin-top:8px;display:flex;align-items:center;gap:4px;padding:6px 0}
+.detail-actions{display:flex;gap:8px;margin-top:16px}
+.detail-actions .da-btn{flex:1;height:40px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer}
+.detail-actions .da-btn.sel{background:transparent;border:1px solid var(--border-default);color:var(--text-primary)}
+.detail-actions .da-btn.del{background:transparent;border:1px solid rgba(239,68,68,.2);color:var(--state-negative)}
+
+/* Projeção full */
+.proj-full-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-subtle)}
+.proj-full-row .pf-month{width:44px;font-size:12px;font-weight:500;color:var(--text-tertiary);flex-shrink:0}
+.proj-full-row .pf-val{width:76px;font-size:13px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums;text-align:right;flex-shrink:0}
+.proj-full-row .pf-bar-bg{flex:1;height:3px;background:var(--raised);border-radius:2px;overflow:hidden}
+.proj-full-row .pf-bar-fill{height:100%;border-radius:2px;background:var(--text-tertiary)}
+
+.empty-state{text-align:center;padding:48px 16px}
+.empty-state .empty-icon{width:48px;height:48px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:var(--text-tertiary)}
+.empty-state .empty-title{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px}
+.empty-state .empty-desc{font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:280px;margin:0 auto 24px}
+.masked{letter-spacing:2px}
+.info-banner{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--state-warning);font-weight:500;display:flex;align-items:center;gap:8px}
+.error-banner{background:var(--state-negative-soft);border:1px solid rgba(239,68,68,.15);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--state-negative);font-weight:500;display:flex;align-items:center;gap:8px}
+
+.bottom-nav{height:82px;flex-shrink:0}
+.nav-inner{display:flex;align-items:flex-start;justify-content:space-around;width:100%;padding:10px 0 0}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:25%}
+.nav-item .nav-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm)}
+.nav-item .nav-label{font-size:10px;font-weight:500}
+.nav-item.inactive .nav-icon{color:var(--text-tertiary)}
+.nav-item.inactive .nav-label{color:var(--text-tertiary)}
+.nav-item.active .nav-icon{color:var(--action-primary)}
+.nav-item.active .nav-label{color:var(--action-primary);font-weight:600}
+
+.sheet-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;display:none;align-items:flex-end;justify-content:center}
+.sheet-overlay.show{display:flex}
+.sheet-panel{width:390px;max-height:80vh;background:var(--floating);border-radius:var(--radius-md) var(--radius-md) 0 0;padding:20px 16px 32px;overflow-y:auto}
+.sheet-handle{width:32px;height:4px;background:var(--text-tertiary);border-radius:2px;margin:0 auto 16px;opacity:.4}
+.sheet-title{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:16px}
+.sheet-field{margin-bottom:12px}
+.sheet-field .sf-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-tertiary);margin-bottom:4px}
+.sheet-field input,.sheet-field select{width:100%;height:44px;background:var(--raised);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:0 12px;color:var(--text-primary);font-size:14px;font-family:inherit;outline:none}
+.sheet-field select{appearance:none;cursor:pointer}
+.sheet-row{display:flex;gap:8px}.sheet-row .sheet-field{flex:1}
+.spacer{flex:1}.gap-s4{margin-bottom:16px}.gap-s2{margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<!-- Add Sheet -->
+<div class="sheet-overlay" id="add-sheet" onclick="if(event.target===this)this.classList.remove('show')">
+<div class="sheet-panel"><div class="sheet-handle"></div>
+<div class="sheet-title">Adicionar passivo</div>
+<div class="sheet-field"><div class="sf-label">Nome</div><input type="text" value="Financiamento Carro"></div>
+<div class="sheet-row"><div class="sheet-field"><div class="sf-label">Tipo</div><select><option>Financiamento</option><option>Empréstimo</option><option>Cartão</option><option>Outro</option></select></div><div class="sheet-field"><div class="sf-label">Instituição</div><input type="text" value="Banco Itaú"></div></div>
+<div class="sheet-field"><div class="sf-label">Saldo devedor</div><input type="text" value="R$ 5.400,00" inputmode="decimal"></div>
+<div class="sheet-row"><div class="sheet-field"><div class="sf-label">Valor da parcela</div><input type="text" value="R$ 850,00" inputmode="decimal"></div><div class="sheet-field"><div class="sf-label">Total de parcelas</div><input type="text" value="48" inputmode="numeric"></div></div>
+<div style="margin-top:8px"><button class="btn-primary">Salvar passivo</button></div>
+</div></div>
+
+<!-- Delete Sheet -->
+<div class="sheet-overlay" id="delete-sheet" onclick="if(event.target===this)this.classList.remove('show')">
+<div class="sheet-panel"><div class="sheet-handle"></div>
+<div class="sheet-title">Excluir passivo?</div>
+<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Financiamento Carro · Saldo devedor: R$ 5.400,00</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:16px">O passivo será removido.</div>
+<button class="btn-primary" style="background:var(--state-negative);margin-bottom:8px">Excluir</button>
+<button class="btn-primary" style="background:transparent;border:1px solid var(--border-default);color:var(--text-primary)" onclick="document.getElementById('delete-sheet').classList.remove('show')">Cancelar</button>
+</div></div>
+
+<div class="master-header"><h1>PASSIVOS MOBILE MASTER VISUAL v1</h1><div class="sub">390×844px · Dark Mode · PF · 3 dívidas ativas</div><div class="badges"><span class="badge badge-green">FDL 1.0</span><span class="badge badge-amber">Wireframe v1</span></div></div>
+<div class="state-tabs">
+  <div class="state-tab active" onclick="switchState('overview')">Visão Geral</div><div class="state-tab" onclick="switchState('dividas')">Dívidas</div><div class="state-tab" onclick="switchState('detail')">Detail</div><div class="state-tab" onclick="switchState('projecao')">Projeção</div><div class="state-tab" onclick="switchState('empty')">Vazio</div><div class="state-tab" onclick="switchState('paid')">Quitado</div><div class="state-tab" onclick="switchState('privacy')">Privacy</div><div class="state-tab" onclick="switchState('offline')">Offline</div><div class="state-tab" onclick="switchState('error')">Erro</div>
+  <div class="state-tab" onclick="document.getElementById('add-sheet').classList.add('show')">+ Add</div>
+  <div class="state-tab" onclick="document.getElementById('delete-sheet').classList.add('show')">Del</div>
+</div>
+
+<div class="phone" id="phone">
+<div class="status-bar"><span style="font-variant-numeric:tabular-nums">9:41</span><span class="icons"><svg width="16" height="11" viewBox="0 0 16 11"><rect x="0" y="6" width="2" height="5" rx=".4" fill="currentColor" opacity=".9"/><rect x="3" y="4.5" width="2" height="6.5" rx=".4" fill="currentColor" opacity=".9"/><rect x="6" y="2.5" width="2" height="8.5" rx=".4" fill="currentColor" opacity=".9"/><rect x="9" y="0" width="2" height="11" rx=".4" fill="currentColor" opacity=".9"/></svg><span style="font-size:12px;font-weight:600">●●●●○</span><svg width="24" height="11" viewBox="0 0 24 11"><rect x="0" y="3" width="19" height="5" rx="1.2" stroke="currentColor" stroke-width="1" fill="none" opacity=".6"/><rect x="20" y="1.5" width="2" height="8" rx=".8" fill="currentColor" opacity=".4"/><rect x="17" y="0" width="2.5" height="11" rx=".8" fill="currentColor" opacity=".55"/></svg></span></div>
+
+<!-- ═══ VISÃO GERAL ═══ -->
+<div class="state-panel active" id="panel-overview">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon" title="Domus"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab" onclick="switchState('dividas')">Dívidas</div></div>
+<div class="scroll-content">
+
+<div class="summary-card"><div class="sum-title">Saldo devedor</div><div class="sum-hero">R$ 8.400</div><div class="sum-row"><div class="sum-col"><div class="sum-lbl">Comprometimento mensal</div><div class="sum-val">R$ 1.500</div></div><div class="sum-col"><div class="sum-lbl">Progresso estimado</div><div class="sum-val">84%</div></div></div><div class="sum-meta">3 dívidas ativas · 30 meses projetados</div></div>
+
+<div class="insight-card"><div class="insight-label"><span class="insight-dot"></span>Domus</div><div class="insight-body">Seu financiamento do carro representa 64% do saldo devedor cadastrado.</div><span class="insight-cta">Entender</span></div>
+
+<div class="surface-card"><div class="section-label">Comprometimento projetado</div>
+<div class="proj-row"><div class="proj-col"><div class="proj-month">ago/26</div><div class="proj-val">1.500</div><div class="proj-bar"><div class="proj-bar-fill" style="width:100%"></div></div></div><div class="proj-col"><div class="proj-month">set/26</div><div class="proj-val">1.500</div><div class="proj-bar"><div class="proj-bar-fill" style="width:100%"></div></div></div><div class="proj-col"><div class="proj-month">out/26</div><div class="proj-val">1.050</div><div class="proj-bar"><div class="proj-bar-fill" style="width:70%"></div></div></div><div class="proj-col"><div class="proj-month">nov/26</div><div class="proj-val">650</div><div class="proj-bar"><div class="proj-bar-fill" style="width:43%"></div></div></div></div>
+<div style="font-size:12px;font-weight:600;color:var(--action-primary);cursor:pointer;margin-top:4px" onclick="switchState('projecao')">Ver projeção completa →</div></div>
+
+<button class="btn-primary gap-s2">Adicionar passivo</button>
+<div style="font-size:12px;font-weight:600;color:var(--action-primary);cursor:pointer">Simular amortização →</div>
+
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ DIVIDAS ═══ -->
+<div class="state-panel" id="panel-dividas">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab" onclick="switchState('overview')">Visão Geral</div><div class="mod-tab active">Dívidas</div></div>
+<div class="scroll-content">
+<div class="filt-chips"><span class="filt-chip active">Ativas</span><span class="filt-chip">Quitadas</span><span class="filt-chip">Todas</span></div>
+
+<div class="debt-item"><div style="display:flex;align-items:center"><div class="di-name">Financiamento Carro</div><div class="di-saldo">R$ 5.400</div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="di-chevron"><path d="M9 18l6-6-6-6"/></svg></div><div class="di-meta">Banco Itaú · R$ 850/mês · 18/48 parcelas</div><div class="di-bar-bg"><div class="di-bar-fill" style="width:38%"></div></div><div class="di-progress">38%</div></div>
+<div class="debt-item"><div style="display:flex;align-items:center"><div class="di-name">Empréstimo Pessoal</div><div class="di-saldo">R$ 2.200</div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="di-chevron"><path d="M9 18l6-6-6-6"/></svg></div><div class="di-meta">Banco do Brasil · R$ 450/mês · 8/24 parcelas</div><div class="di-bar-bg"><div class="di-bar-fill" style="width:33%"></div></div><div class="di-progress">33%</div></div>
+<div class="debt-item"><div style="display:flex;align-items:center"><div class="di-name">Cartão Nubank</div><div class="di-saldo">R$ 800</div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="di-chevron"><path d="M9 18l6-6-6-6"/></svg></div><div class="di-meta">Nubank · R$ 200/mês · 2/6 parcelas</div><div class="di-bar-bg"><div class="di-bar-fill" style="width:33%"></div></div><div class="di-progress">33%</div></div>
+
+<div class="debt-count">3 dívidas ativas</div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ DETAIL ═══ -->
+<div class="state-panel" id="panel-detail">
+<div class="mod-header"><div class="back" onclick="switchState('dividas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Dívidas</div><div class="title">Financiamento Carro</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div><div class="header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></div></div></div>
+<div class="scroll-content">
+
+<div class="surface-card"><div class="detail-sub">Banco Itaú · Financiamento</div><div class="detail-hero">R$ 5.400</div><div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px">saldo devedor</div>
+<div class="sum-row"><div class="sum-col"><div class="sum-lbl">Parcela mensal</div><div class="sum-val" style="font-size:14px">R$ 850</div></div><div class="sum-col"><div class="sum-lbl">Progresso</div><div class="sum-val" style="font-size:14px">18/48</div><div class="sum-pct">38%</div></div></div></div>
+
+<div class="surface-card"><div class="section-label">Detalhes</div>
+<div class="detail-row"><span class="dr-label">Valor total estimado</span><span class="dr-value">R$ 40.800</span></div>
+<div class="detail-row"><span class="dr-label">Total pago estimado</span><span class="dr-value">R$ 15.300</span></div>
+<div class="detail-row"><span class="dr-label">Parcelas restantes</span><span class="dr-value">30</span></div>
+<div class="detail-row"><span class="dr-label">Previsão de término</span><span class="dr-value">jan/2029</span></div>
+<div class="detail-honesty"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Os valores de juros não estão disponíveis para este passivo.</div></div>
+
+<div class="surface-card"><div class="section-label">Próximos meses</div>
+<div class="proj-row"><div class="proj-col"><div class="proj-month">ago/26</div><div class="proj-val">850</div></div><div class="proj-col"><div class="proj-month">set/26</div><div class="proj-val">850</div></div><div class="proj-col"><div class="proj-month">out/26</div><div class="proj-val">850</div></div><div class="proj-col"><div class="proj-month">nov/26</div><div class="proj-val">850</div></div></div></div>
+
+<div class="detail-actions"><div class="da-btn sel">Editar</div><div class="da-btn sel">Simular amortização</div><div class="da-btn del" onclick="document.getElementById('delete-sheet').classList.add('show')">Excluir</div></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ PROJEÇÃO COMPLETA ═══ -->
+<div class="state-panel" id="panel-projecao">
+<div class="mod-header"><div class="back" onclick="switchState('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Passivos</div><div class="title">Projeção</div><div></div></div>
+<div class="scroll-content">
+<div class="surface-card"><div class="section-label">Comprometimento mensal projetado</div>
+<div class="proj-full-row"><span class="pf-month">ago/26</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:100%"></div></div><span class="pf-val">R$ 1.500</span></div>
+<div class="proj-full-row"><span class="pf-month">set/26</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:100%"></div></div><span class="pf-val">R$ 1.500</span></div>
+<div class="proj-full-row"><span class="pf-month">out/26</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:70%"></div></div><span class="pf-val">R$ 1.050</span></div>
+<div class="proj-full-row"><span class="pf-month">nov/26</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:43%"></div></div><span class="pf-val">R$ 650</span></div>
+<div class="proj-full-row"><span class="pf-month">dez/26</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:43%"></div></div><span class="pf-val">R$ 650</span></div>
+<div class="proj-full-row"><span class="pf-month">...</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:10%"></div></div><span class="pf-val">...</span></div>
+<div class="proj-full-row"><span class="pf-month">jan/29</span><div class="pf-bar-bg"><div class="pf-bar-fill" style="width:0%"></div></div><span class="pf-val" style="color:var(--text-tertiary)">R$ 0</span></div></div>
+
+<div class="surface-card"><div class="section-label">Por passivo</div>
+<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px"><strong style="color:var(--text-primary)">Financiamento Carro</strong> · R$ 850/mês · até jan/2029</div>
+<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px"><strong style="color:var(--text-primary)">Empréstimo Pessoal</strong> · R$ 450/mês · até nov/2026</div>
+<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px"><strong style="color:var(--text-primary)">Cartão Nubank</strong> · R$ 200/mês · até out/2026</div></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ EMPTY ═══ -->
+<div class="state-panel" id="panel-empty">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Dívidas</div></div>
+<div class="scroll-content">
+<div class="empty-state"><div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="22" x2="21" y2="22"/><path d="M6 22V2h12l3 6v14"/><path d="M18 2v6h3"/></svg></div><div class="empty-title">Você ainda não cadastrou passivos</div><div class="empty-desc">Registre financiamentos, empréstimos ou parcelamentos para acompanhar sua evolução.</div><button class="btn-primary">Adicionar passivo</button></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ PAID ═══ -->
+<div class="state-panel" id="panel-paid">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Dívidas</div></div>
+<div class="scroll-content">
+<div class="empty-state"><div class="empty-icon" style="color:var(--state-positive)"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="empty-title">Todos os passivos cadastrados estão quitados</div><div class="empty-desc">Nenhum saldo devedor ativo no momento.</div></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ PRIVACY ═══ -->
+<div class="state-panel" id="panel-privacy">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Dívidas</div></div>
+<div class="scroll-content">
+<div class="summary-card"><div class="sum-title">Saldo devedor</div><div class="sum-hero"><span class="masked">R$ ••••••</span></div><div class="sum-row"><div class="sum-col"><div class="sum-lbl">Comprometimento mensal</div><div class="sum-val" style="letter-spacing:3px">••••••</div></div><div class="sum-col"><div class="sum-lbl">Progresso estimado</div><div class="sum-val">84%</div></div></div><div class="sum-meta">3 dívidas ativas · 30 meses projetados</div></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ OFFLINE ═══ -->
+<div class="state-panel" id="panel-offline">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Dívidas</div></div>
+<div class="scroll-content">
+<div class="info-banner"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1l22 22"/><circle cx="12" cy="12" r="10"/></svg>Você está offline. Dados de 28 de julho.</div>
+<div class="summary-card"><div class="sum-title">Saldo devedor</div><div class="sum-hero">R$ 8.400</div><div class="sum-row"><div class="sum-col"><div class="sum-lbl">Comprometimento mensal</div><div class="sum-val">R$ 1.500</div></div><div class="sum-col"><div class="sum-lbl">Progresso estimado</div><div class="sum-val">84%</div></div></div><div class="sum-meta">3 dívidas ativas</div></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+<!-- ═══ ERROR ═══ -->
+<div class="state-panel" id="panel-error">
+<div class="mod-header"><div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>Início</div><div class="title">Passivos</div><div class="header-actions"><div class="header-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 2-2 3-2 5s2 3 2 5a4 4 0 01-8 0c0-2 2-3 2-5s-2-3-2-5a4 4 0 014-4z"/></svg></div></div></div>
+<div class="mod-tabs"><div class="mod-tab active">Visão Geral</div><div class="mod-tab">Dívidas</div></div>
+<div class="scroll-content">
+<div class="summary-card"><div class="sum-title">Saldo devedor</div><div class="sum-hero">R$ 8.400</div><div class="sum-row"><div class="sum-col"><div class="sum-lbl">Comprometimento mensal</div><div class="sum-val">R$ 1.500</div></div><div class="sum-col"><div class="sum-lbl">Progresso estimado</div><div class="sum-val">84%</div></div></div><div class="sum-meta">3 dívidas ativas</div></div>
+<div class="error-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Não foi possível carregar a projeção. <span style="color:var(--text-secondary);cursor:pointer;text-decoration:underline;margin-left:4px">Tentar novamente</span></div>
+<div class="spacer"></div>
+<div class="bottom-nav"><div class="nav-inner">
+<div class="nav-item active"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><span class="nav-label">Início</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Módulos</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44 2.5 2.5 0 01-2.96-3.08 3 3 0 01-.34-5.58 2.5 2.5 0 012.5-6.06A2.5 2.5 0 019.5 2z"/><path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44 2.5 2.5 0 012.96-3.08 3 3 0 01.34-5.58 2.5 2.5 0 01-2.5-6.06A2.5 2.5 0 0014.5 2z"/></svg></div><span class="nav-label">Domus</span></div>
+<div class="nav-item inactive"><div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div><span class="nav-label">Perfil</span></div>
+</div></div>
+</div></div>
+
+</div>
+<script>function switchState(id){document.querySelectorAll('.state-tab').forEach(function(t){t.classList.remove('active')});document.querySelectorAll('.state-panel').forEach(function(p){p.classList.remove('active')});var panel=document.getElementById('panel-'+id);if(panel)panel.classList.add('active');document.querySelector('.phone').scrollTop=0;var map={overview:0,dividas:1,detail:2,projecao:3,empty:4,paid:5,privacy:6,offline:7,error:8};document.querySelectorAll('.state-tab').forEach(function(t,i){if(typeof map[id]!=='undefined'&&i===map[id])t.classList.add('active')})}</script>
+</body>
+</html>

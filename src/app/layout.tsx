@@ -1,4 +1,4 @@
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/providers/auth-provider';
@@ -7,10 +7,38 @@ import { AcademyRenderer } from '@/components/academy';
 import { AcademyProvider } from '@/components/academy/academy-provider';
 import { SchedulerInit } from '@/components/scheduler-init';
 import { SnapshotCacheProvider } from '@/providers/snapshot-cache-provider';
+import { SwRegistrar } from '@/components/sw-registrar';
 
 export const metadata: Metadata = {
   title: 'FinDomus - Unified Financial Platform',
   description: 'Sua plataforma unificada para gestão financeira, patrimonial e empresarial.',
+  applicationName: 'FinDomus',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'FinDomus',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#0A0E14' },
+    { media: '(prefers-color-scheme: light)', color: '#F8F9FB' },
+  ],
 };
 
 export default function RootLayout({
@@ -34,6 +62,7 @@ export default function RootLayout({
                 <SchedulerInit />
                 <AcademyRenderer />
                 <Toaster />
+                <SwRegistrar />
               </AcademyProvider>
             </SnapshotCacheProvider>
           </VisibilityProvider>
