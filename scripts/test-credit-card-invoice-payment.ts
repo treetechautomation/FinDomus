@@ -116,9 +116,10 @@ async function main() {
   }
 
   console.log('\nSUCESSO: Todos os testes de cartão passaram com 100% de precisão.');
+  process.exit(0);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
