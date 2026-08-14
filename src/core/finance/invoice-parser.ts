@@ -1,8 +1,42 @@
 import {
   buildClassificationContext,
   classifyTransactionWithContext,
+  normalizeForMatch,
   type ParsedTransaction,
 } from './transaction-classifier';
+
+export function isInvoicePaymentDescription(description: string): boolean {
+  const norm = normalizeForMatch(description);
+  if (!norm) return false;
+
+  const paymentPatterns = [
+    "pagamentos validos normais",
+    "pagamento valido normal",
+    "pagamentos validos",
+    "pagamento recebido",
+    "pagamento de fatura",
+    "pagamento da fatura",
+    "pagamento efetuado",
+    "credito de pagamento",
+    "credito por pagamento",
+    "pagamento fatura",
+    "pgto fatura",
+    "pgto de fatura",
+    "pagto fatura",
+    "pagto de fatura",
+    "pagamento de cartao",
+    "pgto cartao",
+    "pagto cartao",
+    "pagamento ficha compensacao",
+    "pagamento boleto fatura",
+    "pagamento pix fatura",
+  ];
+
+  return paymentPatterns.some((pattern) => {
+    const normPattern = normalizeForMatch(pattern);
+    return norm.includes(normPattern);
+  });
+}
 
 function parseAmountBR(value: string) {
   const raw = String(value ?? '').trim();
@@ -195,10 +229,18 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
         ? title + ' - Parcela ' + installmentText
         : title;
 
+    // Ignorar pagamentos e liquidações de fatura anterior
+    if (isInvoicePaymentDescription(title) || isInvoicePaymentDescription(rawText)) {
+      return null;
+    }
+
     return enrichInstallment(
       {
         ...(() => {
-          const classified = classifyTransactionWithContext(rawText, amount > 0 ? -Math.abs(amount) : amount, context);
+          // Em fatura de cartão, compras normais vêm com valor positivo (amount > 0 -> passa -Math.abs(amount) para virar expense).
+          // Estornos/créditos na fatura vêm com valor negativo (amount < 0 -> passa Math.abs(amount) para virar income/estorno).
+          const classificationAmount = amount > 0 ? -Math.abs(amount) : Math.abs(amount);
+          const classified = classifyTransactionWithContext(rawText, classificationAmount, context);
           // Fallback: se o classificador retornou "Outros", tenta keywords genéricas
           if (classified.category === 'Outros') {
             const text = rawText.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -246,6 +288,8 @@ export async function parseBankStatementText(text: string, userId?: string): Pro
       .replace(date, '')
       .replace(amountMatch[0], '')
       .trim();
+
+    if (isInvoicePaymentDescription(rawText)) continue;
 
     result.push(
       enrichInstallment(
