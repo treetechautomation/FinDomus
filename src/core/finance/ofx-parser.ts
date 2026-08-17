@@ -13,6 +13,25 @@ function getTag(block: string, tag: string) {
   return match ? match[1].trim() : '';
 }
 
+// OFX.5 — Fase B. `text.split('<STMTTRN>')` só corta cada bloco na tag de
+// ABERTURA seguinte — nunca na de FECHAMENTO `</STMTTRN>`. Para a última
+// transação de um arquivo (sem próximo `<STMTTRN>` para limitar o corte), o
+// "bloco" se estendia até o fim do arquivo inteiro, absorvendo
+// `</BANKTRANLIST>`, `<LEDGERBAL>` e `<BALLIST>` — fazendo getTag() enxergar
+// tags que pertencem ao resumo do extrato, não à transação. Truncar cada
+// bloco no seu próprio `</STMTTRN>` (quando presente) elimina a causa
+// estrutural para qualquer banco, sem depender do conteúdo específico do
+// que vaza (funciona independente de existir ou não um BALLIST depois).
+export function extractStmttrnBlocks(text: string): string[] {
+  return text
+    .split('<STMTTRN>')
+    .slice(1)
+    .map((chunk) => {
+      const closeIdx = chunk.indexOf('</STMTTRN>');
+      return closeIdx === -1 ? chunk : chunk.slice(0, closeIdx);
+    });
+}
+
 // Replica localmente a regra de identidade interna já usada por
 // classifyTransactionWithContext (transaction-classifier.ts), sem alterar aquele
 // módulo compartilhado com CSV/PDF/Pluggy. Serve só para distinguir um
@@ -210,13 +229,17 @@ function isUsefulDescription(value?: string | null): boolean {
   return true;
 }
 
-// OFX.4 — Fase B.2. Alguns bancos (comprovado com o Nubank) reaproveitam, no
-// campo NAME de uma STMTTRN real, o mesmo rótulo usado no resumo de saldo do
-// extrato (<BALLIST><BAL><NAME>RENDIMENTO LIQUIDO</NAME>...), sem relação com
-// a transação em si. Extrai esses rótulos uma única vez por arquivo (fora do
-// loop por transação) para permitir ignorar esse NAME só na hora de montar o
-// texto de CLASSIFICAÇÃO — a descrição exibida ao usuário não muda. Não é uma
-// lista fixa de palavras: é uma comparação estrutural contra o que o próprio
+// OFX.4 — Fase B.2 (mantida na Fase B.5 como segunda camada de defesa).
+// A causa estrutural que fazia a última STMTTRN de um arquivo herdar o NAME
+// do <BALLIST> foi corrigida na origem em extractStmttrnBlocks() (OFX.5 —
+// Fase B): cada bloco agora é truncado no seu próprio </STMTTRN>, então
+// getTag(block, 'NAME') não alcança mais o BALLIST. Esta função continua
+// existindo como proteção adicional para o cenário em que um banco realmente
+// preencha o NAME de uma transação com o mesmo texto de um rótulo de saldo
+// (dado genuíno, não vazamento de parsing) — extrai os rótulos uma única vez
+// por arquivo e permite ignorar esse NAME só na hora de montar o texto de
+// CLASSIFICAÇÃO (a descrição exibida ao usuário não muda). Não é uma lista
+// fixa de palavras: é uma comparação estrutural contra o que o próprio
 // arquivo declara como rótulo de saldo, então generaliza para qualquer banco.
 function extractBallistLabels(fullText: string): Set<string> {
   const labels = new Set<string>();
@@ -325,9 +348,7 @@ export async function parseOFX(text: string, userId?: string): Promise<ParsedTra
   const context = await buildClassificationContext(userId);
   const ballistLabels = extractBallistLabels(text);
 
-  const transactions = text
-    .split('<STMTTRN>')
-    .slice(1)
+  const transactions = extractStmttrnBlocks(text)
     .map((block) => resolveOfxTransaction(block, context, ballistLabels))
     .filter(
       (item): item is ParsedTransaction =>

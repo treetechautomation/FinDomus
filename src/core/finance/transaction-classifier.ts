@@ -119,27 +119,22 @@ export function inferCategoryFromDescription(
     };
   }
 
-  // 3. Bancos / Transferências (banco inter, nubank, btg, itau, bradesco, santander, caixa, bb)
-  // Nota: Não forçar type = transfer. Manter o type original.
-  const isBanco = [
-    "banco inter",
-    "nubank",
-    "btg",
-    "itau",
-    "bradesco",
-    "santander",
-    "caixa",
-  ].some((kw) => keywordMatches(rawDescription, kw)) || /\bbb\b/.test(normalizeForMatch(rawDescription));
-
-  if (isBanco) {
-    const matched = findCategoryByNames(
-      ["Transferência entre contas", "Transferências", "Bancos"],
-      availableCategories
-    );
-    return {
-      category: matched || "Transferência entre contas",
-    };
-  }
+  // 3. [REMOVIDO — OFX.5 Fase B] "Bancos / Transferências" decidia a
+  // categoria com base só no nome do banco/processador da contraparte
+  // mencionado no texto (banco inter, nubank, btg, itau, bradesco,
+  // santander, caixa, "bb"). Como esse nome é metadado bancário — não
+  // evidência da natureza econômica da movimentação — sua cobertura
+  // incompleta (não incluía "Banco do Brasil" nem "NU PAGAMENTOS - IP")
+  // fazia transações economicamente idênticas caírem em categorias
+  // diferentes só por causa do banco citado (comprovado na OFX.5 — Fase A:
+  // Santander/Bradesco/Itaú/Caixa/Banco Inter → "Outros" via barreira
+  // categoria×tipo; "BCO DO BRASIL"/"NU PAGAMENTOS" escapavam e chegavam à
+  // keyword "transferencia recebida" do catálogo → "Recebimentos").
+  // Adicionar os bancos que faltavam tornaria o resultado uniforme, mas
+  // continuaria sendo o nome do banco decidindo a categoria — o princípio
+  // violado é o mesmo. A remoção deixa a busca seguir normalmente para
+  // aprendizado/keywords de catálogo (steps seguintes), que já decidem de
+  // forma idêntica independente de qual banco aparece no texto.
 
   // 4. Assessoria / Contabilidade (assessoria, contabilidade, consultoria)
   const hasContabilidade = keywordMatches(rawDescription, "contabilidade");

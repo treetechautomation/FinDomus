@@ -138,6 +138,15 @@
         { "fieldPath": "owner", "order": "ASCENDING" },
         { "fieldPath": "importHash", "order": "ASCENDING" }
       ]
+    },
+    {
+      "_comment": "OFX.5 Fase B — account_identities: getAccountIdentities() faz where('userId','==',uid).orderBy('createdAt','desc'); sem este índice composto a query falha com failed-precondition na sessão autenticada real (Client SDK), silenciosamente capturado por buildClassificationContext() como accountIdentities=[]. NÃO implantado nesta fase — preparado apenas localmente.",
+      "collectionGroup": "account_identities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

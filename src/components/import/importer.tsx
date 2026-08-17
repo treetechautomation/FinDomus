@@ -34,46 +34,15 @@ import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
 import { buildImportPreview } from '@/core/imports/build-import-preview';
 import { getCompanies } from '@/services/firestore/accounts';
-
-// ─── Staging Persistence ────────────────────────────────────────────────────
-const STAGING_KEY = 'findomus:import_staging';
-const STAGING_TTL_MS = 60 * 60 * 1000; // 1 hora
-
-type ImportStagingData = {
-  step: 'config' | 'review';
-  transactions: any[];
-  owner: 'PF' | 'PJ';
-  competenceMonth: string;
-  importName: string;
-  companyId: string;
-  fileName: string;
-  savedAt: string;
-};
-
-function loadStaging(): ImportStagingData | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(STAGING_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw) as ImportStagingData;
-    if (Date.now() - new Date(data.savedAt).getTime() > STAGING_TTL_MS) {
-      sessionStorage.removeItem(STAGING_KEY);
-      return null;
-    }
-    return data;
-  } catch { return null; }
-}
-
-function saveStaging(data: ImportStagingData) {
-  if (typeof window === 'undefined') return;
-  try { sessionStorage.setItem(STAGING_KEY, JSON.stringify(data)); } catch { /* quota exceeded — fail silently */ }
-}
-
-function clearStaging() {
-  if (typeof window === 'undefined') return;
-  try { sessionStorage.removeItem(STAGING_KEY); } catch {}
-}
-// ────────────────────────────────────────────────────────────────────────────
+import {
+  IMPORT_PREVIEW_SCHEMA_VERSION,
+  hashFileContent,
+  loadStaging,
+  saveStaging,
+  clearStaging,
+  isDifferentFile,
+  type ImportStagingData,
+} from '@/core/imports/import-staging';
 
 
 export function Importer() {
@@ -86,6 +55,7 @@ export function Importer() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [step, setStep] = useState<'upload' | 'config' | 'review'>('upload');
   const [restoredStaging, setRestoredStaging] = useState<ImportStagingData | null>(null);
+  const [fileFingerprint, setFileFingerprint] = useState('');
 
   const [owner, setOwner] = useState<'PF' | 'PJ'>('PF');
 
@@ -109,6 +79,7 @@ export function Importer() {
   useEffect(() => {
     if (transactions.length > 0 && step !== 'upload') {
       saveStaging({
+        version: IMPORT_PREVIEW_SCHEMA_VERSION,
         step: step as 'config' | 'review',
         transactions,
         owner,
@@ -116,10 +87,12 @@ export function Importer() {
         importName,
         companyId,
         fileName: file?.name ?? '',
+        fileSize: file?.size ?? 0,
+        fileFingerprint,
         savedAt: new Date().toISOString(),
       });
     }
-  }, [transactions, step, owner, competenceMonth, importName, companyId, file]);
+  }, [transactions, step, owner, competenceMonth, importName, companyId, file, fileFingerprint]);
 
   useEffect(() => {
     async function loadCompanies() {
@@ -138,11 +111,23 @@ export function Importer() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      setFile(acceptedFiles[0]);
+      const dropped = acceptedFiles[0];
+
+      // OFX.5 — Fase B: se há uma preview restaurada de sessionStorage
+      // (banner "Importação anterior salva") e o arquivo agora selecionado
+      // não é o mesmo (nome/tamanho diferentes), a preview antiga não pode
+      // continuar sendo oferecida como se fosse deste novo arquivo.
+      if (restoredStaging && isDifferentFile(restoredStaging, dropped)) {
+        clearStaging();
+        setRestoredStaging(null);
+      }
+
+      setFile(dropped);
+      setFileFingerprint('');
       setPdfNeedsPassword(false);
       setPdfPassword('');
     }
-  }, []);
+  }, [restoredStaging]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -159,6 +144,7 @@ export function Importer() {
   const clearImport = () => {
     clearStaging(); // limpa sessionStorage
     setFile(null);
+    setFileFingerprint('');
     setTransactions([]);
     setPdfPassword('');
     setPdfNeedsPassword(false);
@@ -252,6 +238,7 @@ export function Importer() {
             file.type === "application/octet-stream"
           ) {
             const text = await file.text();
+            setFileFingerprint(hashFileContent(text));
             extractedTransactions = await parseOFX(text, user?.uid);
 
           } else if (
@@ -259,6 +246,7 @@ export function Importer() {
             file.type === "text/csv"
           ) {
             const text = await file.text();
+            setFileFingerprint(hashFileContent(text));
             extractedTransactions = await parseNubankCSV(text, user?.uid);
 
           } else {
@@ -520,6 +508,7 @@ export function Importer() {
                           setCompetenceMonth(restoredStaging.competenceMonth);
                           setImportName(restoredStaging.importName);
                           setCompanyId(restoredStaging.companyId);
+                          setFileFingerprint(restoredStaging.fileFingerprint);
                           setStep(restoredStaging.step);
                           setRestoredStaging(null);
                         }}
