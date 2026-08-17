@@ -46,14 +46,12 @@ export function keywordMatches(description: string, keyword: string): boolean {
 
   if (!normKw) return false;
 
+  // Fronteira de palavra exigida nos DOIS lados — evita que uma keyword curta
+  // (ex.: "gol") case como prefixo/sufixo de uma palavra maior não relacionada
+  // (ex.: "GOLD"). Continua casando keywords compostas normalmente, porque \b
+  // só avalia a borda no início/fim do trecho inteiro, não os espaços internos.
   const escapedKw = escapeRegExp(normKw);
-
-  if (normKw.length <= 2) {
-    const regex = new RegExp(`\\b${escapedKw}\\b`, 'i');
-    return regex.test(normDesc);
-  }
-
-  const regex = new RegExp(`\\b${escapedKw}|${escapedKw}\\b`, 'i');
+  const regex = new RegExp(`\\b${escapedKw}\\b`, 'i');
   return regex.test(normDesc);
 }
 
@@ -178,13 +176,70 @@ export function isBlacklistedCategory(categoryName: string, rawDescription: stri
   return false;
 }
 
-function isTransfer(text: string) {
-  const t = normalizeText(text);
-  return (
-    t.includes("pix enviado") ||
-    t.includes("transferencia") ||
-    t.includes("transferência")
-  );
+// PIX/TED/DOC/"transferência" descrevem o MEIO bancário, e nomes de
+// gateway/processador/instituição de pagamento (picpay, mercado pago, stone,
+// cielo, getnet, pagseguro, pagbank, asaas, stripe, rede) descrevem o
+// INTERMEDIÁRIO — nenhum dos dois é a natureza econômica da movimentação
+// (OFX.4 — Fase B / B.2, princípio central). Um gateway aparece no MEMO do
+// OFX na mesma posição estrutural que o nome de um banco tradicional (ex.:
+// "FOOD TO SAVE LTDA - ... - PICPAY (0380) Agência: 1 Conta: ...", igual a
+// "... - BCO SANTANDER (BRASIL) S.A. (0033) Agência: ...") — é metadado
+// bancário da contraparte, não o motivo da compra. Uma categoria só pode ser
+// decidida por essas palavras quando não há nenhuma evidência mais específica
+// (aprendizado, inferência semântica, keyword de negócio/merchant real) — e
+// mesmo assim não decide `type` sozinha nem sobrevive à barreira
+// categoria×tipo se o `type` final não for 'transfer'. Keywords compostas
+// (ex. "recebimento stone", "taxa gateway") continuam válidas — só o nome
+// isolado do gateway é rebaixado.
+const MECHANISM_ONLY_KEYWORDS = [
+  'pix', 'ted', 'doc', 'transferencia',
+  'picpay', 'mercado pago', 'mercadopago', 'pagbank', 'recargapay', 'ame digital',
+  'stone', 'pagseguro', 'cielo', 'getnet', 'rede', 'asaas', 'stripe',
+];
+
+function isMechanismOnlyKeyword(keyword: string): boolean {
+  return MECHANISM_ONLY_KEYWORDS.includes(normalizeForMatch(keyword));
+}
+
+// Uma categoria "casa" só pelo mecanismo bancário quando TODA keyword sua que
+// bateu no texto é um termo de mecanismo (ex.: "pix", "ted", "transferencia").
+// Se alguma keyword mais específica também bateu (ex.: "ted mesma titularidade"),
+// a categoria continua elegível normalmente — isso preserva keywords compostas.
+function matchesOnlyMechanismKeywords(
+  category: { keywords?: string[] },
+  rawText: string
+): boolean {
+  const matched = (category.keywords || []).filter((k) => keywordMatches(rawText, k));
+  if (matched.length === 0) return false;
+  return matched.every(isMechanismOnlyKeyword);
+}
+
+// Compatibilidade de LEITURA com fingerprints legados (OFX.4 — Fase B.2).
+// Aprendizados antigos (PDF/CSV) foram gravados com fingerprint curto — só a
+// contraparte, sem o boilerplate bancário verboso que o Nubank usa no OFX
+// ("Transferência recebida/enviada pelo Pix ... (Transferência enviada)").
+// Reduz o fingerprint removendo EXATAMENTE essas frases conhecidas (frases
+// completas, não palavras soltas, para não corromper um nome real que
+// contenha uma delas), reproduzindo o fingerprint que uma importação de
+// PDF/CSV mais enxuta teria gerado para a mesma contraparte. Usada só como
+// fallback de LEITURA quando o fingerprint verboso não bate em nada — nunca
+// escreve, nunca migra, nunca sobrescreve o fingerprint original armazenado.
+const LEGACY_FINGERPRINT_BOILERPLATE = [
+  'transferencia recebida pelo pix',
+  'transferencia enviada pelo pix',
+  'transferencia recebida',
+  'transferencia enviada',
+  'pix recebido',
+  'pix enviado',
+];
+
+function buildReducedLearningFingerprint(fingerprint: string): string | null {
+  let reduced = fingerprint;
+  for (const phrase of LEGACY_FINGERPRINT_BOILERPLATE) {
+    reduced = reduced.split(phrase).join(' ');
+  }
+  reduced = buildLearningFingerprint(reduced);
+  return reduced && reduced !== fingerprint ? reduced : null;
 }
 
 async function classifyByLearning(text: string, userId?: string) {
@@ -200,10 +255,10 @@ async function classifyByLearning(text: string, userId?: string) {
   for (const cat of categories) {
     if (!cat.keywords) continue;
     if (isBlacklistedCategory(cat.name, text)) continue;
+    if (!cat.keywords.some((k: string) => keywordMatches(text, k))) continue;
+    if (matchesOnlyMechanismKeywords(cat, text)) continue;
 
-    if (cat.keywords.some((k: string) => keywordMatches(text, k))) {
-      return cat.name;
-    }
+    return cat.name;
   }
 
   return null;
@@ -249,25 +304,29 @@ async function classifyInternalTransfer(
 
 
 // Fallback IA local — síncrono, sem I/O
+// OFX.4 — Fase B.2: usa keywordMatches() (fronteira de palavra nos dois
+// lados) em vez de .includes() bruto — mesma classe de bug do catálogo
+// (ex.: "seguro" casando "pagseguro", "mercado" casando "mercado pago"),
+// aqui dentro do fallback de IA local.
 function classifyByAISync(text: string): string | null {
-  if (text.includes('mercado') || text.includes('supermercado')) return 'Supermercado';
-  if (text.includes('posto') || text.includes('gasolina')) return 'Transporte';
-  if (text.includes('farmacia')) return 'Saúde';
-  
+  if (keywordMatches(text, 'mercado') || keywordMatches(text, 'supermercado')) return 'Supermercado';
+  if (keywordMatches(text, 'posto') || keywordMatches(text, 'gasolina')) return 'Transporte';
+  if (keywordMatches(text, 'farmacia')) return 'Saúde';
+
   // NOVOS padrões de alta confiança (fallback)
-  if (text.includes('netflix') || text.includes('spotify') || text.includes('amazon prime')) return 'Streaming / Assinaturas';
-  if (text.includes('uber') || text.includes('99 pop')) return 'Uber / 99';
-  if (text.includes('ifood') || text.includes('rappi')) return 'Delivery';
-  if (text.includes('academia') || text.includes('smart fit')) return 'Academia';
-  if (text.includes('cinema') || text.includes('ingresso')) return 'Cinema / Teatro';
-  if (text.includes('hospital') || text.includes('clinica')) return 'Consultas médicas';
-  if (text.includes('dentista') || text.includes('odonto')) return 'Odontologia';
-  if (text.includes('seguro') || text.includes('porto seguro')) return 'Seguros';
-  if (text.includes('pedagio') || text.includes('sem parar')) return 'Pedágio';
-  if (text.includes('estacionamento') || text.includes('park')) return 'Estacionamento';
-  if (text.includes('pet') || text.includes('veterinario')) return 'Pets';
-  if (text.includes('livraria') || text.includes('livro')) return 'Livros';
-  if (text.includes('pix') && text.includes('enviado')) return 'PIX entre pessoas';
+  if (keywordMatches(text, 'netflix') || keywordMatches(text, 'spotify') || keywordMatches(text, 'amazon prime')) return 'Streaming / Assinaturas';
+  if (keywordMatches(text, 'uber') || keywordMatches(text, '99 pop')) return 'Uber / 99';
+  if (keywordMatches(text, 'ifood') || keywordMatches(text, 'rappi')) return 'Delivery';
+  if (keywordMatches(text, 'academia') || keywordMatches(text, 'smart fit')) return 'Academia';
+  if (keywordMatches(text, 'cinema') || keywordMatches(text, 'ingresso')) return 'Cinema / Teatro';
+  if (keywordMatches(text, 'hospital') || keywordMatches(text, 'clinica')) return 'Consultas médicas';
+  if (keywordMatches(text, 'dentista') || keywordMatches(text, 'odonto')) return 'Odontologia';
+  if (keywordMatches(text, 'seguro') || keywordMatches(text, 'porto seguro')) return 'Seguros';
+  if (keywordMatches(text, 'pedagio') || keywordMatches(text, 'sem parar')) return 'Pedágio';
+  if (keywordMatches(text, 'estacionamento') || keywordMatches(text, 'park')) return 'Estacionamento';
+  if (keywordMatches(text, 'pet') || keywordMatches(text, 'veterinario')) return 'Pets';
+  if (keywordMatches(text, 'livraria') || keywordMatches(text, 'livro')) return 'Livros';
+  if (keywordMatches(text, 'pix') && keywordMatches(text, 'enviado')) return 'PIX entre pessoas';
   return null;
 }
 
@@ -390,40 +449,44 @@ export function classifyTransactionWithContext(
     }
   }
 
-  // 2. Transferência por keyword textual
-  if (isTransfer(text)) {
-    return {
-      date: '',
-      description: rawText,
-      merchant: rawText,
-      category: 'Transferência',
-      amount: Math.abs(amount),
-      type: 'transfer',
-    };
+  // 2. Aprendizado explícito do usuário (O(1), em memória) — tem prioridade
+  // sobre qualquer heurística textual genérica de transferência, desde que a
+  // etapa 1 (identidade, evidência estrutural) não tenha decidido antes.
+  // Fallback: se o fingerprint verboso (OFX) não bater em nada, tenta o
+  // fingerprint reduzido (compatível com aprendizados legados de PDF/CSV).
+  const fingerprint = buildLearningFingerprint(text);
+  let learned = context.learningMap.get(fingerprint) ?? null;
+  if (!learned) {
+    const reducedFingerprint = buildReducedLearningFingerprint(fingerprint);
+    if (reducedFingerprint) {
+      learned = context.learningMap.get(reducedFingerprint) ?? null;
+    }
   }
 
-  // 3. Lookup O(1) no Map de aprendizado
-  const fingerprint = buildLearningFingerprint(text);
-  const learned = context.learningMap.get(fingerprint) ?? null;
-
-  // 4. Priority classification layers (inferCategoryFromDescription)
+  // 3. Inferência semântica específica (rendimento, juros/mora, cartão,
+  // contabilidade, banco da contraparte etc.)
   const inferred = learned ? null : inferCategoryFromDescription(
     rawText,
     amount >= 0 ? 'income' : 'expense',
     context.categories
   );
 
-  // 5. Keyword de categoria (em memória)
+  // 4. Keyword de categoria (em memória) — ignora candidatas cuja ÚNICA
+  // evidência de match é um termo de mecanismo bancário (pix/ted/doc/
+  // transferência) sem nenhuma identidade comprovada: o meio de pagamento
+  // não decide a categoria econômica sozinho.
   const categoryByKeyword = learned ?? inferred?.category ?? (
     context.categories.find(
       (cat) => {
         if (isBlacklistedCategory(cat.name, rawText)) return false;
-        return cat.keywords?.some((k: string) => keywordMatches(rawText, k));
+        if (!cat.keywords?.some((k: string) => keywordMatches(rawText, k))) return false;
+        if (matchesOnlyMechanismKeywords(cat, rawText)) return false;
+        return true;
       }
     )?.name ?? null
   );
 
-  // 6. Fallback IA síncrona
+  // 5. Fallback IA síncrona
   const ai = categoryByKeyword ? null : classifyByAISync(text);
   const category = categoryByKeyword || ai || 'Outros';
 
@@ -475,19 +538,9 @@ export async function classifyTransaction(
     };
   }
 
-  // transferência
-  if (isTransfer(text)) {
-    return {
-      date: '',
-      description: rawText,
-      merchant: rawText,
-      category: 'Transferência',
-      amount: Math.abs(amount),
-      type: 'transfer',
-    };
-  }
-
-  // prioridade 1: aprendizado
+  // prioridade 1: aprendizado (inclui fallback por keyword de categoria,
+  // já sem deixar um termo de mecanismo bancário decidir sozinho — ver
+  // classifyByLearning / matchesOnlyMechanismKeywords)
   const learned = await classifyByLearning(text, userId);
 
   // priority inference (layer 2)

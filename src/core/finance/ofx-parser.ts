@@ -210,12 +210,33 @@ function isUsefulDescription(value?: string | null): boolean {
   return true;
 }
 
+// OFX.4 — Fase B.2. Alguns bancos (comprovado com o Nubank) reaproveitam, no
+// campo NAME de uma STMTTRN real, o mesmo rótulo usado no resumo de saldo do
+// extrato (<BALLIST><BAL><NAME>RENDIMENTO LIQUIDO</NAME>...), sem relação com
+// a transação em si. Extrai esses rótulos uma única vez por arquivo (fora do
+// loop por transação) para permitir ignorar esse NAME só na hora de montar o
+// texto de CLASSIFICAÇÃO — a descrição exibida ao usuário não muda. Não é uma
+// lista fixa de palavras: é uma comparação estrutural contra o que o próprio
+// arquivo declara como rótulo de saldo, então generaliza para qualquer banco.
+function extractBallistLabels(fullText: string): Set<string> {
+  const labels = new Set<string>();
+  const ballistMatch = fullText.match(/<BALLIST>([\s\S]*?)<\/BALLIST>/i);
+  if (!ballistMatch) return labels;
+  const nameMatches = ballistMatch[1].matchAll(/<NAME>([^<\r\n]*)/gi);
+  for (const m of nameMatches) {
+    const label = normalizeText(m[1]).trim();
+    if (label) labels.add(label);
+  }
+  return labels;
+}
+
 // Extraído de parseOFX para permitir teste determinístico e isolado (sem I/O),
 // dado um `context` já carregado. Comportamento idêntico ao anterior — mesma lógica,
 // apenas fatiada em função própria.
 export function resolveOfxTransaction(
   block: string,
-  context: ClassificationContext
+  context: ClassificationContext,
+  ballistLabels?: Set<string>
 ): ParsedTransaction | null {
       const rawAmount = getTag(block, "TRNAMT");
       const amount = parseImportAmount(rawAmount);
@@ -232,15 +253,23 @@ export function resolveOfxTransaction(
         fitId ||
         "Lançamento OFX";
 
+      // NAME que reaproveita um rótulo de saldo do próprio arquivo (ex.:
+      // "RENDIMENTO LIQUIDO") não é informação sobre ESTA transação — não deve
+      // contaminar o texto de classificação, mesmo que a descrição exibida
+      // (acima) continue priorizando NAME por política já existente.
+      const nameIsBallistArtifact = Boolean(
+        ballistLabels?.has(normalizeText(rawName).trim())
+      );
+
       // Texto usado só para CLASSIFICAR: une NAME + MEMO quando ambos trazem
       // informação útil e distinta (ex.: NAME genérico do banco + MEMO com o
       // favorecido/fornecedor real), sem alterar a descrição exibida acima.
-      const nameUseful = isUsefulDescription(rawName);
+      const nameUseful = isUsefulDescription(rawName) && !nameIsBallistArtifact;
       const memoUseful = isUsefulDescription(rawMemo);
       const classificationText =
         nameUseful && memoUseful && normalizeText(rawName) !== normalizeText(rawMemo)
           ? `${rawName} ${rawMemo}`
-          : memo;
+          : (nameUseful ? rawName : (memoUseful ? rawMemo : memo));
 
       const date = formatOfxDate(getTag(block, 'DTPOSTED'));
       const descLower = normalizeText(memo);
@@ -294,11 +323,12 @@ export function resolveOfxTransaction(
 
 export async function parseOFX(text: string, userId?: string): Promise<ParsedTransaction[]> {
   const context = await buildClassificationContext(userId);
+  const ballistLabels = extractBallistLabels(text);
 
   const transactions = text
     .split('<STMTTRN>')
     .slice(1)
-    .map((block) => resolveOfxTransaction(block, context))
+    .map((block) => resolveOfxTransaction(block, context, ballistLabels))
     .filter(
       (item): item is ParsedTransaction =>
         Boolean(item && item.date && item.amount)
