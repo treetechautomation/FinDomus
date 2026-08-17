@@ -12,12 +12,13 @@ export const STAGING_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 // Incrementar sempre que uma mudança no pipeline de classificação alterar o
 // resultado esperado de uma preview já calculada.
-export const IMPORT_PREVIEW_SCHEMA_VERSION = 2;
+export const IMPORT_PREVIEW_SCHEMA_VERSION = 3;
 
 export type ImportStagingData = {
   version: number;
   step: 'config' | 'review';
   transactions: any[];
+  overrides?: Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>;
   owner: 'PF' | 'PJ';
   competenceMonth: string;
   importName: string;

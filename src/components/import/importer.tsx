@@ -5,8 +5,8 @@ import Link from 'next/link';
 
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { 
-  Upload, FileText, X, 
+import {
+  Upload, FileText, X,
   Loader2, Lock, ShieldCheck, ChevronRight, RotateCcw
 } from 'lucide-react';
 
@@ -34,6 +34,7 @@ import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
 import { buildImportPreview } from '@/core/imports/build-import-preview';
 import { getCompanies } from '@/services/firestore/accounts';
+import { getCategories, type Category } from '@/services/firestore/categories';
 import {
   IMPORT_PREVIEW_SCHEMA_VERSION,
   hashFileContent,
@@ -56,6 +57,9 @@ export function Importer() {
   const [step, setStep] = useState<'upload' | 'config' | 'review'>('upload');
   const [restoredStaging, setRestoredStaging] = useState<ImportStagingData | null>(null);
   const [fileFingerprint, setFileFingerprint] = useState('');
+
+  const [overrides, setOverrides] = useState<Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>>({});
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const [owner, setOwner] = useState<'PF' | 'PJ'>('PF');
 
@@ -82,6 +86,7 @@ export function Importer() {
         version: IMPORT_PREVIEW_SCHEMA_VERSION,
         step: step as 'config' | 'review',
         transactions,
+        overrides,
         owner,
         competenceMonth,
         importName,
@@ -92,10 +97,10 @@ export function Importer() {
         savedAt: new Date().toISOString(),
       });
     }
-  }, [transactions, step, owner, competenceMonth, importName, companyId, file, fileFingerprint]);
+  }, [transactions, step, owner, competenceMonth, importName, companyId, file, fileFingerprint, overrides]);
 
   useEffect(() => {
-    async function loadCompanies() {
+    async function loadInitialData() {
       if (!user?.uid) return;
       try {
         const data = await getCompanies(user.uid);
@@ -103,9 +108,15 @@ export function Importer() {
       } catch (err) {
         console.error(err);
       }
+      try {
+        const catData = await getCategories(user.uid);
+        setCategories(catData || []);
+      } catch (err) {
+        console.error(err);
+      }
     }
 
-    loadCompanies();
+    loadInitialData();
   }, [user?.uid]);
 
 
@@ -146,6 +157,7 @@ export function Importer() {
     setFile(null);
     setFileFingerprint('');
     setTransactions([]);
+    setOverrides({});
     setPdfPassword('');
     setPdfNeedsPassword(false);
     setStep('upload');
@@ -263,6 +275,7 @@ export function Importer() {
           const preview = buildImportPreview(extractedTransactions);
           console.log("===== IMPORT PREVIEW =====", preview);
           setTransactions(extractedTransactions);
+          setOverrides({});
           setStep('config');
       } else {
         toast({
@@ -295,7 +308,30 @@ export function Importer() {
 
     try {
       const importSessionId = crypto.randomUUID();
-      const preview = buildImportPreview(transactions);
+
+      const reviewedTransactions = transactions.map(tx => {
+        const hash = tx.importHash || generateImportHash({
+          date: tx.dateISO || tx.date,
+          amount: tx.amount,
+          description: tx.description,
+          merchant: tx.merchant,
+          owner: tx.owner,
+          externalId: tx.externalId,
+        });
+
+        const override = overrides[hash];
+        if (override) {
+          return {
+            ...tx,
+            importHash: hash,
+            category: override.category ?? tx.category,
+            type: override.type ?? tx.type,
+          };
+        }
+        return { ...tx, importHash: hash };
+      });
+
+      const preview = buildImportPreview(reviewedTransactions);
 
       const payload = preview.rows.map(row => {
         const t = row.transaction;
@@ -335,8 +371,9 @@ export function Importer() {
       const summary = await addTransactionsBatch(user.uid, payload);
 
       // Aprende categorias automaticamente de forma assíncrona (não-bloqueante)
+      // OFX.7 Fase B: Só aprende as categorias que foram explicitamente editadas na revisão
       const categorizedItems = payload.filter(
-        (item: any) => item.category && item.category !== 'Outros' && item.description
+        (item: any) => item.category && item.category !== 'Outros' && item.description && overrides[item.importHash]?.pendingLearning === true
       );
       for (const item of categorizedItems) {
         learnTransactionCategory({
@@ -459,6 +496,9 @@ export function Importer() {
         isProcessing={isProcessing}
         clearImport={clearImport}
         confirmImport={confirmImport}
+        overrides={overrides}
+        setOverrides={setOverrides}
+        categories={categories}
 
         owner={owner}
         setOwner={setOwner}
@@ -504,6 +544,7 @@ export function Importer() {
                         className="text-xs h-7"
                         onClick={() => {
                           setTransactions(restoredStaging.transactions);
+                          if (restoredStaging.overrides) setOverrides(restoredStaging.overrides);
                           setOwner(restoredStaging.owner);
                           setCompetenceMonth(restoredStaging.competenceMonth);
                           setImportName(restoredStaging.importName);
@@ -526,9 +567,9 @@ export function Importer() {
                     </div>
                   </div>
                 )}
-                <div 
+                <div
                   id="tour-step-import-upload"
-                  {...getRootProps()} 
+                  {...getRootProps()}
                   className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
                     isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                   }`}
@@ -566,10 +607,10 @@ export function Importer() {
                       Este arquivo exige senha para ser lido (geralmente o CPF do titular).
                     </p>
                     <div className="flex gap-2">
-                      <Input 
+                      <Input
                         id="pdf-pass"
-                        type="password" 
-                        placeholder="Digite a senha do PDF" 
+                        type="password"
+                        placeholder="Digite a senha do PDF"
                         value={pdfPassword}
                         onChange={(e) => setPdfPassword(e.target.value)}
                         className="bg-background"
@@ -580,10 +621,10 @@ export function Importer() {
 
                 {file && (
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       id="tour-step-import-ofx"
-                      className="flex-1" 
-                      onClick={processFile} 
+                      className="flex-1"
+                      onClick={processFile}
                       disabled={isProcessing || (pdfNeedsPassword && !pdfPassword)}
                     >
                       {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
