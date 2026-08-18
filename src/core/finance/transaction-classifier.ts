@@ -116,35 +116,19 @@ export function inferCategoryFromDescription(
     };
   }
 
-  // 1. Rendimentos / Investimentos (rendimento automático, rendimento, juros sobre capital próprio, remuneração, cdb, renda fixa)
-  const isJcp = [
-    "juros sobre capital proprio",
-    "juros sobre capital",
-    "juros s capital proprio",
-    "juros s/ capital proprio",
-    "jcp",
-    "dividendos",
-    "proventos",
-  ].some((kw) => keywordMatches(rawDescription, kw));
-
-  const isRendimento = [
-    "rendimento automatico",
-    "rendimento",
-    "remuneracao",
-    "cdb",
-    "renda fixa",
-  ].some((kw) => keywordMatches(rawDescription, kw)) || isJcp;
-
-  if (isRendimento) {
-    const matched = findCategoryByNames(
-      ["Rendimentos", "Investimentos", "CDB / Renda Fixa", "Outros recebimentos"],
-      availableCategories
-    );
-    return {
-      category: matched || "Rendimentos",
-      type: "income",
-    };
-  }
+  // 1. [REMOVIDO — INVEST.CLASSIFIER.1 Fase B] Regra antiga interceptava
+  // qualquer texto contendo "rendimento"/"cdb"/"renda fixa"/"remuneracao"/
+  // JCP/dividendos ANTES do catálogo real competir, e tentava resolver por
+  // nomes fixos ("Rendimentos", "Investimentos", "CDB / Renda Fixa", "Outros
+  // recebimentos") — nomes que em parte não existem mais no catálogo atual.
+  // Consequência comprovada (INVEST.CLASSIFIER.1 Fase A): "Dividendos",
+  // "JCP" e "Rendimento líquido" caíam em "CDB / Renda Fixa" só porque esse
+  // era o único nome da lista fixa que ainda existia — mesmo quando a
+  // categoria real e correta ("Dividendos") já existia no catálogo e nunca
+  // era consultada. Remover a interceptação deixa esses textos seguirem
+  // normalmente para o matcher de keywords do catálogo real (com ranking de
+  // especificidade — ver resolveCategoryByKeyword), que já sabe achar
+  // "Dividendos" via suas próprias keywords.
 
   // 2. Fatura / Cartão (pagamento para fatura, fatura cartao, cartao btg, cartão)
   const isCartao = [
@@ -253,6 +237,239 @@ function matchesOnlyMechanismKeywords(
   const matched = (category.keywords || []).filter((k) => keywordMatches(rawText, k));
   if (matched.length === 0) return false;
   return matched.every(isMechanismOnlyKeyword);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INVEST.CLASSIFIER.1 — Fase B — MATCHER DE KEYWORDS POR ESPECIFICIDADE
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase A comprovou dois problemas estruturais no matcher antigo
+// (`categories.find(cat => cat.keywords.some(...))`, primeira categoria do
+// array vence):
+//
+//   A) FIRST-MATCH ARBITRÁRIO — nenhum critério de especificidade decidia
+//      entre candidatas concorrentes; a ordem de inserção no array (que nem
+//      é garantida pelo Firestore sem orderBy explícito) decidia sozinha.
+//      Caso comprovado: "Resgate CDB" caía em "CDB / Renda Fixa" (keyword
+//      composta "resgate cdb") em vez de "Resgate investimento" — a
+//      categoria correta ficava em segundo lugar só por posição no array.
+//
+//   B) EVENTO × CLASSE DE ATIVO — o catálogo mistura duas dimensões:
+//      categorias de EVENTO financeiro (Aporte investimento, Resgate
+//      investimento) e categorias de CLASSE DE ATIVO (CDB / Renda Fixa,
+//      Tesouro Direto, Ações, Cripto, Fundos ...). Uma transação como
+//      "Aplicação CDB" description a NATUREZA do evento (aporte) mais do que
+//      o instrumento (CDB) — o campo `category` hoje representa o evento,
+//      não a classe do ativo (INVEST.1, que modelaria posição/ativo
+//      separadamente, continua fora de escopo aqui).
+//
+// rankCategoryKeywordMatches() substitui o `.find()` por um ranking
+// determinístico: (1) nº de tokens da keyword casada [mais tokens = mais
+// específica], (2) categoryType === 'investment' [uma categoria com
+// metadata explícita de investimento é preferida a uma legada/sem tipo em
+// empate de especificidade], (3) categoryType === type da transação, (4)
+// nome da categoria em ordem alfabética [desempate 100% determinístico,
+// independente da ordem de inserção no array/Firestore].
+type CategoryKeywordCandidate = {
+  category: Category;
+  matchedKeyword: string;
+  tokenCount: number;
+};
+
+function bestMatchedKeyword(category: Category, rawText: string): { keyword: string; tokenCount: number } | null {
+  let best: { keyword: string; tokenCount: number } | null = null;
+  for (const kw of category.keywords || []) {
+    if (!keywordMatches(rawText, kw)) continue;
+    const tokenCount = normalizeForMatch(kw).split(' ').filter(Boolean).length;
+    if (!best || tokenCount > best.tokenCount) {
+      best = { keyword: kw, tokenCount };
+    }
+  }
+  return best;
+}
+
+function rankCategoryKeywordMatches(
+  rawText: string,
+  categories: Category[],
+  transactionType: 'income' | 'expense' | 'transfer'
+): CategoryKeywordCandidate[] {
+  const matchText = withFinancialAcronymAliases(rawText);
+  const candidates: CategoryKeywordCandidate[] = [];
+  for (const cat of categories) {
+    if (isBlacklistedCategory(cat.name, rawText)) continue;
+    if (matchesOnlyMechanismKeywords(cat, matchText)) continue;
+    const best = bestMatchedKeyword(cat, matchText);
+    if (!best) continue;
+    candidates.push({ category: cat, matchedKeyword: best.keyword, tokenCount: best.tokenCount });
+  }
+
+  candidates.sort((a, b) => {
+    if (b.tokenCount !== a.tokenCount) return b.tokenCount - a.tokenCount;
+    const aIsInvestment = a.category.categoryType === 'investment' ? 1 : 0;
+    const bIsInvestment = b.category.categoryType === 'investment' ? 1 : 0;
+    if (bIsInvestment !== aIsInvestment) return bIsInvestment - aIsInvestment;
+    const aTypeMatch = a.category.categoryType === transactionType ? 1 : 0;
+    const bTypeMatch = b.category.categoryType === transactionType ? 1 : 0;
+    if (bTypeMatch !== aTypeMatch) return bTypeMatch - aTypeMatch;
+    return a.category.name.localeCompare(b.category.name);
+  });
+
+  return candidates;
+}
+
+// Categorias de EVENTO de investimento reconhecidas pelo próprio nome
+// ("Aporte investimento", "Resgate investimento") — a distinção é genérica
+// (não cita nenhum banco/produto/usuário específico) e usa a mesma
+// convenção de nomenclatura que o catálogo padrão da aplicação já adota
+// (ver default-category-catalog.ts). Só considera categoryType='investment'
+// para não colidir com categorias legadas homônimas sem esse metadata
+// (ex.: "Investimentos (aporte)", categoryType=undefined).
+const INVESTMENT_EVENT_TERMS = ['aporte', 'resgate'];
+
+function isEventInvestmentCategory(category: Category): boolean {
+  if (category.categoryType !== 'investment') return false;
+  const normName = normalizeText(category.name);
+  return INVESTMENT_EVENT_TERMS.some((term) => normName.includes(term));
+}
+
+// Padrão estrutural, genérico (não específico de RDB/CDB/nenhum banco):
+// "aplicação <substantivo>" SEM a preposição "de" no meio. Extratos
+// bancários brasileiros usam essa forma para aportes em produtos de
+// investimento ("Aplicação RDB", "Aplicação CDB", "Aplicação Fundo XYZ").
+// Já o uso genérico do verbo "aplicar" em outros contextos ("aplicação de
+// multa", "aplicação de desconto", "aplicação de taxa") sempre intercala a
+// preposição "de" — por isso ela é usada como filtro negativo.
+function hasBareInvestmentApplicationPattern(rawText: string): boolean {
+  const norm = normalizeForMatch(rawText);
+  return /\baplicacao\b(?!\s+de\b)\s+\S/.test(norm);
+}
+
+// INVEST.CLASSIFIER.1 — Fase B.1 — JCP/JSCP são duas grafias da MESMA sigla
+// financeira padrão (Juros sobre Capital Próprio) — não é uma equivalência
+// inventada para este caso, é convenção de mercado já usada por instituições
+// diferentes. Um único par de alias, documentado, não uma lista crescente.
+// Aplicado só na etapa de keyword de catálogo (não em learning/identidade).
+const FINANCIAL_ACRONYM_ALIASES: Array<[RegExp, string]> = [
+  [/\bjcp\b/i, 'jscp'],
+];
+
+function withFinancialAcronymAliases(rawText: string): string {
+  let expanded = rawText;
+  for (const [pattern, alias] of FINANCIAL_ACRONYM_ALIASES) {
+    if (pattern.test(rawText) && !new RegExp(`\\b${alias}\\b`, 'i').test(rawText)) {
+      expanded += ` ${alias}`;
+    }
+  }
+  return expanded;
+}
+
+// INVEST.CLASSIFIER.1 — Fase B.1 — EXIGÊNCIA DE CORROBORAÇÃO
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase B comprovou falsos positivos: "investimento em curso" e "resgate de
+// pontos" viravam Aporte/Resgate investimento só pela palavra genérica
+// isolada ("investimento"/"resgate") já ser, sozinha, uma keyword real dessas
+// categorias. Uma palavra-evento isolada não é evidência suficiente de que a
+// transação é sobre um INSTRUMENTO financeiro — precisa de uma segunda peça
+// de evidência independente do domínio de investimento (qualquer keyword de
+// QUALQUER categoria categoryType='investment' — CDB/Renda Fixa, Tesouro
+// Direto, Ações, Cripto, Fundos... — ou uma keyword composta, ≥2 tokens, na
+// própria categoria de evento, ex.: "resgate investimento", "resgate cdb").
+// Isso é evidência POSITIVA derivada do próprio catálogo (categoryType já
+// existente), não uma lista de palavras negativas proibidas — generaliza
+// para qualquer "resgate/aporte de <coisa não-financeira>" sem precisar
+// listar "pontos", "milhas", "cashback", "curso" etc. um por um.
+const BARE_EVENT_TERMS = ['aporte', 'resgate', 'investimento', 'investir'];
+
+// Mesmo padrão estrutural do bridge de "aplicação" (ver
+// hasBareInvestmentApplicationPattern), generalizado para "aporte"/"resgate":
+// a palavra-evento IMEDIATAMENTE seguida de um substantivo (sem preposição
+// "de"/"em"/"por"/"para" no meio) é a forma como extratos bancários citam o
+// produto ("Aporte RDB", "Resgate RDB", "Resgate CDB"). Usos genéricos fora
+// de investimento sempre intercalam preposição ("resgate DE pontos",
+// "resgate DE milhas", "investimento EM curso") — por isso ela funciona como
+// filtro negativo aqui também. Só cobre "aporte"/"resgate": "investimento"/
+// "investir" ficam de fora de propósito, porque não há gate exigindo esse
+// padrão para eles e ampliar o escopo aumentaria o risco de falso positivo
+// sem necessidade comprovada.
+const STRUCTURALLY_BRIDGEABLE_EVENT_TERMS = ['aporte', 'resgate'];
+
+function hasBareEventProductPattern(rawText: string, eventWord: string): boolean {
+  const norm = normalizeForMatch(rawText);
+  const regex = new RegExp(`\\b${eventWord}\\b(?!\\s+(?:de|em|por|para)\\b)\\s+\\S`);
+  return regex.test(norm);
+}
+
+function isUncorroboratedBareEventMatch(
+  candidate: CategoryKeywordCandidate,
+  allCandidates: CategoryKeywordCandidate[],
+  rawText: string
+): boolean {
+  if (candidate.tokenCount !== 1) return false;
+  if (!isEventInvestmentCategory(candidate.category)) return false;
+  const kw = normalizeForMatch(candidate.matchedKeyword);
+  if (!BARE_EVENT_TERMS.includes(kw)) return false;
+
+  if (STRUCTURALLY_BRIDGEABLE_EVENT_TERMS.includes(kw) && hasBareEventProductPattern(rawText, kw)) {
+    return false; // corroborado estruturalmente (ex.: "Aporte RDB", "Resgate RDB")
+  }
+
+  const hasCorroboration = allCandidates.some(
+    (c) => c !== candidate && c.category.categoryType === 'investment'
+  );
+  return !hasCorroboration;
+}
+
+// resolveCategoryByKeyword() é o ponto único de resolução de categoria por
+// keyword de catálogo — substitui o `.find()` original dentro de
+// classifyTransactionWithContext(). Mantém EXATAMENTE a mesma prioridade
+// pré-existente (learning > inferCategoryFromDescription > isto aqui > IA
+// fallback) — só troca COMO a etapa de keyword de catálogo decide entre
+// candidatas concorrentes.
+function resolveCategoryByKeyword(
+  rawText: string,
+  categories: Category[],
+  transactionType: 'income' | 'expense' | 'transfer'
+): string | null {
+  const rawRanked = rankCategoryKeywordMatches(rawText, categories, transactionType);
+  // Descarta candidatas cuja única evidência é uma palavra-evento genérica
+  // isolada sem corroboração de domínio de investimento (Fase B.1 — ver
+  // isUncorroboratedBareEventMatch). Tratadas como se a categoria nunca
+  // tivesse batido, não apenas rebaixadas — para não vazarem como
+  // vencedoras por serem a única candidata restante.
+  const ranked = rawRanked.filter((c) => !isUncorroboratedBareEventMatch(c, rawRanked, rawText));
+
+  const investmentRanked = ranked.filter((c) => c.category.categoryType === 'investment');
+  const eventRanked = investmentRanked.filter((c) => isEventInvestmentCategory(c.category));
+  const assetRanked = investmentRanked.filter((c) => !isEventInvestmentCategory(c.category));
+
+  // Bridge — só quando o padrão estrutural de aporte bate E (a) a única
+  // evidência real encontrada foi a palavra genérica isolada "aplicacao"
+  // (nenhuma keyword mais específica competindo), ou (b) já existe alguma
+  // categoria de investimento entre as candidatas reais (o texto já tem
+  // evidência investment-adjacent independente, ex.: "cdb"). Isso bloqueia
+  // "aplicação de multa/desconto/taxa" (a preposição "de" já impede o
+  // padrão) e não promove nada quando a única evidência real é de um
+  // domínio claramente não-investimento.
+  if (hasBareInvestmentApplicationPattern(rawText)) {
+    const onlyBareApplicacaoEvidence =
+      ranked.length > 0 && ranked.every((c) => normalizeForMatch(c.matchedKeyword) === 'aplicacao');
+    const hasIndependentInvestmentEvidence = investmentRanked.length > 0;
+    if (onlyBareApplicacaoEvidence || hasIndependentInvestmentEvidence) {
+      const aporteCategory = categories.find(
+        (c) => c.categoryType === 'investment' && isEventInvestmentCategory(c) && normalizeText(c.name).includes('aporte')
+      );
+      if (aporteCategory) return aporteCategory.name;
+    }
+  }
+
+  // Entre candidatas de investimento, EVENTO sempre vence CLASSE DE ATIVO
+  // (ver comentário do bloco acima) — não é desempate por especificidade,
+  // é a conclusão arquitetural da Fase A: `category` representa o evento
+  // financeiro, não o instrumento.
+  if (eventRanked.length > 0 && assetRanked.length > 0) {
+    return eventRanked[0].category.name;
+  }
+
+  return ranked.length > 0 ? ranked[0].category.name : null;
 }
 
 // Compatibilidade de LEITURA com fingerprints legados (OFX.4 — Fase B.2).
@@ -504,27 +721,26 @@ export function classifyTransactionWithContext(
     }
   }
 
+  const signType: 'income' | 'expense' = amount >= 0 ? 'income' : 'expense';
+
   // 3. Inferência semântica específica (rendimento, juros/mora, cartão,
   // contabilidade, banco da contraparte etc.)
   const inferred = learned ? null : inferCategoryFromDescription(
     rawText,
-    amount >= 0 ? 'income' : 'expense',
+    signType,
     context.categories
   );
 
-  // 4. Keyword de categoria (em memória) — ignora candidatas cuja ÚNICA
-  // evidência de match é um termo de mecanismo bancário (pix/ted/doc/
-  // transferência) sem nenhuma identidade comprovada: o meio de pagamento
-  // não decide a categoria econômica sozinho.
-  const categoryByKeyword = learned ?? inferred?.category ?? (
-    context.categories.find(
-      (cat) => {
-        if (isBlacklistedCategory(cat.name, rawText)) return false;
-        if (!cat.keywords?.some((k: string) => keywordMatches(rawText, k))) return false;
-        if (matchesOnlyMechanismKeywords(cat, rawText)) return false;
-        return true;
-      }
-    )?.name ?? null
+  // 4. Keyword de categoria (em memória) — ranking por especificidade
+  // (INVEST.CLASSIFIER.1 Fase B — ver resolveCategoryByKeyword) em vez de
+  // first-match. Ignora candidatas cuja ÚNICA evidência de match é um termo
+  // de mecanismo bancário (pix/ted/doc/transferência) sem nenhuma
+  // identidade comprovada: o meio de pagamento não decide a categoria
+  // econômica sozinho.
+  const categoryByKeyword = learned ?? inferred?.category ?? resolveCategoryByKeyword(
+    rawText,
+    context.categories,
+    signType
   );
 
   // 5. Fallback IA síncrona
@@ -532,7 +748,7 @@ export function classifyTransactionWithContext(
   const category = categoryByKeyword || ai || 'Outros';
 
   const type: 'income' | 'expense' | 'transfer' =
-    inferred?.type || (amount >= 0 ? 'income' : 'expense');
+    inferred?.type || signType;
 
   // Barreira central categoria × tipo — roda somente após category e type
   // estarem ambos resolvidos. Nunca altera type.
