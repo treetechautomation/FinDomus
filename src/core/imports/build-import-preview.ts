@@ -1,5 +1,5 @@
 import { generateImportHash } from '@/services/firestore/transactions';
-import { findBestMatches } from '@/core/finance/transfer-reconciliation-engine';
+import { findBestMatches, getReconciliationReason } from '@/core/finance/transfer-reconciliation-engine';
 
 export type ImportPreviewStatus =
   | 'new'
@@ -41,7 +41,7 @@ function isRecurringCandidate(description: string) {
   );
 }
 
-export function buildImportPreview(transactions: any[]) {
+export function buildImportPreview(transactions: any[], categories: any[] = []) {
   const rows: ImportPreviewRow[] = transactions.map((transaction, index) => {
     const importHash =
       transaction.importHash ??
@@ -127,14 +127,21 @@ export function buildImportPreview(transactions: any[]) {
   // --- RECONCILIATION ENGINE (IN-MEMORY) ---
   const transferRows = rows.filter((r) => r.transaction.type === 'transfer');
   if (transferRows.length > 1) {
-    const candidates = transferRows.map((r) => ({
-      id: `tmp_${r.index}`,
-      amount: Number(r.transaction.amount || 0),
-      date: String(r.transaction.dateISO || r.transaction.date || ''),
-      description: String(r.transaction.description || ''),
-      type: String(r.transaction.type || ''),
-      owner: String(r.transaction.owner || 'PF'),
-    }));
+    const candidates = transferRows.map((r) => {
+      const categoryName = r.transaction.category;
+      const catObj = categories.find((c: any) => c.name === categoryName);
+      return {
+        id: `tmp_${r.index}`,
+        amount: Number(r.transaction.amount || 0),
+        originalAmount: r.transaction.originalAmount !== undefined ? Number(r.transaction.originalAmount) : undefined,
+        date: String(r.transaction.dateISO || r.transaction.date || ''),
+        description: String(r.transaction.description || ''),
+        type: String(r.transaction.type || ''),
+        owner: String(r.transaction.owner || 'PF'),
+        categoryType: catObj ? catObj.categoryType : undefined,
+        hasIdentityMatch: Boolean(r.transaction.hasIdentityMatch),
+      };
+    });
 
     const pairedIds = new Set<string>();
 
@@ -153,18 +160,20 @@ export function buildImportPreview(transactions: any[]) {
         const targetRow = transferRows.find((r) => `tmp_${r.index}` === bestMatch.targetId)!;
         const pairId = `pair_${sourceRow.index}_${targetRow.index}`;
 
+        const reasonText = getReconciliationReason(bestMatch.score, sourceCandidate, candidates.find(c => c.id === bestMatch.targetId)!);
+
         // Source Update
         sourceRow.suggestedTransferPairId = pairId;
         sourceRow.suggestedTransferScore = bestMatch.score;
         sourceRow.suggestedTransferConfidence = bestMatch.confidence;
-        sourceRow.suggestedTransferReason = `Sugestão de reconciliação (Score ${bestMatch.score})`;
+        sourceRow.suggestedTransferReason = reasonText;
         sourceRow.status.push('suggested_transfer');
 
         // Target Update
         targetRow.suggestedTransferPairId = pairId;
         targetRow.suggestedTransferScore = bestMatch.score;
         targetRow.suggestedTransferConfidence = bestMatch.confidence;
-        targetRow.suggestedTransferReason = `Sugestão de reconciliação (Score ${bestMatch.score})`;
+        targetRow.suggestedTransferReason = reasonText;
         targetRow.status.push('suggested_transfer');
 
         console.log(`[Reconciliation Engine] Par encontrado no staging! Score: ${bestMatch.score} (${bestMatch.confidence})`);

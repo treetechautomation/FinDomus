@@ -1,6 +1,7 @@
 'use client';
 
 import { getCurrentMonthKey } from '@/core/finance/financial-period-engine';
+import { generateImportHash } from '@/services/firestore/transactions';
 import Link from 'next/link';
 
 import { useState, useCallback, useEffect } from 'react';
@@ -272,7 +273,7 @@ export function Importer() {
           }
 
         if (extractedTransactions.length > 0) {
-          const preview = buildImportPreview(extractedTransactions);
+          const preview = buildImportPreview(extractedTransactions, categories);
           console.log("===== IMPORT PREVIEW =====", preview);
           setTransactions(extractedTransactions);
           setOverrides({});
@@ -331,7 +332,7 @@ export function Importer() {
         return { ...tx, importHash: hash };
       });
 
-      const preview = buildImportPreview(reviewedTransactions);
+      const preview = buildImportPreview(reviewedTransactions, categories);
 
       const payload = preview.rows.map(row => {
         const t = row.transaction;

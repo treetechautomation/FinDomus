@@ -16,6 +16,8 @@ export type ParsedTransaction = {
   merchant: string;
   category: string;
   amount: number;
+  originalAmount?: number;
+  hasIdentityMatch?: boolean;
   type: 'income' | 'expense' | 'transfer';
 };
 
@@ -79,15 +81,59 @@ export function inferCategoryFromDescription(
   type: 'income' | 'expense' | 'transfer',
   availableCategories: { name: string; keywords?: string[] }[] = []
 ): { category: string; type?: 'income' | 'expense' | 'transfer' } | null {
-  // 1. Rendimentos / Investimentos (rendimento automático, rendimento, juros, remuneração, cdb, renda fixa)
+  // 0. Encargos / Juros de Mora / Multas / Rotativo (Juros de Mora, Juros Rotativo, IOF Rotativo, Juros de Atraso, Multa, Encargos de Refinanciamento)
+  const isEncargoMora = [
+    "juros de mora",
+    "juros mora",
+    "juros rotativo",
+    "juros de atraso",
+    "juros atraso",
+    "juros s/ fatura",
+    "juros fatura",
+    "iof rotativo",
+    "rotativo",
+    "multa contratual",
+    "multa de mora",
+    "multa mora",
+    "multa por atraso",
+    "multa atraso",
+    "encargos de refinanciamento",
+    "encargos refinanciamento",
+    "encargos financeiros",
+    "encargos de atraso",
+  ].some((kw) => keywordMatches(rawDescription, kw));
+
+  if (isEncargoMora) {
+    const isRefinanciamento = keywordMatches(rawDescription, "refinanciamento") || keywordMatches(rawDescription, "encargos de refinanciamento");
+    const candidates = isRefinanciamento
+      ? ["Dívidas / Empréstimos", "Juros / Multas", "Encargos Financeiros", "Outros"]
+      : ["Juros / Multas", "Dívidas / Empréstimos", "Encargos Financeiros", "Outros"];
+
+    const matched = findCategoryByNames(candidates, availableCategories);
+    return {
+      category: matched || (isRefinanciamento ? "Dívidas / Empréstimos" : "Juros / Multas"),
+      type: "expense",
+    };
+  }
+
+  // 1. Rendimentos / Investimentos (rendimento automático, rendimento, juros sobre capital próprio, remuneração, cdb, renda fixa)
+  const isJcp = [
+    "juros sobre capital proprio",
+    "juros sobre capital",
+    "juros s capital proprio",
+    "juros s/ capital proprio",
+    "jcp",
+    "dividendos",
+    "proventos",
+  ].some((kw) => keywordMatches(rawDescription, kw));
+
   const isRendimento = [
     "rendimento automatico",
     "rendimento",
-    "juros",
     "remuneracao",
     "cdb",
     "renda fixa",
-  ].some((kw) => keywordMatches(rawDescription, kw));
+  ].some((kw) => keywordMatches(rawDescription, kw)) || isJcp;
 
   if (isRendimento) {
     const matched = findCategoryByNames(

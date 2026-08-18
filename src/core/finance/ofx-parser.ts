@@ -332,15 +332,19 @@ export function resolveOfxTransaction(
 
       const installment = extractInstallmentData(memo);
 
+      const hasIdentity = hasInternalIdentityMatch(classificationText, context);
+
       return {
         date,
         description: memo,
         merchant: memo,
         externalId: fitId || undefined,
         amount: Math.abs(amount),
+        originalAmount: amount,
         ...installment,
         category,
         type,
+        hasIdentityMatch: hasIdentity,
       } as unknown as ParsedTransaction;
 }
 

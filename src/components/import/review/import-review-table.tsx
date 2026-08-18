@@ -87,7 +87,7 @@ export function ImportReviewTable({
     });
   }, [transactions, overrides]);
 
-  const { rows, totals } = useMemo(() => buildImportPreview(reviewedTransactions), [reviewedTransactions]);
+  const { rows, totals } = useMemo(() => buildImportPreview(reviewedTransactions, categories), [reviewedTransactions, categories]);
 
   const handleCategoryChange = (hash: string, newCategoryName: string) => {
     if (!setOverrides) return;
@@ -178,6 +178,7 @@ export function ImportReviewTable({
                 const decision = isSuggested ? decisions[row.suggestedTransferPairId!] : undefined;
                 const showSuggestion = isSuggested && decision !== 'ignored';
                 const isTransfer = tx.type === 'transfer';
+                const otherRow = isSuggested ? rows.find(r => r.suggestedTransferPairId === row.suggestedTransferPairId && r.index !== row.index) : null;
 
                 const validCategories = categories.filter(c => {
                   if (!c.categoryType) return true;
@@ -227,27 +228,51 @@ export function ImportReviewTable({
                               MATCH {row.suggestedTransferConfidence?.toUpperCase()}
                             </Badge>
                             <span className="font-medium text-primary">Score: {row.suggestedTransferScore}</span>
-                            <span className="text-muted-foreground hidden sm:inline">- {row.suggestedTransferReason}</span>
                           </div>
 
+                          <div className="mb-3 text-muted-foreground">
+                            Motivo: {row.suggestedTransferReason}
+                          </div>
+
+                          {otherRow && (
+                            <div className="mb-3 p-2 border border-border/50 bg-background/50 rounded-md">
+                              <div className="font-semibold text-primary mb-1">Possível transferência entre contas</div>
+                              <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                                <div>
+                                  <div className="font-medium">{otherRow.transaction.description}</div>
+                                  <div className="text-[10px] opacity-70">{otherRow.transaction.date}</div>
+                                </div>
+                                <div className="font-mono text-right">
+                                  {Number(otherRow.transaction.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           {decision !== 'accepted' ? (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="h-7 text-[11px]"
-                                onClick={() => setDecisions(prev => ({...prev, [row.suggestedTransferPairId!]: 'accepted'}))}
-                              >
-                                Aceitar Par
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-[11px]"
-                                onClick={() => setDecisions(prev => ({...prev, [row.suggestedTransferPairId!]: 'ignored'}))}
-                              >
-                                Ignorar
-                              </Button>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-7 text-[11px]"
+                                  onClick={() => setDecisions(prev => ({...prev, [row.suggestedTransferPairId!]: 'accepted'}))}
+                                >
+                                  Confirmar reconciliação
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[11px]"
+                                  title="A transação continuará na importação; apenas esta sugestão de reconciliação será descartada."
+                                  onClick={() => setDecisions(prev => ({...prev, [row.suggestedTransferPairId!]: 'ignored'}))}
+                                >
+                                  Ignorar sugestão
+                                </Button>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground/70 ml-1">
+                                Ignorar apenas descarta esta sugestão. A transação será importada normalmente.
+                              </span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-1 text-emerald-600 font-medium">

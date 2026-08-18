@@ -1,10 +1,13 @@
 export type ReconciliationCandidate = {
   id: string;
   amount: number;
+  originalAmount?: number;
   date: string; // Formato esperado: YYYY-MM-DD ou ISO string
   description: string;
   type: string; // 'transfer', 'income', 'expense'
   owner: string; // 'PF' | 'PJ'
+  categoryType?: string;
+  hasIdentityMatch?: boolean;
 };
 
 export type MatchResult = {
@@ -38,31 +41,51 @@ export function calculateMatchScore(
   // 2. Filtro Rígido: Valor exato
   if (Math.abs(source.amount) !== Math.abs(target.amount)) return 0;
 
-  // 3. Filtro Rígido: Mesma Entidade (Owner)
+  // 3. Filtro Rígido: Sinais Opostos (exige originalAmount para verificar)
+  if (source.originalAmount !== undefined && target.originalAmount !== undefined) {
+    if (Math.sign(source.originalAmount) === Math.sign(target.originalAmount)) return 0;
+  }
+
+  // 4. Filtro Rígido: Mesma Entidade (Owner incompatível)
   if (source.owner !== target.owner) return 0;
+
+  // 5. Filtro Rígido: Investimento não concorre
+  if (source.categoryType === 'investment' || target.categoryType === 'investment') return 0;
 
   let score = 0;
 
-  // 5. Janela Heurística de Data (Até 60 pontos)
+  // 6. Janela Heurística de Data (Reduzida para ser menos agressiva)
   const daysDiff = calculateDaysDifference(source.date, target.date);
 
   if (daysDiff === 0) {
-    score += 60; // Mesmo dia
+    score += 30; // Mesmo dia (Era 60)
   } else if (daysDiff === 1) {
-    score += 40; // 1 dia de diferença
+    score += 20; // 1 dia de diferença (Era 40)
   } else if (daysDiff <= 2) {
-    score += 20; // Janela padrão: 2 dias de diferença
+    score += 10; // Janela padrão: 2 dias de diferença
   } else if (daysDiff <= 3) {
-    score += 10; // Fallback: 3 dias de diferença (ex: sexta para segunda)
+    score += 5;  // Fallback: 3 dias de diferença
   } else {
     return 0; // Fora da janela permitida
   }
 
-  // 6. Similaridade de Descrição (Bônus até 40 pontos)
+  // 7. Similaridade de Descrição e Evidência Semântica
   const normSource = normalizeTransferText(source.description);
   const normTarget = normalizeTransferText(target.description);
 
-  // Palavras-chave em comum de transferências
+  // Identity Match (Evidência Forte)
+  if (source.hasIdentityMatch || target.hasIdentityMatch) {
+    score += 50;
+  }
+
+  let explicitOwnTransfer = false;
+  if (normSource.includes('mesma titularidade') || normTarget.includes('mesma titularidade') ||
+      normSource.includes('conta propria') || normTarget.includes('conta propria')) {
+    explicitOwnTransfer = true;
+    score += 40;
+  }
+
+  // Palavras-chave genéricas de transferência (Evidência Fraca)
   const keywords = ['ted', 'pix', 'transf', 'transferencia', 'doc'];
   let keywordMatch = false;
   for (const kw of keywords) {
@@ -73,20 +96,26 @@ export function calculateMatchScore(
   }
 
   if (keywordMatch) {
-    score += 20;
+    score += 10; // Reduzido (Era 20), PIX sozinho não prova conta própria
   }
 
   // Descrição idêntica ou muito parecida
   if (normSource === normTarget && normSource.length > 3) {
-    score += 20;
+    score += 10;
   } else if (
     normSource.includes(normTarget) ||
     normTarget.includes(normSource)
   ) {
-    // Partial match
     if (normSource.length > 5 && normTarget.length > 5) {
       score += 10;
     }
+  }
+
+  // HARD GATE #5 - Evidência Semântica Mínima
+  const hasStrongEvidence = source.hasIdentityMatch || target.hasIdentityMatch || explicitOwnTransfer;
+  if (!hasStrongEvidence) {
+    // Se não há evidência forte de conta própria, NUNCA sugerimos (capping < 50)
+    score = Math.min(score, 49);
   }
 
   return Math.min(score, 100);
@@ -95,10 +124,24 @@ export function calculateMatchScore(
 export function getConfidenceLevel(
   score: number
 ): 'high' | 'medium' | 'low' | 'none' {
-  if (score >= 80) return 'high'; // Sugestão Forte (pré-selecionável no staging, mas requer confirmação)
-  if (score >= 40) return 'medium'; // Sugestão Dúvidosa (UI exige clique do usuário)
+  if (score >= 80) return 'high'; // Sugestão Forte
+  if (score >= 50) return 'medium'; // Sugestão Média
   if (score > 0) return 'low';
   return 'none';
+}
+
+export function getReconciliationReason(score: number, source: ReconciliationCandidate, target: ReconciliationCandidate): string {
+  const isOpposite = source.originalAmount !== undefined && target.originalAmount !== undefined
+    ? Math.sign(source.originalAmount) !== Math.sign(target.originalAmount)
+    : true;
+
+  const parts = [];
+  parts.push('Mesmo valor');
+  if (isOpposite) parts.push('sinais opostos');
+  if (calculateDaysDifference(source.date, target.date) === 0) parts.push('mesmo dia');
+  if (source.hasIdentityMatch || target.hasIdentityMatch) parts.push('conta própria identificada');
+
+  return parts.join(', ');
 }
 
 export function findBestMatches(
@@ -112,7 +155,7 @@ export function findBestMatches(
     if (source.id === candidate.id) continue;
 
     const score = calculateMatchScore(source, candidate);
-    if (score > 0) {
+    if (score >= 50) { // OMIT CANDIDATES THAT ARE LOW CONFIDENCE FROM BEING MATCHED GREEDILY
       matches.push({
         sourceId: source.id,
         targetId: candidate.id,
@@ -122,6 +165,18 @@ export function findBestMatches(
     }
   }
 
-  // Ordena por maior score
-  return matches.sort((a, b) => b.score - a.score);
+  // Ordena por maior score, e como tie-break usa a menor diferença de dias, depois por ID estável
+  return matches.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const candA = candidates.find(c => c.id === a.targetId);
+    const candB = candidates.find(c => c.id === b.targetId);
+    if (candA && candB) {
+      const diffA = calculateDaysDifference(source.date, candA.date);
+      const diffB = calculateDaysDifference(source.date, candB.date);
+      if (diffA !== diffB) return diffA - diffB;
+      // Stable ID tie break
+      return candA.id.localeCompare(candB.id);
+    }
+    return 0;
+  });
 }
