@@ -32,6 +32,57 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+// --- OFX.9 B Helpers ---
+function normalizeCategoryKey(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function resolveCanonicalCategoryName(currentValue: string, categories: Category[]) {
+  if (!currentValue) return currentValue;
+  if (categories.some(c => c.name === currentValue)) return currentValue;
+
+  const normCurrent = normalizeCategoryKey(currentValue);
+  const matched = categories.filter(c => normalizeCategoryKey(c.name) === normCurrent);
+
+  if (matched.length === 1) {
+    return matched[0].name;
+  }
+  return currentValue;
+}
+
+function shouldOfferOwnTransfer(tx: any, categoryMetadata?: Category) {
+  if (categoryMetadata?.categoryType === 'investment') return false;
+  if (tx.type === 'transfer') return false;
+
+  const desc = (tx.description || '').toLowerCase();
+
+  if (desc.includes('compra no debito') ||
+      desc.includes('compra no débito') ||
+      desc.includes('compra cartao') ||
+      desc.includes('compra cartão') ||
+      desc.includes('purchase')) {
+    return false;
+  }
+
+  if (tx.hasIdentityMatch) return true;
+
+  if (desc.includes('pix') ||
+      desc.includes('ted') ||
+      desc.includes('doc') ||
+      desc.includes('transferencia') ||
+      desc.includes('transferência') ||
+      desc.includes('transf')) {
+    return true;
+  }
+
+  return false;
+}
+// ---
 type Props = {
   transactions: any[];
   isProcessing: boolean;
@@ -75,17 +126,25 @@ export function ImportReviewTable({
         externalId: tx.externalId,
       });
       const override = overrides[hash];
+
+      let finalCategory = tx.category;
+      if (!override?.category) {
+        finalCategory = resolveCanonicalCategoryName(finalCategory, categories);
+      } else {
+        finalCategory = override.category;
+      }
+
       if (override) {
         return {
           ...tx,
           importHash: hash,
-          category: override.category ?? tx.category,
+          category: finalCategory,
           type: override.type ?? tx.type,
         };
       }
-      return { ...tx, importHash: hash };
+      return { ...tx, importHash: hash, category: finalCategory };
     });
-  }, [transactions, overrides]);
+  }, [transactions, overrides, categories]);
 
   const { rows, totals } = useMemo(() => buildImportPreview(reviewedTransactions, categories), [reviewedTransactions, categories]);
 
@@ -180,13 +239,18 @@ export function ImportReviewTable({
                 const isTransfer = tx.type === 'transfer';
                 const otherRow = isSuggested ? rows.find(r => r.suggestedTransferPairId === row.suggestedTransferPairId && r.index !== row.index) : null;
 
+                const selectedCatData = categories.find(c => c.name === tx.category);
+
                 const validCategories = categories.filter(c => {
+                  if (c.name === tx.category) return true;
                   if (!c.categoryType) return true;
                   if (c.categoryType === tx.type) return true;
                   return false;
                 });
 
-                const selectedCatData = categories.find(c => c.name === tx.category);
+                if (tx.category === 'Outros' && !validCategories.some(c => c.name === 'Outros')) {
+                  validCategories.push({ name: 'Outros', id: 'synthetic-outros' } as any);
+                }
 
                 return (
                   <TableRow key={row.index}>
@@ -202,7 +266,7 @@ export function ImportReviewTable({
                         {tx.merchant}
                       </div>
 
-                      {!isTransfer && (
+                      {shouldOfferOwnTransfer(tx, selectedCatData) && (
                         <div className="mt-2">
                           <Button
                             variant="ghost"
