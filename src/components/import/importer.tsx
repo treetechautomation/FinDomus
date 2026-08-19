@@ -348,15 +348,24 @@ export function Importer() {
           transferReviewedAt = new Date().toISOString();
         }
 
+        // IMPORT.JULHO.2 — Fase B: competência é a data do próprio movimento
+        // para conta corrente (Firestore já resolve isso via fallback em
+        // addTransactionsBatch: `item.competenceMonthKey ?? normalizedDate.monthKey`
+        // — não duplicar essa lógica aqui, só parar de bloquear o fallback).
+        // Cartão de crédito mantém o campo manual "Competência Financeira"
+        // até existir modelagem real de fatura/fechamento (fora de escopo
+        // desta fase — ver IMPORT.JULHO.2 Fase A, CARD_COMPETENCE_RULE_PROVEN=false).
+        const financialSourceType = file?.name?.toLowerCase().includes("fatura") ? "credit_card" : "checking_account";
+
         const data: any = {
           ...t,
           owner,
           companyId: owner === "PJ" ? companyId : null,
-          competenceMonthKey: competenceMonth,
+          ...(financialSourceType === "credit_card" ? { competenceMonthKey: competenceMonth } : {}),
           importSessionId,
           importSessionName: importName || file?.name || "Importação sem nome",
           financialSource: importName || file?.name || "Importação sem nome",
-          financialSourceType: file?.name?.toLowerCase().includes("fatura") ? "credit_card" : "checking_account",
+          financialSourceType,
         };
 
         if (transferPairId) {
@@ -421,11 +430,29 @@ export function Importer() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label>Competência Financeira</Label>
-              <Input
-                type="month"
-                value={competenceMonth}
-                onChange={(e) => setCompetenceMonth(e.target.value)}
-              />
+              {(() => {
+                // IMPORT.JULHO.2 — Fase B: mesma detecção estrutural usada em
+                // confirmImport (linha ~356). Conta corrente usa a data do
+                // próprio movimento como competência — o campo manual não é
+                // mais aplicado, então fica desabilitado para não sugerir um
+                // controle que não tem efeito.
+                const isCreditCard = file?.name?.toLowerCase().includes("fatura");
+                return (
+                  <>
+                    <Input
+                      type="month"
+                      value={competenceMonth}
+                      onChange={(e) => setCompetenceMonth(e.target.value)}
+                      disabled={!isCreditCard}
+                    />
+                    {!isCreditCard && (
+                      <p className="text-xs text-muted-foreground">
+                        Extrato de conta corrente: a competência é a data de cada movimento, não precisa ser definida manualmente.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="space-y-2">
