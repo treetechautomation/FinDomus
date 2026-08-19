@@ -343,6 +343,32 @@ function hasBareInvestmentApplicationPattern(rawText: string): boolean {
   return /\baplicacao\b(?!\s+de\b)\s+\S/.test(norm);
 }
 
+// INVEST.CLASSIFIER.2 — Fase B — LÉXICO POSITIVO DE INSTRUMENTOS FINANCEIROS
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase A comprovou (CUSTOM_CATEGORY_DEPENDENCY_PROVEN=true): "Aplicação RDB"
+// só chegava em "Aporte investimento" em contas que, por acidente, tinham uma
+// categoria pessoal com keyword solta "aplicacao" — em qualquer outra conta
+// (inclusive o catálogo puramente padrão) o mesmo texto caía em "Outros",
+// porque nenhuma categoria tem "rdb" como keyword em lugar nenhum.
+//
+// Esta lista é evidência semântica de que o SUBSTANTIVO ligado ao evento é um
+// instrumento financeiro — não é uma lista de categorias, não referencia
+// nenhum banco/corretora/produto específico, não é um hardcode por usuário.
+// Cada termo é um tipo de instrumento genérico do mercado financeiro
+// brasileiro. Deliberadamente NÃO inclui "fundo"/"fundos" soltos: a palavra é
+// ambígua demais em português comum ("fundo de caridade", "fundo de
+// garantia") para servir como evidência positiva sem qualificador — casos
+// como "Aplicação fundo" continuam sem promoção automática (documentado como
+// DEFERRED_SEMANTIC_CASE no relatório da Fase B).
+const KNOWN_FINANCIAL_INSTRUMENT_TERMS = [
+  'rdb', 'cdb', 'lci', 'lca', 'cri', 'cra', 'fii',
+  'tesouro', 'selic', 'ipca', 'debenture', 'acoes', 'renda fixa',
+];
+
+function containsKnownFinancialInstrument(rawText: string): boolean {
+  return KNOWN_FINANCIAL_INSTRUMENT_TERMS.some((term) => keywordMatches(rawText, term));
+}
+
 // INVEST.CLASSIFIER.1 — Fase B.1 — JCP/JSCP são duas grafias da MESMA sigla
 // financeira padrão (Juros sobre Capital Próprio) — não é uma equivalência
 // inventada para este caso, é convenção de mercado já usada por instituições
@@ -408,8 +434,18 @@ function isUncorroboratedBareEventMatch(
   const kw = normalizeForMatch(candidate.matchedKeyword);
   if (!BARE_EVENT_TERMS.includes(kw)) return false;
 
-  if (STRUCTURALLY_BRIDGEABLE_EVENT_TERMS.includes(kw) && hasBareEventProductPattern(rawText, kw)) {
-    return false; // corroborado estruturalmente (ex.: "Aporte RDB", "Resgate RDB")
+  // INVEST.CLASSIFIER.2 — Fase B: o padrão estrutural sozinho ("evento não
+  // seguido de preposição") provou ser insuficiente — "Resgate XP", "Resgate
+  // Benefício", "Aporte Escolar" também batiam nesse padrão e eram
+  // promovidos incorretamente (nenhum teste anterior cobria evento+palavra
+  // arbitrária SEM preposição). Agora exige adicionalmente evidência de que
+  // a palavra seguinte é um instrumento financeiro conhecido.
+  if (
+    STRUCTURALLY_BRIDGEABLE_EVENT_TERMS.includes(kw) &&
+    hasBareEventProductPattern(rawText, kw) &&
+    containsKnownFinancialInstrument(rawText)
+  ) {
+    return false; // corroborado estruturalmente por evento + instrumento (ex.: "Aporte RDB", "Resgate RDB")
   }
 
   const hasCorroboration = allCandidates.some(
@@ -445,15 +481,22 @@ function resolveCategoryByKeyword(
   // evidência real encontrada foi a palavra genérica isolada "aplicacao"
   // (nenhuma keyword mais específica competindo), ou (b) já existe alguma
   // categoria de investimento entre as candidatas reais (o texto já tem
-  // evidência investment-adjacent independente, ex.: "cdb"). Isso bloqueia
-  // "aplicação de multa/desconto/taxa" (a preposição "de" já impede o
-  // padrão) e não promove nada quando a única evidência real é de um
-  // domínio claramente não-investimento.
+  // evidência investment-adjacent independente, ex.: "cdb"), ou (c) —
+  // INVEST.CLASSIFIER.2 Fase B — o texto contém um instrumento financeiro
+  // conhecido (ver KNOWN_FINANCIAL_INSTRUMENT_TERMS), independente de
+  // QUALQUER categoria do catálogo já ter batido antes. É essa terceira
+  // condição que resolve "Aplicação RDB" em contas sem nenhuma categoria
+  // pessoal acidental habilitando o bridge (CUSTOM_CATEGORY_DEPENDENCY_PROVEN
+  // — Fase A). Isso bloqueia "aplicação de multa/desconto/taxa" (a
+  // preposição "de" já impede o padrão) e não promove nada quando a única
+  // evidência real é de um domínio claramente não-investimento e o
+  // substantivo não é um instrumento financeiro reconhecido.
   if (hasBareInvestmentApplicationPattern(rawText)) {
     const onlyBareApplicacaoEvidence =
       ranked.length > 0 && ranked.every((c) => normalizeForMatch(c.matchedKeyword) === 'aplicacao');
     const hasIndependentInvestmentEvidence = investmentRanked.length > 0;
-    if (onlyBareApplicacaoEvidence || hasIndependentInvestmentEvidence) {
+    const hasKnownInstrumentEvidence = containsKnownFinancialInstrument(rawText);
+    if (onlyBareApplicacaoEvidence || hasIndependentInvestmentEvidence || hasKnownInstrumentEvidence) {
       const aporteCategory = categories.find(
         (c) => c.categoryType === 'investment' && isEventInvestmentCategory(c) && normalizeText(c.name).includes('aporte')
       );
