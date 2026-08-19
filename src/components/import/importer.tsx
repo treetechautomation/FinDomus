@@ -1,6 +1,7 @@
 'use client';
 
 import { getCurrentMonthKey } from '@/core/finance/financial-period-engine';
+import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date';
 import { generateImportHash } from '@/services/firestore/transactions';
 import Link from 'next/link';
 
@@ -67,6 +68,11 @@ export function Importer() {
   const [competenceMonth, setCompetenceMonth] = useState(
     getCurrentMonthKey()
   );
+  // IMPORT.COMPETENCE.1 — Fase B: aviso quando o lote mistura mais de um
+  // monthKey e por isso não foi possível sugerir uma competência única com
+  // confiança (a competência permanece editável e usa o fallback de mês
+  // corrente já existente — só o aviso é novo).
+  const [competenceMultiMonthWarning, setCompetenceMultiMonthWarning] = useState(false);
 
   const [companies, setCompanies] = useState<any[]>([]);
   const [companyId, setCompanyId] = useState('');
@@ -164,6 +170,7 @@ export function Importer() {
     setStep('upload');
     setIsProcessing(false);
     setRestoredStaging(null);
+    setCompetenceMultiMonthWarning(false);
   };
 
   const processFile = async () => {
@@ -277,6 +284,28 @@ export function Importer() {
           console.log("===== IMPORT PREVIEW =====", preview);
           setTransactions(extractedTransactions);
           setOverrides({});
+
+          // IMPORT.COMPETENCE.1 — Fase B: sugestão inicial de competência a
+          // partir do próprio arquivo, não do calendário. Roda só aqui —
+          // uma vez por arquivo processado, nunca em useEffect reativo sobre
+          // `transactions` — para nunca sobrescrever uma escolha manual
+          // posterior do usuário antes da confirmação (ver ETAPA 10 do
+          // ticket). Quando o lote tem um único monthKey, sugere esse mês;
+          // quando mistura mais de um (ou nenhuma data válida), mantém o
+          // fallback de mês corrente já existente e apenas sinaliza — não
+          // inventa silenciosamente uma competência única sem aviso.
+          const monthKeysInBatch = new Set(
+            extractedTransactions
+              .map((t) => normalizeTransactionDate(t.dateISO || t.date).monthKey)
+              .filter(Boolean)
+          );
+          if (monthKeysInBatch.size === 1) {
+            setCompetenceMonth([...monthKeysInBatch][0]);
+            setCompetenceMultiMonthWarning(false);
+          } else {
+            setCompetenceMultiMonthWarning(monthKeysInBatch.size > 1);
+          }
+
           setStep('config');
       } else {
         toast({
@@ -348,20 +377,24 @@ export function Importer() {
           transferReviewedAt = new Date().toISOString();
         }
 
-        // IMPORT.JULHO.2 — Fase B: competência é a data do próprio movimento
-        // para conta corrente (Firestore já resolve isso via fallback em
-        // addTransactionsBatch: `item.competenceMonthKey ?? normalizedDate.monthKey`
-        // — não duplicar essa lógica aqui, só parar de bloquear o fallback).
-        // Cartão de crédito mantém o campo manual "Competência Financeira"
-        // até existir modelagem real de fatura/fechamento (fora de escopo
-        // desta fase — ver IMPORT.JULHO.2 Fase A, CARD_COMPETENCE_RULE_PROVEN=false).
+        // IMPORT.COMPETENCE.1 — Fase B: competência financeira PODE divergir
+        // da data do movimento (decisão de negócio explícita — ver
+        // IMPORT.COMPETENCE.1 Fase A). `competenceMonth` já chega aqui
+        // sugerido a partir do próprio arquivo (monthKey único do lote) ou,
+        // quando isso não é possível com confiança, do fallback de mês
+        // corrente com aviso visível — mas em qualquer caso é sempre o valor
+        // que o usuário efetivamente confirmou na tela, editável tanto para
+        // checking_account quanto para credit_card. `monthKey` (calculado
+        // por transação em addTransactionsBatch/normalizeTransactionDate)
+        // continua sendo, sempre, a data real do movimento — as duas
+        // dimensões nunca se confundem.
         const financialSourceType = file?.name?.toLowerCase().includes("fatura") ? "credit_card" : "checking_account";
 
         const data: any = {
           ...t,
           owner,
           companyId: owner === "PJ" ? companyId : null,
-          ...(financialSourceType === "credit_card" ? { competenceMonthKey: competenceMonth } : {}),
+          competenceMonthKey: competenceMonth,
           importSessionId,
           importSessionName: importName || file?.name || "Importação sem nome",
           financialSource: importName || file?.name || "Importação sem nome",
@@ -430,29 +463,25 @@ export function Importer() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label>Competência Financeira</Label>
-              {(() => {
-                // IMPORT.JULHO.2 — Fase B: mesma detecção estrutural usada em
-                // confirmImport (linha ~356). Conta corrente usa a data do
-                // próprio movimento como competência — o campo manual não é
-                // mais aplicado, então fica desabilitado para não sugerir um
-                // controle que não tem efeito.
-                const isCreditCard = file?.name?.toLowerCase().includes("fatura");
-                return (
-                  <>
-                    <Input
-                      type="month"
-                      value={competenceMonth}
-                      onChange={(e) => setCompetenceMonth(e.target.value)}
-                      disabled={!isCreditCard}
-                    />
-                    {!isCreditCard && (
-                      <p className="text-xs text-muted-foreground">
-                        Extrato de conta corrente: a competência é a data de cada movimento, não precisa ser definida manualmente.
-                      </p>
-                    )}
-                  </>
-                );
-              })()}
+              {/* IMPORT.COMPETENCE.1 — Fase B: campo sempre editável — a
+                  competência é uma decisão financeira do usuário, que PODE
+                  divergir da data real do movimento (decisão de negócio
+                  confirmada — ver IMPORT.COMPETENCE.1 Fase A). Já chega aqui
+                  pré-preenchido com a sugestão calculada a partir do arquivo
+                  logo após o parsing (ver processFile). */}
+              <Input
+                type="month"
+                value={competenceMonth}
+                onChange={(e) => setCompetenceMonth(e.target.value)}
+              />
+              {competenceMultiMonthWarning && (
+                <Alert>
+                  <AlertTitle>Lote com mais de um mês</AlertTitle>
+                  <AlertDescription>
+                    Este arquivo contém movimentações em meses diferentes — não foi possível sugerir uma única competência com confiança. Confira o mês acima antes de confirmar.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="space-y-2">
