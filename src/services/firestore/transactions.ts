@@ -345,15 +345,30 @@ export async function getTransactionsByMonth(
     collection(db, 'transactions'),
     where('userId', '==', userId),
     where('owner', '==', owner),
-    where('monthKey', '==', monthKey)
+    // Regime de competência: o mês financeiro é definido por competenceMonthKey,
+    // não pelo monthKey (regime de caixa). Ver getTransactionMonthKey()/
+    // isTransactionInMonth() em core/finance/financial-period-engine.
+    where('competenceMonthKey', '==', monthKey)
   );
 
   const snap = await getDocs(q);
 
-  return snap.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as TransactionDTO[];
+  return snap.docs
+    .map((doc) => {
+      const data = doc.data() as Partial<TransactionDTO>;
+
+      return {
+        id: doc.id,
+        ...data,
+        type: data.type || 'expense',
+        amount: Number(data.amount || 0),
+        description: data.description || '',
+        owner: data.owner || 'PF',
+        companyId: data.companyId ?? null,
+        competenceMonthKey: data.competenceMonthKey || data.monthKey,
+      } as TransactionDTO;
+    })
+    .filter((t) => (t.competenceMonthKey || t.monthKey) === monthKey);
 }
 
 export async function getTransactionsByOwnerAndMonth(

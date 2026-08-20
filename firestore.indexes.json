@@ -131,6 +131,17 @@
       ]
     },
     {
+      "_comment": "transactions: userId + owner + competenceMonthKey — leitura do mês financeiro por regime de competência (getTransactionsByMonth)",
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "owner", "order": "ASCENDING" },
+        { "fieldPath": "competenceMonthKey", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "transactions",
       "queryScope": "COLLECTION",
       "fields": [

@@ -152,6 +152,7 @@ export default function PessoalClient() {
   const [expensePage, setExpensePage] = useState(1);
   const [incomePage, setIncomePage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [transactionsError, setTransactionsError] = useState<string | null>(null);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
@@ -217,8 +218,20 @@ export default function PessoalClient() {
 
     async function loadTransactions() {
       if (!user?.uid) return;
-      const result = await getTransactionsByMonth(user.uid, 'PF', selectedMonthKey);
-      setPersonalTransactions(result || []);
+      try {
+        const result = await getTransactionsByMonth(user.uid, 'PF', selectedMonthKey);
+        setPersonalTransactions(result || []);
+        setTransactionsError(null);
+      } catch (error: any) {
+        // Falha de leitura (ex.: failed-precondition por índice ausente) NUNCA pode
+        // ser apresentada como um mês financeiro zerado válido.
+        console.error(
+          "[pessoal] Falha ao carregar transações do mês:",
+          { owner: 'PF', monthKey: selectedMonthKey, code: error?.code ?? null },
+          error
+        );
+        setTransactionsError(String(error?.code || error?.message || 'unknown'));
+      }
     }
 
     loadSelectedMonthClosure();
@@ -229,8 +242,18 @@ export default function PessoalClient() {
   useEffect(() => {
     const handler = async () => {
       if (!user?.uid) return;
-      const result = await getTransactionsByMonth(user.uid, 'PF', selectedMonthKey);
-      setPersonalTransactions(result || []);
+      try {
+        const result = await getTransactionsByMonth(user.uid, 'PF', selectedMonthKey);
+        setPersonalTransactions(result || []);
+        setTransactionsError(null);
+      } catch (error: any) {
+        console.error(
+          "[pessoal] Falha ao recarregar transações após importação:",
+          { owner: 'PF', monthKey: selectedMonthKey, code: error?.code ?? null },
+          error
+        );
+        setTransactionsError(String(error?.code || error?.message || 'unknown'));
+      }
     };
     financialEvents.on('transaction:created', handler);
     return () => {
@@ -476,7 +499,9 @@ const trendChartData = Object.values(
   const isMobile = useIsMobile();
 
   const viewProps = {
-    loading,
+    // Em caso de falha na leitura das transações, manter o estado de carregamento
+    // em vez de renderizar KPIs zerados como se fossem dados financeiros válidos.
+    loading: loading || transactionsError !== null,
     selectedMonth,
     selectedMonthKey,
     income,
