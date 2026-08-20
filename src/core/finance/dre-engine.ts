@@ -126,7 +126,17 @@ export function classifyPFDRECategory(category?: string): PFDRECategory {
   if (/salario|pro[- ]?labore|freelance|reembolso|rendimento|dividendo/.test(val)) {
     return "receita";
   }
-  if (/investimento|aporte|tesouro|cdb|renda\s*fixa|acoes|fii|fundo\s*imobiliario|cripto|consorcio|amortizacao|financiamento|emprestimo|divida/.test(val)) {
+  // B01: dívida/empréstimo/financiamento NÃO são construção de patrimônio.
+  // Taxonomia de referência já existente: defaultWealthCategories (wealth-engine.ts)
+  // classifica "Dívidas / Empréstimos" dentro de "Essenciais".
+  // Avaliado ANTES da regex patrimonial para que "Encargos de Refinanciamento"
+  // e "Financiamento" não sejam capturados como aporte.
+  // DATA_MODEL_LIMITATION: "amortizacao" não é decomponível em principal vs juros
+  // no schema atual; tratada de forma conservadora junto com dívida.
+  if (/divida|emprestimo|financiamento|amortizacao/.test(val)) {
+    return "essenciais";
+  }
+  if (/investimento|aporte|tesouro|cdb|renda\s*fixa|acoes|fii|fundo\s*imobiliario|cripto|consorcio|reserva\s*de\s*emergencia|reserva\s*emergencia/.test(val)) {
     return "construcaoPatrimonial";
   }
   if (/saude|plano\s*de\s*saude|consulta|exame|odontologia|farmacia|medicamento|suplemento|otica|oculos|lente/.test(val)) {
@@ -141,7 +151,7 @@ export function classifyPFDRECategory(category?: string): PFDRECategory {
   if (/seguro|pet|academia|esporte|terapia|bem\s*estar/.test(val)) {
     return "qualidadeVida";
   }
-  if (/aluguel|condominio|iptu|energia|agua|gas|internet|telefone|supermercado|limpeza|transporte|combustivel|pedagio|ipva|tarifa|iof/.test(val)) {
+  if (/aluguel|condominio|iptu|energia|agua|gas|internet|telefone|supermercado|alimentacao|limpeza|transporte|combustivel|pedagio|estacionamento|ipva|tarifa|iof/.test(val)) {
     return "essenciais";
   }
 
@@ -167,7 +177,13 @@ export function buildPFDRE(
   for (const t of pfTransactions) {
     if (t.type === "transfer") {
       if (t.transferKind === "investment_aporte") {
-        construcaoPatrimonial += Math.abs(Number(t.amount || 0));
+        // B06: convenção real auditada — transfers são sempre armazenados com amount > 0.
+        // Guarda defensiva: amount <= 0 é dado inválido e NÃO pode virar aporte positivo.
+        // Não existe conceito de resgate nesta fase; valor inválido é neutralizado.
+        const aporteAmount = Number(t.amount || 0);
+        if (aporteAmount > 0) {
+          construcaoPatrimonial += aporteAmount;
+        }
       }
       continue;
     }
@@ -192,8 +208,13 @@ export function buildPFDRE(
 
   const saldoRestante = receitaTotal - despesasOperacionais - construcaoPatrimonial;
 
+  // B02: a fórmula anterior era ((construcaoPatrimonial + saldoRestante) / receitaTotal),
+  // onde construcaoPatrimonial se cancela algebricamente (saldoRestante já a subtrai),
+  // resultando em margem operacional — não em taxa de acumulação.
+  // Consumidores exigem "taxa de aporte": freedom-engine (investmentRatePercent, meta 30%;
+  // ação "Automatizar aporte mensal de 15%") e wealth-engine (insight de acumulação >= 30%).
   const taxaAcumulacao =
-    receitaTotal > 0 ? ((construcaoPatrimonial + saldoRestante) / receitaTotal) * 100 : 0;
+    receitaTotal > 0 ? (construcaoPatrimonial / receitaTotal) * 100 : 0;
 
   return {
     receitaTotal,
