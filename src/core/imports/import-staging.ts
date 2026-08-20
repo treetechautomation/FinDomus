@@ -12,7 +12,10 @@ export const STAGING_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 // Incrementar sempre que uma mudança no pipeline de classificação alterar o
 // resultado esperado de uma preview já calculada.
-export const IMPORT_PREVIEW_SCHEMA_VERSION = 3;
+// ACCOUNTS.IMPORT.BALANCE.1C — bump 3 -> 4: o staging agora carrega accountId.
+// Preview v3 (sem conta) não pode ser restaurada como se tivesse uma conta
+// válida — deliberadamente invalidada.
+export const IMPORT_PREVIEW_SCHEMA_VERSION = 4;
 
 export type ImportStagingData = {
   version: number;
@@ -23,6 +26,7 @@ export type ImportStagingData = {
   competenceMonth: string;
   importName: string;
   companyId: string;
+  accountId?: string;
   fileName: string;
   fileSize: number;
   fileFingerprint: string;

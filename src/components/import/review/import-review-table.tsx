@@ -33,6 +33,17 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // --- OFX.9 B Helpers ---
+function accountTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    checking: 'Conta Corrente',
+    savings: 'Poupança',
+    wallet: 'Carteira',
+    investment: 'Investimento',
+    credit_card: 'Cartão de Crédito',
+  };
+  return map[type] || type;
+}
+
 function normalizeCategoryKey(value: string) {
   return String(value || "")
     .toLowerCase()
@@ -102,6 +113,8 @@ type Props = {
   companies: any[];
   companyId: string;
   setCompanyId: (v: string) => void;
+
+  account?: any;
 };
 
 export function ImportReviewTable({
@@ -112,6 +125,7 @@ export function ImportReviewTable({
   overrides = {},
   setOverrides,
   categories = [],
+  account,
 }: Props) {
   const [decisions, setDecisions] = useState<Record<string, 'accepted' | 'ignored'>>({});
 
@@ -189,6 +203,11 @@ export function ImportReviewTable({
               <span className="text-negative">Saídas: R$ {totals.grossExpenses.toFixed(2)}</span>
               <span className="text-muted-foreground">Transferências: R$ {totals.transfer.toFixed(2)}</span>
             </div>
+            {account && (
+              <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
+                Conta de destino da importação: {account.name} — {accountTypeLabel(account.type)} — {account.owner === 'PJ' ? 'Empresarial' : 'Pessoal'}
+              </div>
+            )}
           </CardDescription>
         </div>
 
@@ -203,7 +222,7 @@ export function ImportReviewTable({
 
           <Button
             onClick={() => confirmImport(decisions)}
-            disabled={isProcessing}
+            disabled={isProcessing || !account?.id}
           >
             {isProcessing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

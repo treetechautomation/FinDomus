@@ -5,7 +5,7 @@ import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date
 import { generateImportHash } from '@/services/firestore/transactions';
 import Link from 'next/link';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   Upload, FileText, X,
@@ -35,7 +35,7 @@ import { parseNubankCSV } from '@/core/finance/invoice-parser';
 import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
 import { buildImportPreview } from '@/core/imports/build-import-preview';
-import { getCompanies } from '@/services/firestore/accounts';
+import { getAccounts, getCompanies } from '@/services/firestore/accounts';
 import { getCategories, type Category } from '@/services/firestore/categories';
 import {
   IMPORT_PREVIEW_SCHEMA_VERSION,
@@ -47,6 +47,17 @@ import {
   type ImportStagingData,
 } from '@/core/imports/import-staging';
 
+
+function accountTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    checking: 'Conta Corrente',
+    savings: 'Poupança',
+    wallet: 'Carteira',
+    investment: 'Investimento',
+    credit_card: 'Cartão de Crédito',
+  };
+  return map[type] || type;
+}
 
 export function Importer() {
   const { user } = useAuth();
@@ -78,6 +89,9 @@ export function Importer() {
   const [companyId, setCompanyId] = useState('');
   const [importName, setImportName] = useState("");
 
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accountId, setAccountId] = useState('');
+
   // Restaura staging da sessão anterior ao montar o componente
   useEffect(() => {
     const staging = loadStaging();
@@ -98,13 +112,14 @@ export function Importer() {
         competenceMonth,
         importName,
         companyId,
+        accountId,
         fileName: file?.name ?? '',
         fileSize: file?.size ?? 0,
         fileFingerprint,
         savedAt: new Date().toISOString(),
       });
     }
-  }, [transactions, step, owner, competenceMonth, importName, companyId, file, fileFingerprint, overrides]);
+  }, [transactions, step, owner, competenceMonth, importName, companyId, accountId, file, fileFingerprint, overrides]);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -121,10 +136,29 @@ export function Importer() {
       } catch (err) {
         console.error(err);
       }
+      try {
+        const accountsData = await getAccounts(user.uid);
+        setAccounts(accountsData || []);
+      } catch (err) {
+        console.error(err);
+      }
     }
 
     loadInitialData();
   }, [user?.uid]);
+
+
+  // ACCOUNTS.IMPORT.BALANCE.1C — contas compatíveis com o owner/empresa atuais.
+  // Mesma semântica de new-transaction-dialog.tsx (filteredAccounts): PF vê PF,
+  // PJ vê contas da própria empresa (companyId deve bater). Sem filtro por
+  // `type` nesta fase (ACCOUNT_TYPE_AUTO_FILTER=false).
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((account: any) => {
+      if (account.owner !== owner) return false;
+      if (owner === 'PJ') return companyId ? account.companyId === companyId : false;
+      return true;
+    });
+  }, [accounts, owner, companyId]);
 
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -171,6 +205,7 @@ export function Importer() {
     setIsProcessing(false);
     setRestoredStaging(null);
     setCompetenceMultiMonthWarning(false);
+    setAccountId('');
   };
 
   const processFile = async () => {
@@ -334,6 +369,33 @@ export function Importer() {
       });
       return;
     }
+
+    // ACCOUNTS.IMPORT.BALANCE.1C — gate lógico: sem conta válida não confirma.
+    if (!accountId) {
+      toast({
+        title: "Conta obrigatória",
+        description: "Selecione a conta de destino da importação.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Revalida compatibilidade da conta antes de persistir (client-side).
+    const selectedAccount = accounts.find(
+      (a: any) =>
+        a.id === accountId &&
+        a.owner === owner &&
+        (owner !== 'PJ' || a.companyId === companyId)
+    );
+    if (!selectedAccount) {
+      toast({
+        title: "Conta inválida",
+        description: "A conta selecionada não é compatível com a origem/empresa atual.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -394,6 +456,7 @@ export function Importer() {
           ...t,
           owner,
           companyId: owner === "PJ" ? companyId : null,
+          accountId,
           competenceMonthKey: competenceMonth,
           importSessionId,
           importSessionName: importName || file?.name || "Importação sem nome",
@@ -498,7 +561,11 @@ export function Importer() {
 
             <select
               value={owner}
-              onChange={(e) => setOwner(e.target.value as "PF" | "PJ")}
+              onChange={(e) => {
+                setOwner(e.target.value as "PF" | "PJ");
+                setCompanyId('');
+                setAccountId('');
+              }}
               className="h-10 w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="PF">Pessoa Física (PF)</option>
@@ -512,7 +579,10 @@ export function Importer() {
 
               <select
                 value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
+                onChange={(e) => {
+                  setCompanyId(e.target.value);
+                  setAccountId('');
+                }}
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
               >
                 <option value="">Selecione a empresa</option>
@@ -525,6 +595,23 @@ export function Importer() {
             </div>
           )}
 
+          <div className="space-y-2">
+            <Label>Conta de destino da importação</Label>
+
+            <select
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="">Selecione a conta</option>
+              {filteredAccounts.map((account: any) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} — {accountTypeLabel(account.type)} — {account.owner === 'PJ' ? 'Empresarial' : 'Pessoal'}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex justify-end gap-2">
             <Button
               variant="outline"
@@ -535,7 +622,7 @@ export function Importer() {
 
             <Button
               onClick={() => setStep("review")}
-                disabled={(owner === "PJ" && !companyId) || !importName.trim()}
+                disabled={(owner === "PJ" && !companyId) || !importName.trim() || !accountId}
             >
               Continuar
             </Button>
@@ -566,6 +653,8 @@ export function Importer() {
         companies={companies}
         companyId={companyId}
         setCompanyId={setCompanyId}
+
+        account={filteredAccounts.find((a: any) => a.id === accountId)}
       />
     );
   }
@@ -606,6 +695,7 @@ export function Importer() {
                           setCompetenceMonth(restoredStaging.competenceMonth);
                           setImportName(restoredStaging.importName);
                           setCompanyId(restoredStaging.companyId);
+                          setAccountId(restoredStaging.accountId ?? '');
                           setFileFingerprint(restoredStaging.fileFingerprint);
                           setStep(restoredStaging.step);
                           setRestoredStaging(null);
