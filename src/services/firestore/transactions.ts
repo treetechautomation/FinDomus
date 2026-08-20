@@ -52,6 +52,7 @@ export type TransactionDTO = {
   transferConfidence?: string;
   transferReviewStatus?: 'accepted' | 'ignored' | 'pending';
   transferReviewedAt?: string;
+  transferKind?: 'investment_aporte';
   createdAt?: string;
   updatedAt?: string;
 };

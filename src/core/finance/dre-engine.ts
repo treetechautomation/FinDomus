@@ -149,7 +149,7 @@ export function classifyPFDRECategory(category?: string): PFDRECategory {
 }
 
 export function buildPFDRE(
-  transactions: Array<{ type?: string; amount?: number; category?: string; owner?: string }>
+  transactions: Array<{ type?: string; amount?: number; category?: string; owner?: string; transferKind?: string }>
 ): PFDRE {
   let receitaTotal = 0;
   let essenciais = 0;
@@ -166,6 +166,9 @@ export function buildPFDRE(
 
   for (const t of pfTransactions) {
     if (t.type === "transfer") {
+      if (t.transferKind === "investment_aporte") {
+        construcaoPatrimonial += Math.abs(Number(t.amount || 0));
+      }
       continue;
     }
     const amount = Number(t.amount || 0);
