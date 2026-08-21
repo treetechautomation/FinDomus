@@ -96,6 +96,7 @@ export function NewAccountDialog({ onSuccess }: { onSuccess?: () => void }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="checking">Conta Corrente</SelectItem>
+                <SelectItem value="salary">Conta Salário</SelectItem>
                 <SelectItem value="savings">Poupança</SelectItem>
                 <SelectItem value="wallet">Carteira</SelectItem>
                 <SelectItem value="investment">Investimento</SelectItem>

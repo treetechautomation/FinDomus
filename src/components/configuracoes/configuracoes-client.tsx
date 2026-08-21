@@ -30,6 +30,8 @@ function accountTypeLabel(type: string) {
   switch (type) {
     case 'checking':
       return 'Conta Corrente';
+    case 'salary':
+      return 'Conta Salário';
     case 'investment':
       return 'Investimento';
     case 'wallet':

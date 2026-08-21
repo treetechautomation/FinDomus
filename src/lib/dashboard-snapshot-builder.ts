@@ -14,6 +14,7 @@ import type { DashboardSnapshot, DashboardSnapshotData } from './dashboard-snaps
 function getAccountTypeLabel(type: string): string {
   switch (type) {
     case 'checking': return 'Conta Corrente';
+    case 'salary': return 'Conta Salário';
     case 'investment': return 'Investimentos';
     case 'wallet': return 'Carteira';
     case 'credit_card': return 'Cartões';

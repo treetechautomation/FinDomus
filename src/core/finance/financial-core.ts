@@ -183,7 +183,7 @@ export function calculateFinancialCore(input: FinancialCoreInput) {
   };
 }
 
-export const LIQUID_ACCOUNT_TYPES = ['checking', 'savings', 'wallet'];
+export const LIQUID_ACCOUNT_TYPES = ['checking', 'salary', 'savings', 'wallet'];
 const LIQUID_INVESTMENT_CLASSES = ['Renda Fixa'];
 
 export type EmergencyReserveResult = {

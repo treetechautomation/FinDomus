@@ -18,6 +18,7 @@ import { MobileContasView } from '@/app/(main)/contas/mobile-contas-view';
 function accountTypeLabel(type: string) {
   switch (type) {
     case 'checking': return 'Conta Corrente';
+    case 'salary': return 'Conta Salário';
     case 'investment': return 'Investimento';
     case 'wallet': return 'Carteira';
     case 'credit_card': return 'Cartão de Crédito';
@@ -29,6 +30,7 @@ function accountTypeLabel(type: string) {
 function accountTypeBorderColor(type: string) {
   switch (type) {
     case 'checking': return 'border-l-primary/60';
+    case 'salary': return 'border-l-teal-500';
     case 'savings': return 'border-l-emerald-500';
     case 'wallet': return 'border-l-cyan-500';
     case 'investment': return 'border-l-violet-500';

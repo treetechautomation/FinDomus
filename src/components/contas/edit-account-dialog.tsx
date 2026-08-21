@@ -174,6 +174,7 @@ export function EditAccountDialog({ account, onSuccess }: { account: AccountLike
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="checking">Conta Corrente</SelectItem>
+                  <SelectItem value="salary">Conta Salário</SelectItem>
                   <SelectItem value="investment">Investimento</SelectItem>
                   <SelectItem value="wallet">Carteira</SelectItem>
                   <SelectItem value="credit_card">Cartão</SelectItem>

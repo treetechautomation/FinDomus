@@ -51,6 +51,7 @@ import {
 function accountTypeLabel(type: string): string {
   const map: Record<string, string> = {
     checking: 'Conta Corrente',
+    salary: 'Conta Salário',
     savings: 'Poupança',
     wallet: 'Carteira',
     investment: 'Investimento',
