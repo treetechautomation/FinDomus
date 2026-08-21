@@ -107,3 +107,97 @@ export function bestAccountMatch(
   if (!best || best.confidence === 'none' || best.confidence === 'low') return undefined;
   return best;
 }
+
+// ============================================================
+// ACCOUNTS.IMPORT.BALANCE.1D.1 — planejamento (sem write) do vínculo de
+// identidade bancária a uma Account existente.
+//
+// Reaproveita este mesmo módulo (não cria um matcher paralelo). Só PLANEJA
+// — nunca escreve no Firestore. Quem decide se o `patch` retornado é
+// aplicado é sempre uma ação humana explícita e separada da simples seleção
+// da conta (hard rule da 1D.1: selecionar conta ≠ vincular identidade).
+export type BankIdentityLinkStatus =
+  | 'available'
+  | 'already_linked'
+  | 'conflict'
+  | 'insufficient_metadata';
+
+export type BankIdentityLinkPlan = {
+  status: BankIdentityLinkStatus;
+  reason: string;
+  // Só populado quando status === 'available'. Contém EXCLUSIVAMENTE os
+  // campos de identidade — nunca balance/type/owner/companyId/name.
+  patch?: {
+    bankId?: string;
+    externalAccountId?: string;
+  };
+  conflictingAccount?: Account;
+};
+
+// externalAccountId é a evidência mínima obrigatória. ORG, bankId sozinho,
+// nome da conta ou filename NUNCA são suficientes para propor um vínculo
+// (só para o matcher de sugestão de conta, que é um problema diferente).
+function identityMatches(a: { bankId?: string; externalAccountId?: string }, b: { bankId?: string; externalAccountId?: string }): boolean {
+  if (!a.externalAccountId || !b.externalAccountId) return false;
+  if (normalize(a.externalAccountId) !== normalize(b.externalAccountId)) return false;
+  // Se ambos os lados declaram bankId, ele também precisa bater — evita
+  // considerar "mesma identidade" só por coincidência de ACCTID entre
+  // instituições diferentes.
+  if (a.bankId && b.bankId && normalize(a.bankId) !== normalize(b.bankId)) return false;
+  return true;
+}
+
+// `otherAccounts` deve vir pré-filtrado pelo MESMO contexto de isolamento já
+// usado por `matchAccountFromOfxMetadata` (owner/companyId/userId) — esta
+// função não conhece esses domínios, apenas compara identidade bancária
+// dentro do conjunto que o caller já isolou.
+export function planBankIdentityLink(input: {
+  account: Account;
+  metadata: OfxAccountMetadata;
+  otherAccounts: Account[];
+}): BankIdentityLinkPlan {
+  const { account, metadata, otherAccounts } = input;
+
+  if (!metadata.externalAccountId) {
+    return {
+      status: 'insufficient_metadata',
+      reason: 'externalAccountId ausente no OFX — ORG/bankId sozinhos não são evidência suficiente para propor vínculo',
+    };
+  }
+
+  if (identityMatches(account, metadata)) {
+    return {
+      status: 'already_linked',
+      reason: 'Esta conta já possui exatamente esta identidade bancária',
+    };
+  }
+
+  const conflictingAccount = otherAccounts.find(
+    (other) => other.id !== account.id && identityMatches(other, metadata)
+  );
+  if (conflictingAccount) {
+    return {
+      status: 'conflict',
+      reason: `Esta identidade bancária já está vinculada a outra conta ("${conflictingAccount.name}")`,
+      conflictingAccount,
+    };
+  }
+
+  return {
+    status: 'available',
+    reason: 'Identidade disponível para vínculo — requer confirmação explícita do usuário',
+    patch: {
+      bankId: metadata.bankId,
+      externalAccountId: metadata.externalAccountId,
+    },
+  };
+}
+
+// Mascaramento para exibição em UI — nunca mostrar o identificador bancário
+// completo sem necessidade (pode ser um número de conta real).
+export function maskExternalAccountId(value?: string): string {
+  const raw = String(value || '');
+  if (!raw) return '';
+  if (raw.length <= 4) return '•'.repeat(raw.length);
+  return `••••${raw.slice(-4)}`;
+}

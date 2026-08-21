@@ -31,7 +31,7 @@ import { learnTransactionCategory } from '@/core/finance/category-learning-engin
 import { auth } from '@/lib/firebase';
 
 import { parseOFX, parseOfxAccountMetadata, type OfxAccountMetadata } from "@/core/finance/ofx-parser";
-import { bestAccountMatch } from '@/core/imports/account-matcher';
+import { bestAccountMatch, planBankIdentityLink, maskExternalAccountId } from '@/core/imports/account-matcher';
 import { parseNubankCSV } from '@/core/finance/invoice-parser';
 import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
@@ -175,6 +175,35 @@ export function Importer() {
     if (!ofxAccountMetadata) return undefined;
     return bestAccountMatch(ofxAccountMetadata, filteredAccounts);
   }, [ofxAccountMetadata, filteredAccounts]);
+
+  // ACCOUNTS.IMPORT.BALANCE.1D.1 — planejamento (sem write) do vínculo de
+  // identidade bancária à conta MANUALMENTE selecionada. `filteredAccounts`
+  // já isola por owner/companyId, preservando o mesmo domínio de isolamento
+  // do matcher da 1D.
+  const selectedAccount = useMemo(
+    () => filteredAccounts.find((a: any) => a.id === accountId),
+    [filteredAccounts, accountId]
+  );
+
+  const bankIdentityPlan = useMemo(() => {
+    if (!ofxAccountMetadata || !selectedAccount) return undefined;
+    return planBankIdentityLink({
+      account: selectedAccount,
+      metadata: ofxAccountMetadata,
+      otherAccounts: filteredAccounts,
+    });
+  }, [ofxAccountMetadata, selectedAccount, filteredAccounts]);
+
+  // ACCOUNTS.IMPORT.BALANCE.1D.1 — Fase A/B: estrutura completa, mas o write
+  // real de bankId/externalAccountId em Account fica DELIBERADAMENTE fora
+  // desta fase (ver auditoria). Este handler não chama Firestore.
+  const handleLinkBankIdentity = () => {
+    if (!bankIdentityPlan || bankIdentityPlan.status !== 'available') return;
+    toast({
+      title: 'Vínculo ainda não habilitado nesta fase',
+      description: 'A infraestrutura de identidade bancária está pronta, mas a persistência real será liberada em uma fase própria após homologação.',
+    });
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -655,6 +684,43 @@ export function Importer() {
                 </option>
               ))}
             </select>
+
+            {/* ACCOUNTS.IMPORT.BALANCE.1D.1 — vínculo de identidade bancária.
+                Selecionar a conta acima NUNCA grava bankId/externalAccountId
+                sozinho — só este bloco, com clique explícito separado, pode
+                propor esse vínculo (e nesta fase o write real está desligado). */}
+            {bankIdentityPlan?.status === 'available' && (
+              <Alert>
+                <AlertTitle>Identidade bancária detectada</AlertTitle>
+                <AlertDescription className="flex flex-col gap-2">
+                  <span>
+                    {ofxAccountMetadata?.org || 'Banco não identificado'} — Conta {maskExternalAccountId(ofxAccountMetadata?.externalAccountId)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Esta conta ainda não está vinculada a essa identidade.
+                  </span>
+                  <Button type="button" size="sm" variant="outline" className="w-fit" onClick={handleLinkBankIdentity}>
+                    Vincular identidade bancária a esta conta
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {bankIdentityPlan?.status === 'already_linked' && (
+              <Alert>
+                <AlertTitle>Identidade bancária reconhecida</AlertTitle>
+                <AlertDescription>
+                  {ofxAccountMetadata?.org || 'Banco'} — Conta {maskExternalAccountId(ofxAccountMetadata?.externalAccountId)} já vinculada a esta conta.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {bankIdentityPlan?.status === 'conflict' && (
+              <Alert variant="destructive">
+                <AlertTitle>Conflito de identidade bancária</AlertTitle>
+                <AlertDescription>{bankIdentityPlan.reason}</AlertDescription>
+              </Alert>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
