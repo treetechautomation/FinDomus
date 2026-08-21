@@ -102,7 +102,13 @@ type Props = {
   confirmImport: (decisions?: Record<string, 'accepted' | 'ignored'>) => void;
 
   overrides?: Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>;
-  setOverrides?: (val: Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>) => void;
+  setOverrides?: (
+    val:
+      | Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>
+      | ((
+          prev: Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>
+        ) => Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>)
+  ) => void;
   categories?: Category[];
 
   owner: 'PF' | 'PJ';
@@ -165,26 +171,39 @@ export function ImportReviewTable({
 
   const handleCategoryChange = (hash: string, newCategoryName: string) => {
     if (!setOverrides) return;
-    setOverrides({
-      ...overrides,
+    // SALARY.TRANSFER.RUNTIME.1B: updater funcional (não `{...overrides, ...}`)
+    // para não perder edições concorrentes de outra linha resolvidas a partir
+    // de um closure desatualizado de `overrides` no mesmo ciclo de eventos.
+    setOverrides(prev => ({
+      ...prev,
       [hash]: {
-        ...overrides[hash],
+        ...prev[hash],
         category: newCategoryName,
         pendingLearning: true,
       }
-    });
+    }));
   };
 
   const markAsOwnTransfer = (hash: string) => {
     if (!setOverrides) return;
-    setOverrides({
-      ...overrides,
+    setOverrides(prev => ({
+      ...prev,
       [hash]: {
-        ...overrides[hash],
+        ...prev[hash],
         type: 'transfer',
         category: 'Transferência entre contas', // Using default standard category name
         pendingLearning: true,
       }
+    }));
+  };
+
+  const unmarkOwnTransfer = (hash: string) => {
+    if (!setOverrides) return;
+    // Reverte para os valores originais do parser, descartando o override
+    // inteiro desta linha (type + category + pendingLearning).
+    setOverrides(prev => {
+      const { [hash]: _drop, ...rest } = prev;
+      return rest;
     });
   };
 
@@ -272,6 +291,13 @@ export function ImportReviewTable({
                   validCategories.push({ name: 'Outros', id: 'synthetic-outros' } as any);
                 }
 
+                // SALARY.TRANSFER.RUNTIME.1B: só é "marcação manual" quando o
+                // override desta linha tem type='transfer' — distingue de uma
+                // transação que o parser já entregou como transfer nativamente
+                // (essa não tem botão de desfazer por não ter sido uma decisão
+                // manual).
+                const isMarkedOwnTransfer = overrides[row.importHash]?.type === 'transfer';
+
                 return (
                   <TableRow key={row.index}>
                     <TableCell className="font-mono text-xs align-top pt-4">
@@ -286,7 +312,24 @@ export function ImportReviewTable({
                         {tx.merchant}
                       </div>
 
-                      {shouldOfferOwnTransfer(tx, selectedCatData) && (
+                      {isMarkedOwnTransfer && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <ArrowRightLeft className="h-3 w-3" />
+                            Transferência própria
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2 text-muted-foreground hover:text-destructive"
+                            onClick={() => unmarkOwnTransfer(row.importHash)}
+                          >
+                            Desfazer
+                          </Button>
+                        </div>
+                      )}
+
+                      {!isMarkedOwnTransfer && shouldOfferOwnTransfer(tx, selectedCatData) && (
                         <div className="mt-2">
                           <Button
                             variant="ghost"
