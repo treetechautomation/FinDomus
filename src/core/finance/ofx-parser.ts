@@ -348,6 +348,57 @@ export function resolveOfxTransaction(
       } as unknown as ParsedTransaction;
 }
 
+// ACCOUNTS.IMPORT.BALANCE.1D — metadata de IDENTIDADE da conta bancária (não
+// de transação). Domínio deliberadamente separado de ParsedTransaction e de
+// `parseOFX()`: extrair aqui não altera o retorno/comportamento já existente
+// do parser de transações (nenhum chamador de parseOFX precisa mudar).
+//
+// `externalAccountId` (ACCTID do OFX) NÃO é o `accountId` interno do
+// FinDomus — são identidades de domínios diferentes; nomeado explicitamente
+// para não confundir os dois. Saldo (LEDGERBAL/BALAMT/DTASOF) pertence à
+// fase 1E — não é extraído aqui.
+export type OfxAccountMetadata = {
+  bankId?: string;
+  externalAccountId?: string;
+  accountType?: string;
+  org?: string;
+  fid?: string;
+  currency?: string;
+  periodStart?: string;
+  periodEnd?: string;
+};
+
+function sliceBetween(text: string, openTag: string, closeTag: string, fallbackEndTag?: string): string {
+  const openIdx = text.search(new RegExp(`<${openTag}>`, 'i'));
+  if (openIdx === -1) return '';
+  const afterOpen = text.slice(openIdx + openTag.length + 2);
+  const closeIdx = afterOpen.search(new RegExp(`</${closeTag}>`, 'i'));
+  if (closeIdx !== -1) return afterOpen.slice(0, closeIdx);
+  if (fallbackEndTag) {
+    const fallbackIdx = afterOpen.search(new RegExp(`<${fallbackEndTag}>`, 'i'));
+    if (fallbackIdx !== -1) return afterOpen.slice(0, fallbackIdx);
+  }
+  return afterOpen;
+}
+
+export function parseOfxAccountMetadata(text: string): OfxAccountMetadata {
+  const fiBlock = sliceBetween(text, 'FI', 'FI', 'SONRS');
+  const bankAcctBlock = sliceBetween(text, 'BANKACCTFROM', 'BANKACCTFROM', 'BANKTRANLIST');
+  const tranListHeaderBlock = sliceBetween(text, 'BANKTRANLIST', 'BANKTRANLIST', 'STMTTRN');
+  const stmtrsHeaderBlock = sliceBetween(text, 'STMTRS', 'STMTRS', 'BANKTRANLIST');
+
+  return {
+    bankId: getTag(bankAcctBlock, 'BANKID') || undefined,
+    externalAccountId: getTag(bankAcctBlock, 'ACCTID') || undefined,
+    accountType: getTag(bankAcctBlock, 'ACCTTYPE') || undefined,
+    org: getTag(fiBlock, 'ORG') || undefined,
+    fid: getTag(fiBlock, 'FID') || undefined,
+    currency: getTag(stmtrsHeaderBlock, 'CURDEF') || undefined,
+    periodStart: getTag(tranListHeaderBlock, 'DTSTART') || undefined,
+    periodEnd: getTag(tranListHeaderBlock, 'DTEND') || undefined,
+  };
+}
+
 export async function parseOFX(text: string, userId?: string): Promise<ParsedTransaction[]> {
   const context = await buildClassificationContext(userId);
   const ballistLabels = extractBallistLabels(text);

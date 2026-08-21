@@ -30,7 +30,8 @@ import { useAuth } from '@/providers/auth-provider';
 import { learnTransactionCategory } from '@/core/finance/category-learning-engine';
 import { auth } from '@/lib/firebase';
 
-import { parseOFX } from "@/core/finance/ofx-parser";
+import { parseOFX, parseOfxAccountMetadata, type OfxAccountMetadata } from "@/core/finance/ofx-parser";
+import { bestAccountMatch } from '@/core/imports/account-matcher';
 import { parseNubankCSV } from '@/core/finance/invoice-parser';
 import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
@@ -92,6 +93,11 @@ export function Importer() {
 
   const [accounts, setAccounts] = useState<any[]>([]);
   const [accountId, setAccountId] = useState('');
+
+  // ACCOUNTS.IMPORT.BALANCE.1D — metadata de identidade bancária, extraída
+  // só quando o arquivo é OFX. Usada apenas para SUGERIR uma conta (nunca
+  // para selecionar automaticamente sem clique explícito do usuário).
+  const [ofxAccountMetadata, setOfxAccountMetadata] = useState<OfxAccountMetadata | null>(null);
 
   // Restaura staging da sessão anterior ao montar o componente
   useEffect(() => {
@@ -161,6 +167,14 @@ export function Importer() {
     });
   }, [accounts, owner, companyId]);
 
+  // ACCOUNTS.IMPORT.BALANCE.1D — recalculada sempre que a metadata do OFX ou
+  // as contas compatíveis com owner/company mudam, então trocar owner/company
+  // invalida automaticamente uma sugestão que não faça mais sentido (nunca
+  // fica presa a um `filteredAccounts` antigo).
+  const accountSuggestion = useMemo(() => {
+    if (!ofxAccountMetadata) return undefined;
+    return bestAccountMatch(ofxAccountMetadata, filteredAccounts);
+  }, [ofxAccountMetadata, filteredAccounts]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -207,12 +221,16 @@ export function Importer() {
     setRestoredStaging(null);
     setCompetenceMultiMonthWarning(false);
     setAccountId('');
+    setOfxAccountMetadata(null);
   };
 
   const processFile = async () => {
     if (!file) return;
 
     setIsProcessing(true);
+    // Limpa qualquer sugestão de conta de um arquivo anterior antes de
+    // processar este; só o ramo OFX abaixo a repreenche.
+    setOfxAccountMetadata(null);
     try {
       let extractedTransactions: any[] = [];
 
@@ -296,6 +314,7 @@ export function Importer() {
             const text = await file.text();
             setFileFingerprint(hashFileContent(text));
             extractedTransactions = await parseOFX(text, user?.uid);
+            setOfxAccountMetadata(parseOfxAccountMetadata(text));
 
           } else if (
             file.name.toLowerCase().endsWith(".csv") ||
@@ -598,6 +617,31 @@ export function Importer() {
 
           <div className="space-y-2">
             <Label>Conta de destino da importação</Label>
+
+            {/* ACCOUNTS.IMPORT.BALANCE.1D — sugestão do OFX: sempre exige
+                clique explícito para aplicar, mesmo em confiança alta.
+                Nunca pré-seleciona o <select> abaixo silenciosamente. */}
+            {accountSuggestion && accountSuggestion.account.id !== accountId && (
+              <Alert>
+                <AlertTitle>
+                  {accountSuggestion.confidence === 'high' ? 'Conta identificada no OFX' : 'Possível conta identificada'}
+                </AlertTitle>
+                <AlertDescription className="flex flex-col gap-2">
+                  <span>
+                    Sugestão: {accountSuggestion.account.name} — {accountTypeLabel(accountSuggestion.account.type)}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-fit"
+                    onClick={() => setAccountId(accountSuggestion.account.id!)}
+                  >
+                    Usar esta conta
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <select
               value={accountId}

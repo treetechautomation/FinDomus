@@ -12,6 +12,16 @@ export type Account = {
   companyId?: string | null;
   balance: number;
   createdAt: string;
+
+  // ACCOUNTS.IMPORT.BALANCE.1D — identidade bancária opcional, usada apenas
+  // para SUGERIR a conta correspondente na importação de OFX (nunca para
+  // selecionar automaticamente sem confirmação humana). `externalAccountId`
+  // é o ACCTID do OFX — um domínio de identidade distinto de `id` (o
+  // accountId interno do FinDomus). Nenhuma conta existente hoje possui
+  // esses campos preenchidos; ficam disponíveis para popular futuramente
+  // (fora do escopo desta fase, que é code-only/sem writes).
+  bankId?: string;
+  externalAccountId?: string;
 };
 
 export type Investment = {
