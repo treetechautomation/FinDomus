@@ -1,9 +1,3 @@
-// ACCOUNTS.IMPORT.BALANCE.1D — sugestão (nunca seleção automática) da conta
-// FinDomus correspondente à identidade bancária lida do OFX.
-//
-// Regra dura: mesmo um match HIGH é só uma SUGESTÃO — quem decide é o
-// usuário. Esta função não seleciona nada; apenas classifica o nível de
-// confiança para a UI decidir como exibir.
 import type { Account } from '@/services/firestore/accounts';
 import type { OfxAccountMetadata } from '@/core/finance/ofx-parser';
 
@@ -16,12 +10,12 @@ export type AccountMatchResult = {
 };
 
 // Mapeamento comprovado pelos arquivos OFX reais disponíveis neste ambiente
-// (Banco do Brasil e Nubank, ambos ACCTTYPE=CHECKING). Nenhum arquivo real
-// com ACCTTYPE=SALARY foi encontrado para comprovar esse mapeamento — por
-// isso ele NÃO está incluído aqui. Tipo desconhecido nunca é forçado.
+// (Banco do Brasil e Nubank, ambos ACCTTYPE=CHECKING). 
+// OFXs reais do Banco do Brasil comprovaram ACCTTYPE=SALARY.
 const OFX_ACCTTYPE_TO_FINDOMUS_TYPE: Record<string, string> = {
   CHECKING: 'checking',
   SAVINGS: 'savings',
+  SALARY: 'salary',
 };
 
 export function mapOfxAcctTypeToAccountType(acctType?: string): string | undefined {
@@ -44,27 +38,42 @@ export function matchAccountFromOfxMetadata(
 
   return candidates
     .map((account): AccountMatchResult => {
-      const hasExternalIdOnBoth =
-        Boolean(metadata.externalAccountId) && Boolean(account.externalAccountId);
-      const externalIdMatches =
-        hasExternalIdOnBoth &&
-        normalize(metadata.externalAccountId) === normalize(account.externalAccountId);
+      const hasExternalIdOnBoth = Boolean(metadata.externalAccountId) && Boolean(account.externalAccountId);
+      const externalIdMatches = hasExternalIdOnBoth && normalize(metadata.externalAccountId) === normalize(account.externalAccountId);
+      const externalIdMismatch = hasExternalIdOnBoth && !externalIdMatches;
 
-      const bankIdMatches =
-        Boolean(metadata.bankId) &&
-        Boolean(account.bankId) &&
-        normalize(metadata.bankId) === normalize(account.bankId);
+      const hasBankIdOnBoth = Boolean(metadata.bankId) && Boolean(account.bankId);
+      const bankIdMatches = hasBankIdOnBoth && normalize(metadata.bankId) === normalize(account.bankId);
+      const bankIdMismatch = hasBankIdOnBoth && !bankIdMatches;
 
-      const typeMatches = Boolean(mappedType) && account.type === mappedType;
+      const hasTypeOnBoth = Boolean(mappedType) && Boolean(account.type);
+      const typeMatches = hasTypeOnBoth && account.type === mappedType;
+      const typeMismatch = hasTypeOnBoth && !typeMatches;
 
-      // HIGH: identificador externo exato (ACCTID) batendo — a mesma prova
-      // estrutural que dois bancos diferentes jamais compartilhariam por
-      // acaso.
+      // KNOWN MISMATCH PREVENTS HIGH/MEDIUM CONFIDENCE
+      if (externalIdMismatch || bankIdMismatch || typeMismatch) {
+        if (externalIdMatches) {
+          return { account, confidence: 'none', reason: 'externalAccountId coincide, mas há divergência estrutural explícita (bankId ou type)' };
+        }
+        return { account, confidence: 'none', reason: 'divergência estrutural explícita (externalId, bankId ou type)' };
+      }
+
+      // HIGH: Identificador externo bate, e pelo menos um outro discriminador 
+      // bate positivamente. (O if acima já garantiu que o terceiro discriminador, 
+      // se existir, não é divergente). A evidência real BB exige type para diferenciar.
+      if (externalIdMatches && bankIdMatches && typeMatches) {
+        return { account, confidence: 'high', reason: 'externalAccountId, bankId e tipo coincidem' };
+      }
+      
+      // MEDIUM: Match parcial onde pelo menos um discriminador está ausente (MISSING != MATCH)
       if (externalIdMatches && bankIdMatches) {
-        return { account, confidence: 'high', reason: 'externalAccountId e bankId coincidem' };
+        return { account, confidence: 'medium', reason: 'externalAccountId e bankId coincidem, mas falta confirmar o tipo' };
+      }
+      if (externalIdMatches && typeMatches) {
+        return { account, confidence: 'medium', reason: 'externalAccountId e tipo coincidem, mas falta confirmar o banco' };
       }
       if (externalIdMatches) {
-        return { account, confidence: 'high', reason: 'externalAccountId coincide' };
+        return { account, confidence: 'medium', reason: 'externalAccountId coincide, mas banco e tipo estão ausentes' };
       }
 
       // MEDIUM: mesma instituição (bankId) + mesmo tipo mapeado — não é
@@ -74,7 +83,7 @@ export function matchAccountFromOfxMetadata(
         return { account, confidence: 'medium', reason: 'bankId e tipo coincidem' };
       }
       if (bankIdMatches) {
-        return { account, confidence: 'medium', reason: 'bankId coincide' };
+        return { account, confidence: 'medium', reason: 'bankId coincide (sem divergências conhecidas)' };
       }
 
       // LOW: só o nome da instituição (ORG, texto livre) parece compatível
@@ -103,8 +112,17 @@ export function bestAccountMatch(
   metadata: OfxAccountMetadata,
   candidates: Account[]
 ): AccountMatchResult | undefined {
-  const [best] = matchAccountFromOfxMetadata(metadata, candidates);
+  const matches = matchAccountFromOfxMetadata(metadata, candidates);
+  const best = matches[0];
   if (!best || best.confidence === 'none' || best.confidence === 'low') return undefined;
+
+  // Resolve ambiguidade: se mais de uma conta tem a mesma confiança (empate no topo), 
+  // revertemos para seleção manual, pois o matcher não sabe qual sugerir com segurança.
+  const secondBest = matches[1];
+  if (secondBest && secondBest.confidence === best.confidence) {
+    return undefined;
+  }
+
   return best;
 }
 
@@ -137,13 +155,23 @@ export type BankIdentityLinkPlan = {
 // externalAccountId é a evidência mínima obrigatória. ORG, bankId sozinho,
 // nome da conta ou filename NUNCA são suficientes para propor um vínculo
 // (só para o matcher de sugestão de conta, que é um problema diferente).
-function identityMatches(a: { bankId?: string; externalAccountId?: string }, b: { bankId?: string; externalAccountId?: string }): boolean {
+function identityMatches(
+  a: { bankId?: string; externalAccountId?: string; type?: string },
+  b: { bankId?: string; externalAccountId?: string; type?: string }
+): boolean {
   if (!a.externalAccountId || !b.externalAccountId) return false;
   if (normalize(a.externalAccountId) !== normalize(b.externalAccountId)) return false;
-  // Se ambos os lados declaram bankId, ele também precisa bater — evita
-  // considerar "mesma identidade" só por coincidência de ACCTID entre
-  // instituições diferentes.
-  if (a.bankId && b.bankId && normalize(a.bankId) !== normalize(b.bankId)) return false;
+  
+  // Se qualquer lado declara o discriminador e há divergência (seja mismatch 
+  // explícito ou ausência no outro lado), a identidade não pode ser garantida com segurança.
+  // MISSING != MATCH
+  if ((a.bankId || b.bankId) && normalize(a.bankId) !== normalize(b.bankId)) return false;
+  if ((a.type || b.type) && a.type !== b.type) return false;
+  
+  // Se a única informação existente for o externalId, não afirmar identityMatches.
+  // Evita falsos positivos com duas contas vazias se atrelando cegamente a um OFX vazio.
+  if (!a.bankId && !b.bankId && !a.type && !b.type) return false;
+
   return true;
 }
 
@@ -158,6 +186,9 @@ export function planBankIdentityLink(input: {
 }): BankIdentityLinkPlan {
   const { account, metadata, otherAccounts } = input;
 
+  const mappedType = mapOfxAcctTypeToAccountType(metadata.accountType);
+  const metadataWithMappedType = { ...metadata, type: mappedType };
+
   if (!metadata.externalAccountId) {
     return {
       status: 'insufficient_metadata',
@@ -165,7 +196,7 @@ export function planBankIdentityLink(input: {
     };
   }
 
-  if (identityMatches(account, metadata)) {
+  if (identityMatches(account, metadataWithMappedType)) {
     return {
       status: 'already_linked',
       reason: 'Esta conta já possui exatamente esta identidade bancária',
@@ -173,7 +204,7 @@ export function planBankIdentityLink(input: {
   }
 
   const conflictingAccount = otherAccounts.find(
-    (other) => other.id !== account.id && identityMatches(other, metadata)
+    (other) => other.id !== account.id && identityMatches(other, metadataWithMappedType)
   );
   if (conflictingAccount) {
     return {
