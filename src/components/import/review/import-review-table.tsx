@@ -161,6 +161,7 @@ export function ImportReviewTable({
           importHash: hash,
           category: finalCategory,
           type: override.type ?? tx.type,
+          ignored: override.ignored,
         };
       }
       return { ...tx, importHash: hash, category: finalCategory };
@@ -182,6 +183,33 @@ export function ImportReviewTable({
         pendingLearning: true,
       }
     }));
+  };
+
+
+  const markAsIgnored = (hash: string) => {
+    if (!setOverrides) return;
+    setOverrides(prev => ({
+      ...prev,
+      [hash]: {
+        ...prev[hash],
+        ignored: true,
+      }
+    }));
+  };
+
+  const unmarkIgnored = (hash: string) => {
+    if (!setOverrides) return;
+    setOverrides(prev => {
+      const { ignored, ...rest } = prev[hash] || {};
+      if (Object.keys(rest).length === 0) {
+        const { [hash]: _drop, ...others } = prev;
+        return others;
+      }
+      return {
+        ...prev,
+        [hash]: rest
+      };
+    });
   };
 
   const markAsOwnTransfer = (hash: string) => {
@@ -298,8 +326,9 @@ export function ImportReviewTable({
                 // manual).
                 const isMarkedOwnTransfer = overrides[row.importHash]?.type === 'transfer';
 
+                const isIgnored = overrides[row.importHash]?.ignored;
                 return (
-                  <TableRow key={row.index}>
+                  <TableRow key={row.index} className={isIgnored ? "opacity-40 bg-muted/20" : ""}>
                     <TableCell className="font-mono text-xs align-top pt-4">
                       {tx.date}
                     </TableCell>

@@ -467,10 +467,11 @@ export function Importer() {
             importHash: hash,
             category: override.category ?? tx.category,
             type: override.type ?? tx.type,
+            ignored: override.ignored,
           };
         }
         return { ...tx, importHash: hash };
-      });
+      }).filter(tx => !tx.ignored);
 
       const preview = buildImportPreview(reviewedTransactions, categories);
 

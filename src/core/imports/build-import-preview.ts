@@ -187,6 +187,7 @@ export function buildImportPreview(transactions: any[], categories: any[] = []) 
   const totals = rows.reduce(
     (acc, row) => {
       const t = row.transaction;
+      if (t.ignored) return acc;
       const amount = Math.abs(Number(t.amount || 0));
 
       if (t.type === 'expense') acc.expenses += amount;

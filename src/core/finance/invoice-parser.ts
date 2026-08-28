@@ -231,7 +231,14 @@ export async function parseNubankCSV(csv: string, userId?: string): Promise<Pars
 
     // Ignorar pagamentos e liquidações de fatura anterior
     if (isInvoicePaymentDescription(title) || isInvoicePaymentDescription(rawText)) {
-      return null;
+      return enrichInstallment(
+        {
+          ...classifyTransactionWithContext(rawText, Math.abs(amount), context),
+          date,
+          ignored: true,
+        },
+        rawText
+      );
     }
 
     return enrichInstallment(
@@ -289,7 +296,19 @@ export async function parseBankStatementText(text: string, userId?: string): Pro
       .replace(amountMatch[0], '')
       .trim();
 
-    if (isInvoicePaymentDescription(rawText)) continue;
+    if (isInvoicePaymentDescription(rawText)) {
+      result.push(
+        enrichInstallment(
+          {
+            ...classifyTransactionWithContext(rawText, Math.abs(amount), context),
+            date,
+            ignored: true,
+          },
+          rawText
+        )
+      );
+      continue;
+    }
 
     result.push(
       enrichInstallment(

@@ -18,6 +18,7 @@ export type ParsedTransaction = {
   amount: number;
   originalAmount?: number;
   hasIdentityMatch?: boolean;
+  ignored?: boolean;
   type: 'income' | 'expense' | 'transfer';
 };
 
