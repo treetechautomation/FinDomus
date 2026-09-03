@@ -65,6 +65,7 @@ export function getFinancialAIInsights(params: {
 
   for (const tx of transactions) {
     if (tx.type !== 'expense') continue;
+    if (tx.isRefund === true) continue;
 
     const fingerprint = buildMerchantFingerprint(
       tx.description || tx.merchant || '',

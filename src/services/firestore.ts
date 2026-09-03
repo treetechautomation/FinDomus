@@ -1,3 +1,4 @@
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, getDoc, setDoc, query, orderBy, doc, updateDoc, deleteDoc, writeBatch, where } from "firebase/firestore";
 import {
@@ -16,6 +17,24 @@ function getMonthKey(date?: string) {
   return d.toISOString().slice(0, 7);
 }
 
+export function calculateMonthlySummaryMetrics(transactions: any[]) {
+  let income = 0;
+  let expenses = 0;
+  const categories: Record<string, number> = {};
+
+  for (const t of transactions as any[]) {
+    const category = t.category || "Outros";
+    income += getIncomeEffect(t);
+    const expEffect = getExpenseEffect(t);
+    expenses += expEffect;
+    if (expEffect !== 0) {
+      categories[category] = (categories[category] || 0) + expEffect;
+    }
+  }
+  const balance = income - expenses;
+  return { income, expenses, balance, categories };
+}
+
 export async function generateMonthlySummary(userId: string, owner: "PF" | "PJ", month: string) {
   if (!userId) throw new Error("userId required");
 
@@ -30,21 +49,7 @@ export async function generateMonthlySummary(userId: string, owner: "PF" | "PJ",
     .map(doc => doc.data())
     .filter((t: any) => t.owner === owner && (t.competenceMonthKey || t.monthKey) === month);
 
-  let income = 0;
-  let expenses = 0;
-  const categories: Record<string, number> = {};
-
-  for (const t of transactions as any[]) {
-    const amount = Number(t.amount || 0);
-    const category = t.category || "Outros";
-
-    if (t.type === "income") income += amount;
-    else expenses += Math.abs(amount);
-
-    categories[category] = (categories[category] || 0) + Math.abs(amount);
-  }
-
-  const balance = income - expenses;
+  const { income, expenses, balance, categories } = calculateMonthlySummaryMetrics(transactions);
 
   const docId = `${userId}_${owner}_${month}`;
 
@@ -209,3 +214,4 @@ export async function getInvestmentGoals(userId: string) {
 
   return snap.exists() ? snap.data().goals || [] : [];
 }
+

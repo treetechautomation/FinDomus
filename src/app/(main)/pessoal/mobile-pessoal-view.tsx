@@ -58,6 +58,7 @@ interface MobilePessoalViewProps {
   setExpensePage: (value: any) => void;
   activeCategory: string;
   categoryChartData: { name: string; value: number }[];
+  refundSurplus?: number;
   mode: string;
   paginatedIncomeTransactions: any[];
   safeIncomePage: number;
@@ -97,6 +98,7 @@ export default function MobilePessoalView(props: MobilePessoalViewProps) {
     setExpensePage,
     activeCategory,
     categoryChartData,
+    refundSurplus,
     mode,
     paginatedIncomeTransactions,
     safeIncomePage,
@@ -249,10 +251,16 @@ export default function MobilePessoalView(props: MobilePessoalViewProps) {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-zinc-300 font-medium">{b.category}</span>
                         <span className="text-zinc-400 text-xs">
-                          {b.spent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / <span className="text-zinc-300 font-bold">{b.planned.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                          {b.spent < 0 ? (
+                            <span className="text-emerald-400 font-medium">
+                              {Math.abs(b.spent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em estornos líquidos
+                            </span>
+                          ) : (
+                            b.spent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          )} / <span className="text-zinc-300 font-bold">{b.planned.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                         </span>
                       </div>
-                      <Progress value={Math.min(b.percent, 100)} className="h-1.5 bg-zinc-900" />
+                      <Progress value={b.visualPercent ?? Math.min(Math.max(b.percent, 0), 100)} className="h-1.5 bg-zinc-900" />
                     </div>
                   ))}
                 </div>
@@ -279,7 +287,13 @@ export default function MobilePessoalView(props: MobilePessoalViewProps) {
                 <div className="flex justify-between text-sm border-t border-zinc-900 pt-2">
                   <span className="text-zinc-300">Total Utilizado:</span>
                   <span className={`font-bold ${totalSpent > totalPlanned ? 'text-red-500' : 'text-zinc-300'}`}>
-                    {totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({totalPlanned > 0 ? ((totalSpent / totalPlanned) * 100).toFixed(1) : 0}%)
+                    {totalSpent < 0 ? (
+                      <span className="text-emerald-400">
+                        {Math.abs(totalSpent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em estornos líquidos
+                      </span>
+                    ) : (
+                      totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    )} ({totalPlanned > 0 ? ((totalSpent / totalPlanned) * 100).toFixed(1) : 0}%)
                   </span>
                 </div>
               </div>
@@ -331,6 +345,7 @@ export default function MobilePessoalView(props: MobilePessoalViewProps) {
               selectedCategory={activeCategory}
               month={selectedMonth}
               mode={mode}
+              refundSurplus={refundSurplus}
             />
           </div>
         </div>

@@ -6,6 +6,7 @@ import { getTransactionsByMonthList } from '@/services/firestore/transactions';
 import { getMonthlyClosures } from '@/services/firestore/monthly-closures';
 import { runFinancialKernel } from '@/core/finance/kernel';
 import { getCurrentMonthKey, getLastMonths, isTransactionInMonth } from '@/core/finance/financial-period-engine';
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 import { createDataContract } from './data-contract';
 import { logger } from './logger';
 import { metrics } from './system-metrics';
@@ -54,9 +55,8 @@ function getMonthlyFlow(transactions: any[], baseMonth: string): Array<{ month: 
   for (const t of transactions) {
     const bucket = months.find((item) => isTransactionInMonth(t, item.monthKey));
     if (!bucket) continue;
-    const amount = Number(t.amount || 0);
-    if (t.type === 'income') bucket.income += amount;
-    if (t.type === 'expense') bucket.expenses += Math.abs(amount);
+    bucket.income += getIncomeEffect(t);
+    bucket.expenses += getExpenseEffect(t);
   }
 
   return months.map(({ month, income, expenses }) => ({ month, income, expenses }));
@@ -103,10 +103,8 @@ export async function buildDashboardSnapshot(
     isTransactionInMonth(t, currentMonth) && t.type !== 'transfer'
   );
 
-  const monthlyIncome = monthTransactions.filter((t: any) => t.type === 'income')
-    .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-  const monthlyExpenses = monthTransactions.filter((t: any) => t.type === 'expense')
-    .reduce((s: number, t: any) => s + Math.abs(Number(t.amount || 0)), 0);
+  const monthlyIncome = monthTransactions.reduce((s: number, t: any) => s + getIncomeEffect(t), 0);
+  const monthlyExpenses = monthTransactions.reduce((s: number, t: any) => s + getExpenseEffect(t), 0);
   const monthlyBalance = monthlyIncome - monthlyExpenses;
 
   const kernelResult = runFinancialKernel({

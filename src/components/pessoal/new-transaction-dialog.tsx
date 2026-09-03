@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { TransactionFormFields } from '@/components/pessoal/form/transaction-form-fields';
+import { normalizeManualRefundState } from '@/utils/transaction-display';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -174,6 +175,13 @@ export function NewTransactionDialog() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [isRefund, setIsRefund] = useState(false);
+
+  useEffect(() => {
+    if (type !== 'expense' && isRefund) {
+      setIsRefund(false);
+    }
+  }, [type, isRefund]);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
@@ -242,6 +250,8 @@ export function NewTransactionDialog() {
     try {
       setSaving(true);
 
+      const finalIsRefund = normalizeManualRefundState(type, isRefund);
+
       await addTransaction(user!.uid, {
         description: description.trim(),
         category: category.trim(),
@@ -251,12 +261,14 @@ export function NewTransactionDialog() {
         owner,
         accountId,
         companyId: owner === 'PJ' ? companyId : null,
+        ...(finalIsRefund ? { isRefund: true } : {}),
       });
 
       setOpen(false);
       setDescription('');
       setCategory('Outros');
       setType('expense');
+      setIsRefund(false);
       setOwner('PF');
       setAccountId('');
       setCompanyId('');
@@ -307,6 +319,29 @@ export function NewTransactionDialog() {
               date={date}
               setDate={setDate}
               />
+
+            {type === 'expense' && (
+              <div className="flex items-start space-x-2 pt-1 pb-1">
+                <input
+                  type="checkbox"
+                  id="new-tx-isRefund"
+                  checked={isRefund}
+                  onChange={(e) => setIsRefund(e.target.checked)}
+                  className="h-4 w-4 mt-0.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="new-tx-isRefund"
+                    className="text-sm font-medium leading-none cursor-pointer"
+                  >
+                    Esta transação é um estorno
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Estornos reduzem suas despesas e não são contabilizados como receita.
+                  </p>
+                </div>
+              </div>
+            )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

@@ -1,3 +1,4 @@
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 import { getTransactionsByMonth } from '@/services/firestore/transactions';
 import { getMonthlyClosure } from '@/services/firestore/monthly-closures';
 import { getAccountsWithBalance } from '@/services/firestore/accounts';
@@ -6,6 +7,21 @@ import { createDataContract } from './data-contract';
 import { logger } from './logger';
 import { metrics } from './system-metrics';
 import type { ReportsSnapshot, ReportsSnapshotData } from './reports-snapshot-types';
+
+export function calculateReportsMetrics(transactions: any[]) {
+  const income = transactions.reduce((s: number, t: any) => s + getIncomeEffect(t), 0);
+  const expenses = transactions.reduce((s: number, t: any) => s + getExpenseEffect(t), 0);
+  const balance = income - expenses;
+  const byCategory: Record<string, number> = {};
+  for (const t of transactions) {
+    const cat = t.category || 'Outros';
+    const effect = getExpenseEffect(t);
+    if (effect !== 0) {
+      byCategory[cat] = (byCategory[cat] || 0) + effect;
+    }
+  }
+  return { income, expenses, balance, byCategory };
+}
 
 export async function buildReportsSnapshot(
   userId: string,
@@ -99,3 +115,4 @@ export async function buildReportsSnapshot(
 
   return { snapshot, sourceReads };
 }
+

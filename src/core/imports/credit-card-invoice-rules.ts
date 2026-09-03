@@ -18,3 +18,12 @@ export function isInvoicePaymentDescription(description: string): boolean {
          descLower.includes('pagamento em') ||
          descLower.includes('pagamento de fatura');
 }
+
+export function isCreditCardRefundDescription(description: string): boolean {
+  if (!description) return false;
+  const descLower = description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return descLower.includes('estorno de') ||
+         descLower.includes('iof de volta') ||
+         descLower.includes('credito de confianca') ||
+         descLower.includes('deposito de confianca');
+}

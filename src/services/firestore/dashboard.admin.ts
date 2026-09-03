@@ -1,4 +1,11 @@
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 import { adminDb } from '../../lib/firebase-admin';
+
+export function calculateAdminMetrics(monthTransactions: any[]) {
+  const income = monthTransactions.reduce((sum, t) => sum + getIncomeEffect(t), 0);
+  const expenses = monthTransactions.reduce((sum, t) => sum + getExpenseEffect(t), 0);
+  return { income, expenses };
+}
 
 export async function getDashboardAdmin(userId: string) {
   if (!userId) throw new Error('userId é obrigatório');
@@ -28,13 +35,7 @@ export async function getDashboardAdmin(userId: string) {
     t.date?.startsWith(currentMonth) || t.monthKey === currentMonth
   );
 
-  const income = monthTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-  const expenses = monthTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+  const { income, expenses } = calculateAdminMetrics(monthTransactions);
 
   const allocation = accounts.reduce((acc: any[], account) => {
     const type = account.type || 'Outros';
@@ -59,3 +60,4 @@ export async function getDashboardAdmin(userId: string) {
     allocation
   };
 }
+

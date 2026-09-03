@@ -1,3 +1,8 @@
+import {
+  isInvoicePaymentDescription,
+  isCreditCardRefundDescription,
+} from '@/core/imports/credit-card-invoice-rules';
+
 import { getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getCategories, type Category } from '@/services/firestore/categories';
@@ -20,6 +25,7 @@ export type ParsedTransaction = {
   hasIdentityMatch?: boolean;
   ignored?: boolean;
   type: 'income' | 'expense' | 'transfer';
+  isRefund?: boolean;
 };
 
 export function normalizeText(text: string) {
@@ -861,4 +867,21 @@ export async function classifyTransaction(
     amount: Math.abs(amount),
     type: inferred?.type || (amount >= 0 ? 'income' : 'expense'),
   };
+}
+
+
+export function postProcessAIFallback(transactions: ParsedTransaction[], isCardContext: boolean): ParsedTransaction[] {
+  return transactions.map(tx => {
+    let parsed: ParsedTransaction = { ...tx };
+    if (isCardContext) {
+      if (isInvoicePaymentDescription(tx.description)) {
+        parsed.ignored = true;
+      } else if (isCreditCardRefundDescription(tx.description)) {
+        parsed.type = 'expense';
+        parsed.isRefund = true;
+        parsed.amount = Math.abs(tx.amount);
+      }
+    }
+    return parsed;
+  });
 }

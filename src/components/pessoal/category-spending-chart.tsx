@@ -26,6 +26,7 @@ type Props = {
   selectedCategory?: string;
   month: number;
   mode: string;
+  refundSurplus?: number;
 };
 
 const DEFAULT_COLORS = [
@@ -55,7 +56,7 @@ const DEFAULT_COLORS = [
   '#059669', // emerald dark
 ];
 
-export function CategorySpendingChart({ data, selectedCategory = '', month, mode }: Props) {
+export function CategorySpendingChart({ data, selectedCategory = '', month, mode, refundSurplus }: Props) {
   const router = useRouter();
 
   const activeCategory = selectedCategory || null;
@@ -193,6 +194,14 @@ export function CategorySpendingChart({ data, selectedCategory = '', month, mode
               </button>
             ))}
           </div>
+          {refundSurplus !== undefined && refundSurplus > 0 && (
+            <div className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400 flex items-center justify-between">
+              <span>Estornos líquidos no período</span>
+              <span className="font-semibold">
+                {refundSurplus.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
+          )}
 </CardContent>
     </Card>
   );

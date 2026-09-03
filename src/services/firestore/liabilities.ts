@@ -87,17 +87,29 @@ export async function deleteLiability(userId: string, liabilityId: string) {
   });
 }
 
-export async function upsertLiabilityFromInstallmentTransaction(userId: string, transaction: any) {
-  if (!userId) throw new Error("userId required");
-  if (!transaction?.isInstallment) return null;
+export function shouldUpsertLiabilityFromTransaction(transaction: any): boolean {
+  if (!transaction) return false;
+  if (transaction.isRefund === true) return false;
+  if (!transaction.isInstallment) return false;
 
   const currentInstallment = Number(transaction.installmentCurrent || 0);
   const totalInstallments = Number(transaction.installmentTotal || 0);
   const installmentValue = Math.abs(Number(transaction.amount || 0));
 
   if (!currentInstallment || !totalInstallments || !installmentValue) {
-    return null;
+    return false;
   }
+
+  return true;
+}
+
+export async function upsertLiabilityFromInstallmentTransaction(userId: string, transaction: any) {
+  if (!userId) throw new Error("userId required");
+  if (!shouldUpsertLiabilityFromTransaction(transaction)) return null;
+
+  const currentInstallment = Number(transaction.installmentCurrent || 0);
+  const totalInstallments = Number(transaction.installmentTotal || 0);
+  const installmentValue = Math.abs(Number(transaction.amount || 0));
 
   const installmentKey =
     transaction.installmentKey ||

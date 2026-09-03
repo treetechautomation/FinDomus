@@ -14,6 +14,7 @@ import { resolveUserHouseholdId } from './users';
 
 import { buildDRE, buildPFDRE } from "@/core/finance/dre-engine";
 import { buildMonthSnapshot } from "@/core/finance/month-closure-engine";
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 import { getAccountsWithBalance } from "@/services/firestore/accounts";
 import { getTaxObligations } from "@/services/firestore/fiscal";
 import { getLiabilities } from "@/services/firestore/liabilities";
@@ -194,17 +195,13 @@ export async function closeMonthlyCompetence(
     );
   });
 
-  const income = monthTransactions
-    .filter((t: any) => t.type === 'income')
-    .reduce((sum: number, t: any) => {
-      return sum + Number(t.amount || 0);
-    }, 0);
+  const income = monthTransactions.reduce((sum: number, t: any) => {
+    return sum + getIncomeEffect(t);
+  }, 0);
 
-  const expenses = monthTransactions
-    .filter((t: any) => t.type === 'expense')
-    .reduce((sum: number, t: any) => {
-      return sum + Math.abs(Number(t.amount || 0));
-    }, 0);
+  const expenses = monthTransactions.reduce((sum: number, t: any) => {
+    return sum + getExpenseEffect(t);
+  }, 0);
 
   const balance = income - expenses;
 

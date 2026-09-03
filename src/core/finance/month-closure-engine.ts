@@ -1,3 +1,4 @@
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 import {
   getCurrentMonthKey,
   isTransactionInMonth,
@@ -14,21 +15,15 @@ export function buildMonthSnapshot({
     isTransactionInMonth(t, monthKey)
   );
 
-  const income = monthTransactions
-    .filter((t: any) => t.type === 'income')
-    .reduce(
-      (sum: number, t: any) =>
-        sum + Number(t.amount || 0),
-      0
-    );
+  const income = monthTransactions.reduce(
+    (sum: number, t: any) => sum + getIncomeEffect(t),
+    0
+  );
 
-  const expenses = monthTransactions
-    .filter((t: any) => t.type === 'expense')
-    .reduce(
-      (sum: number, t: any) =>
-        sum + Math.abs(Number(t.amount || 0)),
-      0
-    );
+  const expenses = monthTransactions.reduce(
+    (sum: number, t: any) => sum + getExpenseEffect(t),
+    0
+  );
 
   const transfers = monthTransactions
     .filter((t: any) => t.type === 'transfer')

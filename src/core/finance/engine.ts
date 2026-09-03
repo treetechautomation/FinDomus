@@ -1,4 +1,5 @@
 import { assetAllocation, liabilities, personalTransactions } from '@/lib/data';
+import { getExpenseEffect, getIncomeEffect, type FinancialEffectPayload } from './transaction-effects';
 
 export function calculateTotalAssets() {
   return assetAllocation.reduce((total, asset) => total + asset.value, 0);
@@ -9,13 +10,9 @@ export function calculateTotalLiabilities() {
 }
 
 export function calculateMonthlyBalance() {
-  const income = personalTransactions
-    .filter((transaction) => transaction.type === 'income')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const income = personalTransactions.reduce((sum, transaction) => sum + getIncomeEffect(transaction as FinancialEffectPayload), 0);
 
-  const expenses = personalTransactions
-    .filter((transaction) => transaction.type === 'expense')
-    .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+  const expenses = personalTransactions.reduce((sum, transaction) => sum + getExpenseEffect(transaction as FinancialEffectPayload), 0);
 
   return {
     income,

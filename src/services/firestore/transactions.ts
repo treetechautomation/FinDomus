@@ -28,6 +28,7 @@ export type TransactionDTO = {
   companyId?: string | null;
   type: 'income' | 'expense' | 'transfer';
   amount: number;
+  isRefund?: boolean;
   fromAccountId?: string;
   toAccountId?: string;
   category?: string;
@@ -73,24 +74,29 @@ function normalizeHashText(value: string) {
     merchant?: string;
     owner?: 'PF' | 'PJ';
     externalId?: string;
+    isRefund?: boolean;
   }) {
-      const base = data.externalId
-        ? [
-            data.owner || 'PF',
-            'external',
-            normalizeHashText(data.externalId),
-            data.date || '' ,
-            Number(data.amount || 0).toFixed(2),
-            normalizeHashText(data.description),
-            normalizeHashText(data.merchant || ''),
-          ].join('|')
-        : [
-            data.owner || 'PF',
-            data.date || '' ,
-            Number(data.amount || 0).toFixed(2),
-            normalizeHashText(data.description),
-            normalizeHashText(data.merchant || ''),
-          ].join('|');
+    let base = data.externalId
+      ? [
+          data.owner || 'PF',
+          'external',
+          normalizeHashText(data.externalId),
+          data.date || '' ,
+          Number(data.amount || 0).toFixed(2),
+          normalizeHashText(data.description),
+          normalizeHashText(data.merchant || ''),
+        ].join('|')
+      : [
+          data.owner || 'PF',
+          data.date || '' ,
+          Number(data.amount || 0).toFixed(2),
+          normalizeHashText(data.description),
+          normalizeHashText(data.merchant || ''),
+        ].join('|');
+
+    if (data.isRefund) {
+      base += '|REFUND';
+    }
 
     let hash = 0;
     for (let i = 0; i < base.length; i++) {
@@ -508,3 +514,5 @@ export async function deleteTransaction(userId: string, transactionId: string) {
     }
   }
 }
+
+

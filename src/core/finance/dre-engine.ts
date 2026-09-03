@@ -1,3 +1,4 @@
+import { getExpenseEffect, getIncomeEffect, type FinancialEffectPayload } from './transaction-effects';
 export function classifyDRE(category?: string) {
   const value = String(category || '');
 
@@ -61,19 +62,22 @@ export function buildDRE(transactions: any[]) {
   let outros = 0;
 
   for (const transaction of transactions) {
-    const amount = Math.abs(Number(transaction.amount || 0));
-    const dreType = classifyDRE(transaction.category);
+    const incEffect = getIncomeEffect(transaction);
+    const expEffect = getExpenseEffect(transaction);
 
-    if (transaction.type === 'income') {
-      receitaBruta += amount;
+    if (incEffect > 0) {
+      receitaBruta += incEffect;
       continue;
     }
 
-    if (dreType === 'IMPOSTO') impostos += amount;
-    else if (dreType === 'DESPESA') despesas += amount;
-    else if (dreType === 'PESSOAS') pessoas += amount;
-    else if (dreType === 'PRO_LABORE') proLabore += amount;
-    else outros += amount;
+    if (expEffect !== 0) {
+      const dreType = classifyDRE(transaction.category);
+      if (dreType === 'IMPOSTO') impostos += expEffect;
+      else if (dreType === 'DESPESA') despesas += expEffect;
+      else if (dreType === 'PESSOAS') pessoas += expEffect;
+      else if (dreType === 'PRO_LABORE') proLabore += expEffect;
+      else outros += expEffect;
+    }
   }
 
   const receitaLiquida = receitaBruta - impostos;
@@ -187,19 +191,20 @@ export function buildPFDRE(
       }
       continue;
     }
-    const amount = Number(t.amount || 0);
-    if (t.type === "income") {
-      receitaTotal += amount;
-    } else {
-      const absAmount = Math.abs(amount);
+    const incEffect = getIncomeEffect(t as FinancialEffectPayload);
+    const expEffect = getExpenseEffect(t as FinancialEffectPayload);
+
+    if (incEffect > 0) {
+      receitaTotal += incEffect;
+    } else if (expEffect !== 0) {
       const cat = classifyPFDRECategory(t.category);
-      if (cat === "essenciais") essenciais += absAmount;
-      else if (cat === "qualidadeVida") qualidadeVida += absAmount;
-      else if (cat === "estiloVida") estiloVida += absAmount;
-      else if (cat === "educacao") educacao += absAmount;
-      else if (cat === "saude") saude += absAmount;
-      else if (cat === "construcaoPatrimonial") construcaoPatrimonial += absAmount;
-      else outros += absAmount;
+      if (cat === "essenciais") essenciais += expEffect;
+      else if (cat === "qualidadeVida") qualidadeVida += expEffect;
+      else if (cat === "estiloVida") estiloVida += expEffect;
+      else if (cat === "educacao") educacao += expEffect;
+      else if (cat === "saude") saude += expEffect;
+      else if (cat === "construcaoPatrimonial") construcaoPatrimonial += expEffect;
+      else outros += expEffect;
     }
   }
 

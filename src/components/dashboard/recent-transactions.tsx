@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { getRecentTransactions } from '@/services/firestore/transactions';
 import { useAuth } from '@/providers/auth-provider';
+import { getTransactionDisplaySemantics } from '@/utils/transaction-display';
 
 type DashboardTransaction = {
   id: string;
@@ -24,6 +25,7 @@ type DashboardTransaction = {
   amount: number;
   type: 'income' | 'expense';
   account?: string;
+  isRefund?: boolean;
 };
 
 function normalizeDate(value: any) {
@@ -52,27 +54,35 @@ function normalizeTransaction(t: any): DashboardTransaction {
     amount: Math.abs(Number(t.amount ?? t.valor ?? t.value ?? 0)),
     type,
     account: t.account || t.conta || t.source || t.merchant || 'Importado',
+    isRefund: t.isRefund === true,
   };
 }
 
 function TransactionRow({ transaction }: { transaction: DashboardTransaction }) {
-  const isIncome = transaction.type === 'income';
+  const display = getTransactionDisplaySemantics(transaction);
   const date = normalizeDate(transaction.date);
 
   return (
     <TableRow>
       <TableCell>
-        <div className="font-medium">{transaction.description}</div>
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{transaction.description}</span>
+          {display.isRefund && (
+            <Badge variant="secondary" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+              Estorno
+            </Badge>
+          )}
+        </div>
         <div className="text-sm text-muted-foreground">{date.toLocaleDateString('pt-BR')}</div>
       </TableCell>
       <TableCell className="hidden md:table-cell">{transaction.category}</TableCell>
       <TableCell className="text-right">
-        <span className={cn('font-medium', isIncome ? 'text-green-600' : 'text-red-600')}>
-          {isIncome ? '+' : '-'} {transaction.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        <span className={cn('font-medium', display.isPositiveEffect ? 'text-green-600' : 'text-red-600')}>
+          {display.sign ? `${display.sign} ` : ''}{transaction.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </span>
       </TableCell>
       <TableCell className="hidden sm:table-cell">
-        <Badge variant={isIncome ? 'secondary' : 'outline'}>{transaction.account}</Badge>
+        <Badge variant={display.isPositiveEffect ? 'secondary' : 'outline'}>{transaction.account}</Badge>
       </TableCell>
     </TableRow>
   );

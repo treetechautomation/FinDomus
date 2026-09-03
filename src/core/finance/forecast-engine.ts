@@ -4,6 +4,10 @@ import {
   getMonthRange,
   isTransactionInMonth,
 } from '@/core/finance/financial-period-engine';
+import {
+  getExpenseEffect,
+  getIncomeEffect,
+} from '@/core/finance/transaction-effects';
 
 export function buildForecast({
   transactions = [],
@@ -27,13 +31,13 @@ export function buildForecast({
   const historicalIncomes = historicalMonthKeys.map((histMonth) => {
     return transactions
       .filter((t: any) => t.type === 'income' && isTransactionInMonth(t, histMonth))
-      .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+      .reduce((sum: number, t: any) => sum + getIncomeEffect(t), 0);
   });
 
   const historicalExpenses = historicalMonthKeys.map((histMonth) => {
     return transactions
       .filter((t: any) => t.type === 'expense' && !t.isInstallment && !t.installmentKey && isTransactionInMonth(t, histMonth))
-      .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
+      .reduce((sum: number, t: any) => sum + getExpenseEffect(t), 0);
   });
 
   const averageIncome = historicalIncomes.reduce((a, b) => a + b, 0) / historicalIncomes.length;
@@ -52,7 +56,7 @@ export function buildForecast({
           )
           .reduce(
             (sum: number, t: any) =>
-              sum + Number(t.amount || 0),
+              sum + getIncomeEffect(t),
             0
           );
 
@@ -66,7 +70,7 @@ export function buildForecast({
           )
           .reduce(
             (sum: number, t: any) =>
-              sum + Math.abs(Number(t.amount || 0)),
+              sum + getExpenseEffect(t),
             0
           );
 

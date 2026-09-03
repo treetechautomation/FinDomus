@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useState, useMemo } from 'react';
 import { buildImportPreview } from '@/core/imports/build-import-preview';
 import { generateImportHash } from '@/services/firestore/transactions';
+import { getTransactionDisplaySemantics, resolveImportRefundOverride } from '@/utils/transaction-display';
 import type { Category } from '@/services/firestore/categories';
 import {
   Select,
@@ -101,13 +102,13 @@ type Props = {
   clearImport: () => void;
   confirmImport: (decisions?: Record<string, 'accepted' | 'ignored'>) => void;
 
-  overrides?: Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>;
+  overrides?: Record<string, { category?: string; type?: string; isRefund?: boolean; ignored?: boolean; pendingLearning?: boolean }>;
   setOverrides?: (
     val:
-      | Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>
+      | Record<string, { category?: string; type?: string; isRefund?: boolean; ignored?: boolean; pendingLearning?: boolean }>
       | ((
-          prev: Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>
-        ) => Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>)
+          prev: Record<string, { category?: string; type?: string; isRefund?: boolean; ignored?: boolean; pendingLearning?: boolean }>
+        ) => Record<string, { category?: string; type?: string; isRefund?: boolean; ignored?: boolean; pendingLearning?: boolean }>)
   ) => void;
   categories?: Category[];
 
@@ -155,16 +156,23 @@ export function ImportReviewTable({
         finalCategory = override.category;
       }
 
+      const effectiveIsRefund = resolveImportRefundOverride(
+        override?.type ?? tx.type,
+        tx.isRefund,
+        override?.isRefund
+      );
+
       if (override) {
         return {
           ...tx,
           importHash: hash,
           category: finalCategory,
           type: override.type ?? tx.type,
+          isRefund: effectiveIsRefund,
           ignored: override.ignored,
         };
       }
-      return { ...tx, importHash: hash, category: finalCategory };
+      return { ...tx, importHash: hash, category: finalCategory, isRefund: effectiveIsRefund };
     });
   }, [transactions, overrides, categories]);
 
@@ -185,6 +193,17 @@ export function ImportReviewTable({
     }));
   };
 
+
+  const handleRefundToggle = (hash: string, currentIsRefund: boolean) => {
+    if (!setOverrides) return;
+    setOverrides(prev => ({
+      ...prev,
+      [hash]: {
+        ...prev[hash],
+        isRefund: !currentIsRefund,
+      }
+    }));
+  };
 
   const markAsIgnored = (hash: string) => {
     if (!setOverrides) return;
@@ -340,6 +359,23 @@ export function ImportReviewTable({
                       <div className="text-xs text-muted-foreground">
                         {tx.merchant}
                       </div>
+                      {tx.type === 'expense' && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            id={`refund-override-${row.importHash}`}
+                            checked={getTransactionDisplaySemantics(tx).isRefund}
+                            onChange={() => handleRefundToggle(row.importHash, getTransactionDisplaySemantics(tx).isRefund)}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                          />
+                          <label
+                            htmlFor={`refund-override-${row.importHash}`}
+                            className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none"
+                          >
+                            Estorno
+                          </label>
+                        </div>
+                      )}
 
                       {isMarkedOwnTransfer && (
                         <div className="mt-2 flex items-center gap-2">
@@ -469,14 +505,14 @@ export function ImportReviewTable({
 
                     <TableCell
                       className={`text-right font-bold align-top pt-4 ${
-                        tx.type === 'income'
+                        getTransactionDisplaySemantics(tx).isPositiveEffect
                           ? 'text-positive'
                           : tx.type === 'expense'
                             ? 'text-negative'
                             : 'text-muted-foreground'
                       }`}
                     >
-                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{' '}
+                      {getTransactionDisplaySemantics(tx).sign}{getTransactionDisplaySemantics(tx).sign ? ' ' : ''}
                       {(() => {
                         const safeAmount = Number.isFinite(Number(tx.amount)) ? Number(tx.amount) : 0;
                         return Math.abs(safeAmount).toLocaleString(

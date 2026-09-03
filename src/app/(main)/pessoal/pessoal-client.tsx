@@ -31,6 +31,7 @@ import {
 import { getMonthOpening } from "@/services/firestore/month-openings";
 import { useAuth } from '@/providers/auth-provider';
 import { MonthFilter } from "@/components/pessoal/month-filter";
+import { getExpenseEffect } from '@/core/finance/transaction-effects';
 import { EditBudgetDialog } from "@/components/pessoal/edit-budget-dialog";
 import dynamic from 'next/dynamic';
 
@@ -334,15 +335,22 @@ const incomeData = incomeTransactions;
   const income = closedSnapshot?.kpis?.income ?? filteredTransactions
     .filter((t: any) => t.type === "income")
     .reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-const categoryChartData: { name: string; value: number }[] = Object.values(
-  expenseTransactions
-    .reduce((acc: any, t: any) => {
-      const cat = getDisplayCategory(t);
-      if (!acc[cat]) acc[cat] = { name: cat, value: 0 };
-      acc[cat].value += Math.abs(Number(t.amount || 0));
-      return acc;
-    }, {})
-);
+const categoryNetMap = expenseTransactions.reduce((acc: Record<string, number>, t: any) => {
+  const cat = getDisplayCategory(t);
+  acc[cat] = (acc[cat] || 0) + getExpenseEffect(t);
+  return acc;
+}, {});
+
+let refundSurplus = 0;
+const categoryChartData: { name: string; value: number }[] = [];
+
+for (const [cat, net] of Object.entries(categoryNetMap)) {
+  if (net < 0) {
+    refundSurplus += Math.abs(net);
+  } else if (net > 0) {
+    categoryChartData.push({ name: cat, value: net });
+  }
+}
 
 let runningBalance = 0;
 
@@ -398,8 +406,7 @@ const trendChartData = Object.values(
 });
 
     const expenses = closedSnapshot?.kpis?.expenses ?? filteredTransactions
-      .filter((t: any) => t.type === "expense")
-      .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount || 0)), 0);
+      .reduce((sum: number, t: any) => sum + getExpenseEffect(t), 0);
 
     const openingBalance = Number(monthOpening?.openingBalance || 0);
 
@@ -417,7 +424,7 @@ const trendChartData = Object.values(
   const smartBudget = baseBudget.map((budget) => {
     const spent = filteredTransactions
       .filter(t => t.type === 'expense' && t.category === budget.category)
-      .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
+      .reduce((sum, t) => sum + getExpenseEffect(t), 0);
 
     const wealthCategory =
       CATEGORY_TO_WEALTH[budget.category as keyof typeof CATEGORY_TO_WEALTH] || budget.category;
@@ -427,6 +434,7 @@ const trendChartData = Object.values(
     const planned = income * (strategyPercent / 100);
 
     const percent = planned > 0 ? (spent / planned) * 100 : 0;
+    const visualPercent = Math.min(Math.max(percent, 0), 100);
 
     const projected = monthProgress > 0 ? spent / monthProgress : spent;
     const projectedPercent = planned > 0 ? (projected / planned) * 100 : 0;
@@ -444,6 +452,7 @@ const trendChartData = Object.values(
       ...budget,
       spent,
       percent,
+      visualPercent,
       projected,
       projectedPercent,
       suggestedPlanned,
@@ -530,6 +539,7 @@ const trendChartData = Object.values(
     setExpensePage,
     activeCategory,
     categoryChartData,
+    refundSurplus,
     mode,
     paginatedIncomeTransactions,
     safeIncomePage,

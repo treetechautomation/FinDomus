@@ -3,6 +3,7 @@
 import { getCurrentMonthKey } from '@/core/finance/financial-period-engine';
 import { normalizeTransactionDate } from '@/core/date/normalize-transaction-date';
 import { generateImportHash } from '@/services/firestore/transactions';
+import { resolveImportRefundOverride, applyImportReviewOverrides } from '@/utils/transaction-display';
 import Link from 'next/link';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -33,6 +34,8 @@ import { auth } from '@/lib/firebase';
 import { parseOFX, parseOfxAccountMetadata, type OfxAccountMetadata } from "@/core/finance/ofx-parser";
 import { bestAccountMatch, planBankIdentityLink, maskExternalAccountId } from '@/core/imports/account-matcher';
 import { parseNubankCSV } from '@/core/finance/invoice-parser';
+import { isCreditCardInvoiceText } from '@/core/imports/credit-card-invoice-rules';
+import { postProcessAIFallback, type ParsedTransaction } from '@/core/finance/transaction-classifier';
 import { handleFileExtract } from '@/lib/actions';
 import { addTransactionsBatch } from '@/services/firestore/transactions';
 import { buildImportPreview } from '@/core/imports/build-import-preview';
@@ -73,7 +76,7 @@ export function Importer() {
   const [restoredStaging, setRestoredStaging] = useState<ImportStagingData | null>(null);
   const [fileFingerprint, setFileFingerprint] = useState('');
 
-  const [overrides, setOverrides] = useState<Record<string, { category?: string; type?: string; ignored?: boolean; pendingLearning?: boolean }>>({});
+  const [overrides, setOverrides] = useState<Record<string, { category?: string; type?: string; isRefund?: boolean; ignored?: boolean; pendingLearning?: boolean }>>({});
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [owner, setOwner] = useState<'PF' | 'PJ'>('PF');
@@ -307,7 +310,7 @@ export function Importer() {
           const idToken = await auth.currentUser?.getIdToken();
           const aiResult = await handleFileExtract(dataUri, idToken);
           if (aiResult.success && aiResult.data) {
-            extractedTransactions = aiResult.data.map(tx => ({
+            let mappedTxs = aiResult.data.map(tx => ({
               date: tx.date,
               description: tx.description,
               amount: tx.value,
@@ -315,6 +318,8 @@ export function Importer() {
               type: tx.transactionType,
               merchant: tx.source
             }));
+            const isCardContext = data?.text ? isCreditCardInvoiceText(data.text) : false;
+            extractedTransactions = postProcessAIFallback(mappedTxs as ParsedTransaction[], isCardContext);
           }
         }
         } else if (file.type.includes("image")) {
@@ -327,7 +332,7 @@ export function Importer() {
           const idToken = await auth.currentUser?.getIdToken();
           const aiResult = await handleFileExtract(dataUri, idToken);
           if (aiResult.success && aiResult.data) {
-            extractedTransactions = aiResult.data.map(tx => ({
+            let mappedTxs = aiResult.data.map(tx => ({
               date: tx.date,
               description: tx.description,
               amount: tx.value,
@@ -335,6 +340,7 @@ export function Importer() {
               type: tx.transactionType,
               merchant: tx.source
             }));
+            extractedTransactions = postProcessAIFallback(mappedTxs as ParsedTransaction[], false);
           }
           } else if (
             file.name.toLowerCase().endsWith(".ofx") ||
@@ -450,28 +456,19 @@ export function Importer() {
     try {
       const importSessionId = crypto.randomUUID();
 
-      const reviewedTransactions = transactions.map(tx => {
-        const hash = tx.importHash || generateImportHash({
-          date: tx.dateISO || tx.date,
-          amount: tx.amount,
-          description: tx.description,
-          merchant: tx.merchant,
-          owner: tx.owner,
-          externalId: tx.externalId,
-        });
-
-        const override = overrides[hash];
-        if (override) {
-          return {
-            ...tx,
-            importHash: hash,
-            category: override.category ?? tx.category,
-            type: override.type ?? tx.type,
-            ignored: override.ignored,
-          };
-        }
-        return { ...tx, importHash: hash };
-      }).filter(tx => !tx.ignored);
+      const reviewedTransactions = applyImportReviewOverrides(
+        transactions,
+        overrides,
+        (tx) =>
+          generateImportHash({
+            date: tx.dateISO || tx.date,
+            amount: tx.amount,
+            description: tx.description,
+            merchant: tx.merchant,
+            owner: tx.owner,
+            externalId: tx.externalId,
+          })
+      );
 
       const preview = buildImportPreview(reviewedTransactions, categories);
 

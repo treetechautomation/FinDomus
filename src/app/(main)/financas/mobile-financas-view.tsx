@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { formatCurrency } from '@/core/finance/formatters';
 import type { TransactionDTO } from '@/services/firestore/transactions';
+import { getTransactionDisplaySemantics } from '@/utils/transaction-display';
 import {
   HeroCard,
   MetricDualCard,
@@ -52,7 +53,8 @@ function TransactionIcon({ value }: { value: string }) {
 }
 
 function buildSubtitle(tx: TransactionDTO): string {
-  const category = tx.category || '';
+  const display = getTransactionDisplaySemantics(tx);
+  const category = display.isRefund ? 'Estorno' : (tx.category || '');
   const date = tx.dateISO
     ? new Date(tx.dateISO).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     : '';
@@ -60,8 +62,9 @@ function buildSubtitle(tx: TransactionDTO): string {
 }
 
 function buildTxValue(tx: TransactionDTO): string {
+  const display = getTransactionDisplaySemantics(tx);
   const amount = Number(tx.amount || 0);
-  const prefix = tx.type === 'income' ? '+' : '-';
+  const prefix = display.sign;
   return `${prefix}${formatCurrency(Math.abs(amount))}`;
 }
 

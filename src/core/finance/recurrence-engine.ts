@@ -67,6 +67,7 @@ export function detectRecurrence(transactions: any[]): RecurrenceAnalysis {
   }
 
   const sorted = [...transactions]
+    .filter((t) => t.isRefund !== true)
     .filter((t) => t.dateISO || t.date)
     .sort((a, b) => {
       const da = new Date(a.dateISO || a.date).getTime();

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 
 import { EditTransactionButton } from '@/components/pessoal/edit-transaction-button';
+import { getTransactionDisplaySemantics } from '@/utils/transaction-display';
 
 type Props = {
   transactions: any[];
@@ -179,22 +180,35 @@ export function PersonalTransactionsTable({
                     </TableCell>
 
                   <TableCell className="text-right flex items-center justify-end gap-2">
-                    <span
-                      className={cn(
-                        'font-semibold',
-                        t.type === 'income'
-                          ? 'text-emerald-500'
-                          : 'text-red-500'
-                      )}
-                    >
-                      {Number(t.amount || 0).toLocaleString(
-                        'pt-BR',
-                        {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }
-                      )}
-                    </span>
+                    {(() => {
+                      const display = getTransactionDisplaySemantics(t);
+                      return (
+                        <>
+                          {display.isRefund && (
+                            <Badge variant="secondary" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                              Estorno
+                            </Badge>
+                          )}
+                          <span
+                            className={cn(
+                              'font-semibold',
+                              display.isPositiveEffect
+                                ? 'text-emerald-500'
+                                : 'text-red-500'
+                            )}
+                          >
+                            {display.isRefund ? '+ ' : ''}
+                            {Number(t.amount || 0).toLocaleString(
+                              'pt-BR',
+                              {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }
+                            )}
+                          </span>
+                        </>
+                      );
+                    })()}
 
                     <EditTransactionButton
                       transaction={t}

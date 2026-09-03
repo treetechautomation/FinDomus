@@ -1,4 +1,5 @@
 import { buildDRE } from '@/core/finance/dre-engine';
+import { getIncomeEffect, getExpenseEffect } from '@/core/finance/transaction-effects';
 
 export function buildMonthlySnapshot(params: {
   owner: 'PF' | 'PJ';
@@ -17,17 +18,13 @@ export function buildMonthlySnapshot(params: {
     obligations = [],
   } = params;
 
-  const income = transactions
-    .filter((t: any) => t.type === 'income')
-    .reduce((sum: number, t: any) => {
-      return sum + Number(t.amount || 0);
-    }, 0);
+  const income = transactions.reduce((sum: number, t: any) => {
+    return sum + getIncomeEffect(t);
+  }, 0);
 
-  const expenses = transactions
-    .filter((t: any) => t.type === 'expense')
-    .reduce((sum: number, t: any) => {
-      return sum + Math.abs(Number(t.amount || 0));
-    }, 0);
+  const expenses = transactions.reduce((sum: number, t: any) => {
+    return sum + getExpenseEffect(t);
+  }, 0);
 
   const balance = income - expenses;
 
