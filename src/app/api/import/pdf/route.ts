@@ -6,6 +6,8 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { verifyIdToken } from '@/lib/verify-id-token';
+import type { ParsedTransaction } from '@/core/finance/transaction-classifier';
+import type { NubankInvoiceParseMetadata } from '@/core/imports/nubank-invoice-pdf-parser';
 
 const execFile = promisify(execFileCb);
 
@@ -19,6 +21,87 @@ async function isQpdfAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export type ProcessPdfTextResult = {
+  status: number;
+  body: {
+    code?: string;
+    error?: string;
+    text?: string;
+    transactions?: ParsedTransaction[];
+    metadata?: Partial<NubankInvoiceParseMetadata>;
+    docKind?: string;
+    cardIssuer?: string;
+  };
+};
+
+/**
+ * Deterministic PDF text routing helper.
+ * Exported for testability and routing contract verification.
+ */
+export async function processPdfText(text: string, userId: string): Promise<ProcessPdfTextResult> {
+  const { detectPDFDocumentKind, detectCreditCardInvoiceIssuer } = await import('@/core/imports/pdf-document-detector');
+  const docKind = detectPDFDocumentKind(text);
+  const cardIssuer = detectCreditCardInvoiceIssuer(text);
+
+  let transactions: ParsedTransaction[] = [];
+  let metadata: Partial<NubankInvoiceParseMetadata> | undefined = undefined;
+
+  if (docKind === 'credit_card_invoice' && cardIssuer === 'nubank') {
+    const { parseNubankInvoicePDF } = await import('@/core/imports/nubank-invoice-pdf-parser');
+    const parseResult = await parseNubankInvoicePDF(text, userId);
+
+    if (!parseResult.success) {
+      return {
+        status: 422,
+        body: {
+          code: parseResult.code,
+          error: parseResult.error,
+          metadata: parseResult.metadata ? {
+            invoiceTotal: parseResult.metadata.invoiceTotal,
+            grossExpenses: parseResult.metadata.grossExpenses,
+            refundTotal: parseResult.metadata.refundTotal,
+            ignoredPayments: parseResult.metadata.ignoredPayments,
+            netParsedTotal: parseResult.metadata.netParsedTotal,
+            difference: parseResult.metadata.difference,
+            reconciled: parseResult.metadata.reconciled,
+            layoutVersion: parseResult.metadata.layoutVersion,
+          } : undefined,
+        },
+      };
+    }
+
+    transactions = parseResult.transactions;
+    metadata = {
+      invoiceTotal: parseResult.metadata.invoiceTotal,
+      grossExpenses: parseResult.metadata.grossExpenses,
+      refundTotal: parseResult.metadata.refundTotal,
+      ignoredPayments: parseResult.metadata.ignoredPayments,
+      netParsedTotal: parseResult.metadata.netParsedTotal,
+      difference: parseResult.metadata.difference,
+      reconciled: parseResult.metadata.reconciled,
+      layoutVersion: parseResult.metadata.layoutVersion,
+    };
+  } else if (docKind === 'bank_statement') {
+    const { parseBankStatementText } = await import('@/core/finance/invoice-parser');
+    transactions = await parseBankStatementText(text, userId);
+  } else {
+    // Unknown card issuer or unknown document kind:
+    // Returns empty transactions, allowing client to invoke existing AI fallback
+    transactions = [];
+  }
+
+  return {
+    status: 200,
+    body: {
+      text,
+      transactions,
+      metadata,
+      docKind,
+      cardIssuer,
+    },
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -86,7 +169,6 @@ export async function POST(req: NextRequest) {
     
     try {
       const text = await extractTextFromPDF(decryptedBuffer);
-      const { parseBankStatementText } = await import('@/core/finance/invoice-parser');
 
       if (!userId) {
         return NextResponse.json(
@@ -95,9 +177,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const transactions = await parseBankStatementText(text, userId);
-
-      return NextResponse.json({ text, transactions });
+      const result = await processPdfText(text, userId);
+      return NextResponse.json(result.body, { status: result.status });
     } catch (error: any) {
       if (error.message === 'PDF_PROTEGIDO_OU_SENHA_INVALIDA') {
         return NextResponse.json(
@@ -112,19 +193,19 @@ export async function POST(req: NextRequest) {
     console.error('PDF Import Error:', error);
     const message = String(error?.message || error || 'Erro ao processar PDF.');
 
-      return new NextResponse(
-        JSON.stringify({
-          code: 'PDF_IMPORT_ERROR',
-          error: message,
-          stack: process.env.NODE_ENV === 'development' ? String(error?.stack || '') : undefined,
-        }),
-        {
-          status: 500,
-          headers: {
-            'content-type': 'application/json; charset=utf-8',
-          },
-        }
-      );
+    return new NextResponse(
+      JSON.stringify({
+        code: 'PDF_IMPORT_ERROR',
+        error: message,
+        stack: process.env.NODE_ENV === 'development' ? String(error?.stack || '') : undefined,
+      }),
+      {
+        status: 500,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+        },
+      }
+    );
   } finally {
     for (const f of tempFiles) {
       try {
