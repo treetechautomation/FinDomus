@@ -289,6 +289,31 @@ export function isSupportedNubankInvoiceLayout(rawText: string): boolean {
   return hasNu && hasTotalAnchor && hasDueDateAnchor && hasTxSectionAnchor;
 }
 
+/**
+ * Strips repeated Nubank invoice page-boundary header structures that occur
+ * between transactions across page breaks.
+ *
+ * Scope: SUPPORTED_NUBANK_LAYOUT_V1
+ * Applies strictly coupled compound anchors requiring FATURA [date] EMISSÃO E ENVIO [date]
+ * and TRANSAÇÕES DE [period], with optional preceding page footer 'N de M'.
+ * Prevents false positives against ordinary transaction descriptions (e.g. 'Parcela 5 de 9').
+ * Does not depend on synthetic '\d+:' page prefixes.
+ */
+export function stripNubankPageBoundaryHeaders(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+
+  // Structurally anchored compound page-boundary header:
+  // - Preceding page footer "N de M" strictly coupled to repeated header (or bounded line break / synthetic prefix)
+  // - Optional synthetic legacy prefix: e.g. "6:"
+  // - Bounded horizontal cardholder token: letters and horizontal spaces only (max 80 chars, cannot cross newlines)
+  // - Strong compound invoice header markers:
+  //   FATURA [date] EMISSÃO E ENVIO [date] TRANSAÇÕES DE [period]
+  const pageBoundaryRegex =
+    /(?:(?:\b\d+\s+de\s+\d+\b[ \t]*(?:\r?\n)?)|(?:\d+:[ \t]*)|[\r\n]+)[ \t]*(?:\d+:[ \t]*)?(?:[A-Za-zÀ-ÿ \t]{1,80}(?:[\r\n]|[ \t])+)?\bFATURA[ \t]+\d{1,2}[ \t]+[A-Za-z]{3}[ \t]+\d{4}[ \t]+EMISSÃO[ \t]+E[ \t]+ENVIO[ 	]+\d{1,2}[ \t]+[A-Za-z]{3}[ \t]+\d{4}[ \t]+TRANSAÇÕES[ \t]+DE[ \t]+\d{1,2}[ \t]+[A-Za-z]{3}[ \t]+A[ \t]+\d{1,2}[ \t]+[A-Za-z]{3}[ \t]*/gi;
+
+  return text.replace(pageBoundaryRegex, ' ');
+}
+
 export async function parseNubankInvoicePDF(
   rawText: string,
   _userId?: string
@@ -339,14 +364,10 @@ export async function parseNubankInvoicePDF(
   }
 
   // Slice from first transaction section marker
-  let txSectionText = rawText.slice(txStartMatch.index);
+  let txSectionText = rawText.slice((txStartMatch.index ?? 0) + txStartMatch[0].length);
 
-  // Strip page header repetitions e.g. "[N:] ... TRANSAÇÕES DE DD MMM A DD MMM"
-  txSectionText = txSectionText.replace(/\d+:.*?(?:TRANSAÇÕES\s+DE\s+\d{1,2}\s+[A-Za-z]{3}\s+A\s+\d{1,2}\s+[A-Za-z]{3})\s*/gi, ' ');
-  txSectionText = txSectionText.replace(/TRANSAÇÕES\s+DE\s+\d{1,2}\s+[A-Za-z]{3}\s+A\s+\d{1,2}\s+[A-Za-z]{3}\s*/gi, ' ');
-
-  // Strip page footer tokens e.g. "X de Y"
-  txSectionText = txSectionText.replace(/\s*\d+\s+de\s+\d+\s*/gi, ' ');
+  // Strip page-boundary repeated headers and page footers
+  txSectionText = stripNubankPageBoundaryHeaders(txSectionText);
 
   // Strip legal disclaimer at the end of transaction list
   const legalIdx = txSectionText.search(/Em cumprimento à regulação|Como assegurado pela Resolução/i);

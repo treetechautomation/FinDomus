@@ -8,6 +8,7 @@ import {
 
 import {
   parseNubankInvoicePDF,
+  stripNubankPageBoundaryHeaders,
   extractNubankTransactionAmount,
   extractNubankInstallments,
   extractNubankInvoiceHeader,
@@ -400,5 +401,199 @@ describe('FINDOMUS — PDF.CREDIT.CARD.INVOICE.PARSER.1 DETERMINISTIC TEST SUITE
       assert.strictEqual(result.code, 'LAYOUT_UNRECOGNIZED');
       assert.strictEqual((result as any).transactions, undefined);
     }
+  });
+  // TEST A (30): Real-layout repeated page header without synthetic \d+: prefix is stripped
+  it('30: Test A — real-layout repeated page header without synthetic \\d+: prefix is stripped', () => {
+    const input = '28 JUN •••• 4557 Portista R$ 241,89 5  de 9\nCLIENTE TESTE NUBANK FATURA  03 AGO 2026 EMISSÃO E ENVIO  27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 28 JUN Transação de NuTag R$ 6,60';
+    const cleaned = stripNubankPageBoundaryHeaders(input);
+    assert.strictEqual(cleaned.includes('FATURA'), false);
+    assert.strictEqual(cleaned.includes('EMISSÃO E ENVIO'), false);
+    assert.strictEqual(cleaned.includes('TRANSAÇÕES DE'), false);
+    assert.strictEqual(cleaned.includes('5  de 9'), false);
+    assert.ok(cleaned.includes('Portista R$ 241,89'));
+    assert.ok(cleaned.includes('28 JUN Transação de NuTag R$ 6,60'));
+  });
+
+  // TEST B (31): Multiple repeated headers are stripped across multiple pages
+  it('31: Test B — multiple repeated page headers across pages are stripped', () => {
+    const input = '05 JUL Dl *Uberrides R$ 15,94 6  de 9\nCLIENTE NUBANK FATURA  03 AGO 2026 EMISSÃO E ENVIO  27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 06 JUL Selfit R$ 129,90 7  de 9\nCLIENTE NUBANK FATURA  03 AGO 2026 EMISSÃO E ENVIO  27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 16 JUL Uber R$ 1,00';
+    const cleaned = stripNubankPageBoundaryHeaders(input);
+    assert.strictEqual(cleaned.includes('FATURA'), false);
+    assert.strictEqual(cleaned.includes('6  de 9'), false);
+    assert.strictEqual(cleaned.includes('7  de 9'), false);
+    assert.ok(cleaned.includes('15,94'));
+    assert.ok(cleaned.includes('129,90'));
+    assert.ok(cleaned.includes('1,00'));
+  });
+
+  // TEST C (32): Optional "N de M" page footer is handled
+  it('32: Test C — handles both present and omitted "N de M" page footer', () => {
+    const withFooter = '28 JUN Portista R$ 241,89 5 de 9\nCLIENTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 28 JUN NuTag R$ 6,60';
+    const withoutFooter = '28 JUN Portista R$ 241,89\nCLIENTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 28 JUN NuTag R$ 6,60';
+    const cleaned1 = stripNubankPageBoundaryHeaders(withFooter);
+    const cleaned2 = stripNubankPageBoundaryHeaders(withoutFooter);
+    assert.strictEqual(cleaned1.includes('FATURA'), false);
+    assert.strictEqual(cleaned2.includes('FATURA'), false);
+    assert.ok(cleaned1.includes('Portista R$ 241,89'));
+    assert.ok(cleaned2.includes('Portista R$ 241,89'));
+  });
+
+  // TEST D (33): Header/cardholder structural area does not require literal customer identity
+  it('33: Test D — strips header regardless of arbitrary cardholder text', () => {
+    const cardholderA = '28 JUN Tx A R$ 10,00 5 de 9\nFULANO DE TAL FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 28 JUN Tx B R$ 20,00';
+    const cardholderB = '28 JUN Tx A R$ 10,00 5 de 9\nBELTRANO DA SILVA MOREIRA FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 28 JUN Tx B R$ 20,00';
+    assert.strictEqual(stripNubankPageBoundaryHeaders(cardholderA).includes('FATURA'), false);
+    assert.strictEqual(stripNubankPageBoundaryHeaders(cardholderB).includes('FATURA'), false);
+  });
+
+  // TEST E (34): Near-match merchant/description containing ordinary words such as "Fatura" must NOT be stripped
+  it('34: Test E — does not strip merchant description containing ordinary word "Fatura"', () => {
+    const ordinaryTx = '28 JUN Fatura Seguros E Pagamentos R$ 150,00 29 JUN Uber R$ 25,00';
+    const cleaned = stripNubankPageBoundaryHeaders(ordinaryTx);
+    assert.ok(cleaned.includes('Fatura Seguros E Pagamentos R$ 150,00'));
+  });
+
+  // TEST F (35): Malformed transaction unrelated to page-header contamination still returns MALFORMED_TRANSACTION_LINE
+  it('35: Test F — genuinely malformed transaction unrelated to header fails closed with MALFORMED_TRANSACTION_LINE', async () => {
+    const malformedText = SANITIZED_NUBANK_INVOICE_TEXT.replace('Rei do Mate Icarai R$ 29,80', 'Rei do Mate Icarai SEM_VALOR');
+    const res = await parseNubankInvoicePDF(malformedText, 'test-user');
+    assert.strictEqual(res.success, false);
+    if (!res.success) {
+      assert.strictEqual(res.code, 'MALFORMED_TRANSACTION_LINE');
+    }
+  });
+
+  // TEST G (36): Full sanitized real-layout invoice reconciles exactly: 112 total, 111 participating, 1 ignored, 10 refunds, 14 installments, 12773.07
+  it('36: Test G — full sanitized real-layout invoice reconciles completely to 12773.07', async () => {
+    const res = await parseNubankInvoicePDF(SANITIZED_NUBANK_INVOICE_TEXT, 'test-user');
+    assert.strictEqual(res.success, true);
+    if (res.success) {
+      assert.strictEqual(res.transactions.length, 112);
+      const participating = res.transactions.filter((t) => !t.ignored);
+      assert.strictEqual(participating.length, 111);
+      const ignored = res.transactions.filter((t) => t.ignored === true);
+      assert.strictEqual(ignored.length, 1);
+      const refunds = participating.filter((t) => t.isRefund);
+      assert.strictEqual(refunds.length, 10);
+      const installments = participating.filter((t: any) => t.isInstallment);
+      assert.strictEqual(installments.length, 14);
+      assert.strictEqual(res.metadata.invoiceTotal, 12773.07);
+      assert.strictEqual(res.metadata.netParsedTotal, 12773.07);
+      assert.strictEqual(res.metadata.reconciled, true);
+    }
+  });
+
+  // TEST H (37): Refund/installment/prior-payment invariants remain intact
+  it('37: Test H — refund/installment/prior-payment invariants remain intact on real-layout fixture', async () => {
+    const res = await parseNubankInvoicePDF(SANITIZED_NUBANK_INVOICE_TEXT, 'test-user');
+    assert.strictEqual(res.success, true);
+    if (res.success) {
+      const ignored = res.transactions.find((t) => t.ignored === true);
+      assert.ok(ignored);
+      assert.strictEqual(ignored.amount, 6749.58);
+      assert.strictEqual(shouldUpsertLiabilityFromTransaction(ignored as any), false);
+
+      const refunds = res.transactions.filter((t) => t.isRefund);
+      for (const r of refunds) {
+        assert.strictEqual(r.type, 'expense');
+        assert.strictEqual(r.isRefund, true);
+        assert.ok(r.amount > 0);
+        assert.strictEqual(getIncomeEffect(r as any), 0);
+        assert.strictEqual(getExpenseEffect(r as any), -Math.abs(r.amount));
+        assert.strictEqual(shouldUpsertLiabilityFromTransaction(r as any), false);
+      }
+    }
+  });
+  // P19.1 REQUIRED ADVERSARIAL TESTS (A - O & CROSS-BOUNDARY)
+  it('38: Adversarial A, B, C — ordinary descriptions containing "de" ("Parcela 5 de 9", "Plano 2 de 12", "Compra 1 de 3") remain byte-for-byte intact', () => {
+    const descA = '28 JUN Magazine Luiza - Parcela 5 de 9 R$ 120,00';
+    const descB = '28 JUN Plano 2 de 12 R$ 50,00';
+    const descC = '28 JUN Compra 1 de 3 R$ 75,00';
+    assert.strictEqual(stripNubankPageBoundaryHeaders(descA), descA);
+    assert.strictEqual(stripNubankPageBoundaryHeaders(descB), descB);
+    assert.strictEqual(stripNubankPageBoundaryHeaders(descC), descC);
+  });
+
+  it('39: Adversarial D, E, F — ordinary descriptions containing "Fatura", "Transações de", "Emissão e envio" remain byte-for-byte intact', () => {
+    const descD = '28 JUN Fatura Express Servicos R$ 100,00';
+    const descE = '28 JUN Transações de Internet Telecom R$ 50,00';
+    const descF = '28 JUN Emissão e envio de comprovante R$ 10,00';
+    assert.strictEqual(stripNubankPageBoundaryHeaders(descD), descD);
+    assert.strictEqual(stripNubankPageBoundaryHeaders(descE), descE);
+    assert.strictEqual(stripNubankPageBoundaryHeaders(descF), descF);
+  });
+
+  it('40: Adversarial G, H — near-complete headers missing EMISSÃO E ENVIO or missing TRANSAÇÕES DE are NOT stripped', () => {
+    const missingEmissao = '28 JUN Tx A R$ 10,00 5 de 9\nCLIENTE FATURA 03 AGO 2026 TRANSAÇÕES DE 26 JUN A 27 JUL 28 JUN Tx B R$ 20,00';
+    const missingTransacoes = '28 JUN Tx A R$ 10,00 5 de 9\nCLIENTE FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 28 JUN Tx B R$ 20,00';
+    assert.strictEqual(stripNubankPageBoundaryHeaders(missingEmissao), missingEmissao);
+    assert.strictEqual(stripNubankPageBoundaryHeaders(missingTransacoes), missingTransacoes);
+  });
+
+  // TEST I, J, K, L, M, O (41): Explicit compound header variants and boundary preservation
+  it('41: Adversarial I, J, K, L, M, O — full compound headers (real, synthetic, with N de M) stripped while adjacent transactions remain intact', () => {
+    // Case I: full real-layout compound header
+    const caseI = '12 JUN Loja ABC R$ 50,00\nFATURA 03 AGO 2026 EMISSÃO E ENVIO 03 AGO 2026 TRANSAÇÕES DE 03 JUL A 03 AGO\n13 JUN Mercado R$ 20,00';
+    const cleanedI = stripNubankPageBoundaryHeaders(caseI);
+    assert.strictEqual(cleanedI.includes('FATURA'), false);
+    assert.ok(cleanedI.includes('12 JUN Loja ABC R$ 50,00'));
+    assert.ok(cleanedI.includes('13 JUN Mercado R$ 20,00'));
+
+    // Case J: compound header preceded by N de M
+    const caseJ = '12 JUN Loja ABC R$ 50,00\n3 de 8\nCLIENTE FATURA 03 AGO 2026 EMISSÃO E ENVIO 03 AGO 2026 TRANSAÇÕES DE 03 JUL A 03 AGO\n13 JUN Mercado R$ 20,00';
+    const cleanedJ = stripNubankPageBoundaryHeaders(caseJ);
+    assert.strictEqual(cleanedJ.includes('FATURA'), false);
+    assert.strictEqual(cleanedJ.includes('3 de 8'), false);
+    assert.ok(cleanedJ.includes('12 JUN Loja ABC R$ 50,00'));
+    assert.ok(cleanedJ.includes('13 JUN Mercado R$ 20,00'));
+
+    // Case K: compound header with legacy synthetic N:
+    const caseK = '12 JUN Loja ABC R$ 50,00\n2: CLIENTE FATURA 03 AGO 2026 EMISSÃO E ENVIO 03 AGO 2026 TRANSAÇÕES DE 03 JUL A 03 AGO\n13 JUN Mercado R$ 20,00';
+    const cleanedK = stripNubankPageBoundaryHeaders(caseK);
+    assert.strictEqual(cleanedK.includes('FATURA'), false);
+    assert.ok(cleanedK.includes('12 JUN Loja ABC R$ 50,00'));
+    assert.ok(cleanedK.includes('13 JUN Mercado R$ 20,00'));
+
+    // Case L: transaction immediately before page boundary remains intact
+    const caseL = '12 JUN Loja Z R$ 150,00\n5 de 9\nCLIENTE TESTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL\n13 JUN Mercado R$ 20,00';
+    const cleanedL = stripNubankPageBoundaryHeaders(caseL);
+    assert.ok(cleanedL.includes('12 JUN Loja Z R$ 150,00'));
+
+    // Case M: transaction immediately after page boundary remains intact
+    const caseM = '12 JUN Loja Z R$ 150,00\n5 de 9\nCLIENTE TESTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL\n13 JUN Posto Shell R$ 250,00';
+    const cleanedM = stripNubankPageBoundaryHeaders(caseM);
+    assert.ok(cleanedM.includes('13 JUN Posto Shell R$ 250,00'));
+
+    // Case O: multiple real-layout repeated headers
+    const caseO = '12 JUN Loja 1 R$ 10,00\n3 de 8\nCLIENTE TESTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL\n13 JUN Loja 2 R$ 20,00\n4 de 8\nCLIENTE TESTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 27 JUL 2026 TRANSAÇÕES DE 26 JUN A 27 JUL\n14 JUN Loja 3 R$ 30,00';
+    const cleanedO = stripNubankPageBoundaryHeaders(caseO);
+    assert.strictEqual(cleanedO.includes('FATURA'), false);
+    assert.strictEqual(cleanedO.includes('3 de 8'), false);
+    assert.strictEqual(cleanedO.includes('4 de 8'), false);
+    assert.ok(cleanedO.includes('12 JUN Loja 1 R$ 10,00'));
+    assert.ok(cleanedO.includes('13 JUN Loja 2 R$ 20,00'));
+    assert.ok(cleanedO.includes('14 JUN Loja 3 R$ 30,00'));
+  });
+
+  // TEST CROSS-BOUNDARY (42): Multiple newlines and alphabetic descriptions do not get swallowed
+  it('42: Cross-boundary adversarial — transaction ending in alphabetic text before newline with partial header or multiple newlines does NOT swallow transaction text', () => {
+    // 1. Transaction ending with alphabetic tokens followed by newline and non-matching header fragment
+    const input1 = '28 JUN Supermercado Extra Delivery\n\nCLIENTE TESTE FATURA ABERTA SEM CONTRATO COMPLETO\n29 JUN Farmacia R$ 30,00';
+    const cleaned1 = stripNubankPageBoundaryHeaders(input1);
+    assert.strictEqual(cleaned1, input1);
+    assert.ok(cleaned1.includes('Supermercado Extra Delivery'));
+
+    // 2. Transaction ending with alphabetic text followed by multiple newlines and missing TRANSAÇÕES DE
+    const input2 = '28 JUN Alphabetic Restaurant\n\n\nFATURA 03 AGO 2026 EMISSÃO E ENVIO 03 AGO 2026\n\n29 JUN Padaria R$ 15,00';
+    const cleaned2 = stripNubankPageBoundaryHeaders(input2);
+    assert.strictEqual(cleaned2, input2);
+    assert.ok(cleaned2.includes('Alphabetic Restaurant'));
+
+    // 3. Complete header across newlines does not swallow preceding alphabetic description
+    const input3 = '28 JUN Alphabetic Restaurant Extra\n5 de 9\nCLIENTE NUBANK FATURA 03 AGO 2026 EMISSÃO E ENVIO 03 AGO 2026 TRANSAÇÕES DE 03 JUL A 03 AGO\n29 JUN Padaria R$ 15,00';
+    const cleaned3 = stripNubankPageBoundaryHeaders(input3);
+    assert.ok(cleaned3.includes('28 JUN Alphabetic Restaurant Extra'));
+    assert.ok(cleaned3.includes('29 JUN Padaria R$ 15,00'));
+    assert.strictEqual(cleaned3.includes('FATURA'), false);
   });
 });
