@@ -52,6 +52,8 @@ export function buildImportPreview(transactions: any[], categories: any[] = []) 
         merchant: transaction.merchant,
         owner: transaction.owner,
         externalId: transaction.externalId,
+        isRefund: transaction.isRefund,
+        sourceOccurrenceIndex: transaction.sourceOccurrenceIndex,
       });
 
     const status: ImportPreviewStatus[] = ['new'];

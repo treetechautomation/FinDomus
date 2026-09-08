@@ -29,6 +29,7 @@ export type TransactionDTO = {
   type: 'income' | 'expense' | 'transfer';
   amount: number;
   isRefund?: boolean;
+  sourceOccurrenceIndex?: number;
   fromAccountId?: string;
   toAccountId?: string;
   category?: string;
@@ -58,7 +59,7 @@ export type TransactionDTO = {
   updatedAt?: string;
 };
 
-function normalizeHashText(value: string) {
+export function normalizeHashText(value: string) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -75,6 +76,7 @@ function normalizeHashText(value: string) {
     owner?: 'PF' | 'PJ';
     externalId?: string;
     isRefund?: boolean;
+    sourceOccurrenceIndex?: number;
   }) {
     let base = data.externalId
       ? [
@@ -96,6 +98,10 @@ function normalizeHashText(value: string) {
 
     if (data.isRefund) {
       base += '|REFUND';
+    }
+
+    if (!data.externalId && typeof data.sourceOccurrenceIndex === 'number' && data.sourceOccurrenceIndex > 0) {
+      base += `|OCC:${data.sourceOccurrenceIndex}`;
     }
 
     let hash = 0;
@@ -156,6 +162,7 @@ export async function addTransaction(userId: string, data: TransactionDTO) {
     importHash: data.importHash ?? generateImportHash({
       ...data,
       date: normalizedDate.dateISO || normalizedDate.date,
+      sourceOccurrenceIndex: data.sourceOccurrenceIndex,
     }),
   };
 
@@ -217,6 +224,7 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
         importHash: item.importHash ?? generateImportHash({
           ...item,
           date: normalizedDate.dateISO || normalizedDate.date,
+          sourceOccurrenceIndex: item.sourceOccurrenceIndex,
         }),
       };
     })

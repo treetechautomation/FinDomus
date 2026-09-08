@@ -467,6 +467,8 @@ export function Importer() {
             merchant: tx.merchant,
             owner: tx.owner,
             externalId: tx.externalId,
+            isRefund: tx.isRefund,
+            sourceOccurrenceIndex: tx.sourceOccurrenceIndex,
           })
       );
 

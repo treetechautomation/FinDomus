@@ -26,6 +26,7 @@ export type ParsedTransaction = {
   ignored?: boolean;
   type: 'income' | 'expense' | 'transfer';
   isRefund?: boolean;
+  sourceOccurrenceIndex?: number;
 };
 
 export function normalizeText(text: string) {

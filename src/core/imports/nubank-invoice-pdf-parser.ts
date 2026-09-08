@@ -12,6 +12,7 @@ import {
   isCreditCardRefundDescription,
   isInvoicePaymentDescription,
 } from '@/core/imports/credit-card-invoice-rules';
+import { normalizeHashText } from '@/services/firestore/transactions';
 
 export const NUBANK_LAYOUT_VERSION = 'SUPPORTED_NUBANK_LAYOUT_V1' as const;
 
@@ -403,6 +404,7 @@ export async function parseNubankInvoicePDF(
   let grossExpenses = 0;
   let refundTotal = 0;
   let ignoredPayments = 0;
+  const occurrenceCounter = new Map<string, number>();
 
   for (let i = 0; i < dateMatches.length; i++) {
     const start = dateMatches[i].index;
@@ -454,6 +456,16 @@ export async function parseNubankInvoicePDF(
     // Merchant extraction
     const merchant = description.split(/\s*-\s*Parcela|\s+USD|\s+EUR/i)[0].trim();
 
+    const occurrenceKey = [
+      dateISO,
+      Math.abs(amount).toFixed(2),
+      normalizeHashText(description),
+      normalizeHashText(merchant),
+      isPayment ? 'PAYMENT' : (isRefund ? 'REFUND' : 'EXPENSE'),
+    ].join('|');
+    const sourceOccurrenceIndex = occurrenceCounter.get(occurrenceKey) || 0;
+    occurrenceCounter.set(occurrenceKey, sourceOccurrenceIndex + 1);
+
     if (isPayment) {
       // Prior invoice payment: ignored=true, does not count towards invoice purchases/refunds
       ignoredPayments = Number((ignoredPayments + amount).toFixed(2));
@@ -465,6 +477,7 @@ export async function parseNubankInvoicePDF(
         amount: Math.abs(amount),
         type: 'expense',
         ignored: true,
+        sourceOccurrenceIndex,
         isInstallment: installments.isInstallment ? true : undefined,
         installmentCurrent: installments.installmentCurrent ?? undefined,
         installmentTotal: installments.installmentTotal ?? undefined,
@@ -481,6 +494,7 @@ export async function parseNubankInvoicePDF(
         amount: Math.abs(amount),
         type: 'expense',
         isRefund: true,
+        sourceOccurrenceIndex,
         isInstallment: installments.isInstallment ? true : undefined,
         installmentCurrent: installments.installmentCurrent ?? undefined,
         installmentTotal: installments.installmentTotal ?? undefined,
@@ -497,6 +511,7 @@ export async function parseNubankInvoicePDF(
         amount: Math.abs(amount),
         type: 'expense',
         isRefund: false,
+        sourceOccurrenceIndex,
         isInstallment: installments.isInstallment ? true : undefined,
         installmentCurrent: installments.installmentCurrent ?? undefined,
         installmentTotal: installments.installmentTotal ?? undefined,
