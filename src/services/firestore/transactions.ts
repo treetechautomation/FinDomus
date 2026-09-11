@@ -244,6 +244,7 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
 
   const uniqueItems = Array.from(uniqueByHash.values());
   const existingHashes = new Set<string>();
+  const existingTxByHash = new Map<string, string>();
 
   const hashesByOwner = new Map<'PF' | 'PJ', string[]>();
   for (const item of uniqueItems) {
@@ -268,7 +269,10 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
         getDocs(q).then((snap) => {
           snap.docs.forEach((d) => {
             const h = d.data().importHash;
-            if (h) existingHashes.add(h);
+            if (h) {
+              existingHashes.add(h);
+              existingTxByHash.set(h, d.id);
+            }
           });
         })
       );
@@ -309,21 +313,33 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
     });
   }
 
+  // P30B: Target months from ALL valid unique accepted items (not only toInsert)
+  // so that retry after partial failure repairs monthly summaries even if toInsert is empty.
   const summaryTargets = new Set(
-    toInsert
-      .filter((item) => item.monthKey)
-      .map((item) => `${item.owner || 'PF'}|${item.monthKey}`)
+    uniqueItems
+      .filter((item) => item.monthKey || item.competenceMonthKey)
+      .map((item) => `${item.owner || 'PF'}|${item.competenceMonthKey || item.monthKey}`)
   );
+
+  const downstreamErrors: Error[] = [];
 
   for (const target of summaryTargets) {
     const [owner, month] = target.split('|') as ['PF' | 'PJ', string];
 
     if (month) {
-      await generateMonthlySummary(userId, owner, month);
+      try {
+        await generateMonthlySummary(userId, owner, month);
+      } catch (err: any) {
+        console.error(`[addTransactionsBatch] Falha ao gerar resumo mensal (${target}):`, err);
+        downstreamErrors.push(err instanceof Error ? err : new Error(String(err)));
+      }
     }
   }
 
-  const installmentItems = toInsert.filter(
+  // P30B: Target installment items from ALL valid unique accepted items (not only toInsert).
+  // For items that were already in Firestore, populate item.id from existingTxByHash so
+  // that liability payment recording has the exact canonical transactionId.
+  const installmentItems = uniqueItems.filter(
     (item) =>
       item.isInstallment === true &&
       item.installmentCurrent !== null && item.installmentCurrent !== undefined &&
@@ -332,11 +348,25 @@ export async function addTransactionsBatch(userId: string, items: TransactionDTO
   );
 
   for (const item of installmentItems) {
+    if (!item.id && item.importHash && existingTxByHash.has(item.importHash)) {
+      item.id = existingTxByHash.get(item.importHash);
+    }
     try {
       await upsertLiabilityFromInstallmentTransaction(userId, item);
-    } catch (err) {
+    } catch (err: any) {
       console.error("[addTransactionsBatch] Falha ao atualizar passivo automático do lançamento:", err);
+      downstreamErrors.push(err instanceof Error ? err : new Error(String(err)));
     }
+  }
+
+  if (downstreamErrors.length > 0) {
+    const err = new Error(
+      `[addTransactionsBatch] Lançamentos salvos (${toInsert.length} inseridos), mas falhou o pós-processamento de ${downstreamErrors.length} item(ns) derivado(s). Tente novamente para concluir a sincronização.`
+    );
+    (err as any).code = 'DOWNSTREAM_PARTIAL_FAILURE';
+    (err as any).inserted = toInsert.length;
+    (err as any).downstreamErrors = downstreamErrors;
+    throw err;
   }
 
   return {

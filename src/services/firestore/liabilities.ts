@@ -6,6 +6,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -18,6 +19,109 @@ import { resolveUserHouseholdId } from "./users";
 import { financialEvents } from "@/core/finance/events";
 
 export type { Liability } from "@/services/firestore/types";
+
+/**
+ * P30B.2: Derives a deterministic document ID for automatic installment liabilities.
+ * Scoped by userId, owner (PF/PJ), and normalized installmentKey.
+ * Eliminates query-then-addDoc race condition by ensuring concurrent callers
+ * target the exact same Firestore document reference.
+ */
+export function computeAutoLiabilityId(userId: string, owner: string, installmentKey: string): string {
+  const normUser = String(userId || '').trim();
+  const normOwner = String(owner || 'PF').trim().toUpperCase();
+  const normKey = String(installmentKey || '').trim().toLowerCase();
+  const base = `${normUser}|${normOwner}|${normKey}`;
+
+  let h1 = 0x811c9dc5;
+  let h2 = 0xcbf29ce4;
+  for (let i = 0; i < base.length; i++) {
+    const code = base.charCodeAt(i);
+    h1 ^= code;
+    h1 = Math.imul(h1, 0x01000193);
+    h2 = Math.imul(h2 ^ code, 0x5bd1e995);
+  }
+  const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+
+  const safeSlug = normKey.replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 24);
+  return `autoliab_${safeSlug}_${hex1}${hex2}`;
+}
+
+/**
+ * P30B.2: Resolves the upsert target ID ensuring historical compatibility:
+ * 1. If deterministic auto doc already exists, reuse it.
+ * 2. If exactly one historical random-ID doc exists, reuse it to prevent duplicates.
+ * 3. If multiple historical docs exist, fail closed with explicit consistency error.
+ * 4. If neither exists, target the deterministic ID.
+ */
+export function resolveLiabilityUpsertTarget(
+  autoDocExists: boolean,
+  autoId: string,
+  legacyDocs: Array<{ id: string }>
+): { targetId: string; isHistorical: boolean } {
+  if (autoDocExists) {
+    return { targetId: autoId, isHistorical: false };
+  }
+  if (legacyDocs.length > 1) {
+    throw new Error(
+      `[upsertLiabilityFromInstallmentTransaction] Inconsistência de dados: múltiplos passivos históricos (${legacyDocs.length}) encontrados.`
+    );
+  }
+  if (legacyDocs.length === 1) {
+    return { targetId: legacyDocs[0].id, isHistorical: true };
+  }
+  return { targetId: autoId, isHistorical: false };
+}
+
+/**
+ * P30B.2: Monotonic parent progression helper.
+ * Guarantees that:
+ * - currentInstallment never decreases.
+ * - remainingInstallments / remainingBalance never increase due to an older installment.
+ * - status never regresses from 'paid' or 'renegotiated' to 'active'.
+ */
+export function calculateParentLiabilityProgression(
+  existingParent: any,
+  payment: { installmentNumber: number; totalInstallments: number; amount: number }
+): { shouldUpdate: boolean; updates?: Record<string, any> } {
+  if (!existingParent) {
+    const remainingInstallments = Math.max(payment.totalInstallments - payment.installmentNumber, 0);
+    const remainingBalance = Number((remainingInstallments * payment.amount).toFixed(2));
+    return {
+      shouldUpdate: true,
+      updates: {
+        currentInstallment: payment.installmentNumber,
+        remainingInstallments,
+        remainingBalance,
+        status: remainingInstallments > 0 ? 'active' : 'paid',
+      },
+    };
+  }
+
+  const lCurrent = Number(existingParent.currentInstallment || 0);
+  if (payment.installmentNumber < lCurrent) {
+    // Monotonic invariant: older installment arriving later MUST NOT regress parent progression
+    return { shouldUpdate: false };
+  }
+
+  const remainingInstallments = Math.max(payment.totalInstallments - payment.installmentNumber, 0);
+  const remainingBalance = Number((remainingInstallments * payment.amount).toFixed(2));
+
+  let targetStatus: 'active' | 'paid' | 'renegotiated' = remainingInstallments > 0 ? 'active' : 'paid';
+  if (existingParent.status === 'paid' || existingParent.status === 'renegotiated') {
+    targetStatus = existingParent.status;
+  }
+
+  return {
+    shouldUpdate: true,
+    updates: {
+      currentInstallment: payment.installmentNumber,
+      remainingInstallments,
+      remainingBalance,
+      status: targetStatus,
+    },
+  };
+}
 
 export async function getLiabilities(userId: string): Promise<Liability[]> {
   if (!userId) return [];
@@ -36,16 +140,27 @@ export async function addLiability(userId: string, data: {
   installmentValue: number;
   currentInstallment: number;
   totalInstallments: number;
+  remainingInstallments?: number;
   remainingBalance: number;
   institution: string;
+  owner?: "PF" | "PJ";
+  competenceMonthKey?: string | null;
+  category?: string;
+  source?: string;
 }) {
   if (!userId) throw new Error("userId required");
   const householdId = await resolveUserHouseholdId(userId);
+
   const docRef = await addDoc(collection(db, "liabilities"), {
     ...data,
     userId,
     householdId,
+    owner: data.owner || "PF",
+    competenceMonthKey: data.competenceMonthKey || null,
+    source: data.source || "manual",
+    status: (data.remainingInstallments ?? (data.totalInstallments - data.currentInstallment)) > 0 ? "active" : "paid",
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 
   financialEvents.emit({
@@ -130,72 +245,89 @@ export async function upsertLiabilityFromInstallmentTransaction(userId: string, 
     .replace(/\(?\s*\d+\s*\/\s*\d+\s*\)?/g, '')
     .trim();
 
-  const q = query(
-    collection(db, 'liabilities'),
-    where('userId', '==', userId),
-    where('owner', '==', transaction.owner || 'PF'),
-    where('installmentKey', '==', installmentKey)
-  );
+  const owner = transaction.owner || 'PF';
+  const autoLiabilityId = computeAutoLiabilityId(userId, owner, installmentKey);
+  const autoRef = doc(db, 'liabilities', autoLiabilityId);
 
-  const snap = await getDocs(q);
+  // 1. Check deterministic target first
+  const autoSnap = await getDoc(autoRef);
 
+  let legacyDocs: Array<{ id: string }> = [];
+  if (!autoSnap.exists()) {
+    // 2. Query legacy historical liabilities only if deterministic target does not exist
+    const legacyQuery = query(
+      collection(db, 'liabilities'),
+      where('userId', '==', userId),
+      where('owner', '==', owner),
+      where('installmentKey', '==', installmentKey)
+    );
+    const legacySnap = await getDocs(legacyQuery);
+    legacyDocs = legacySnap.docs.map((d) => ({ id: d.id }));
+  }
+
+  const { targetId } = resolveLiabilityUpsertTarget(autoSnap.exists(), autoLiabilityId, legacyDocs);
+  const targetRef = doc(db, 'liabilities', targetId);
+
+  const now = new Date().toISOString();
   const payload = {
     name,
-    type: 'Cartão',
+    type: 'Cartão' as const,
     installmentValue,
     currentInstallment,
     totalInstallments,
     remainingInstallments,
     remainingBalance,
     institution,
-    owner: transaction.owner || 'PF',
+    owner,
     competenceMonthKey: transaction.competenceMonthKey || transaction.monthKey || null,
     category: transaction.category || 'Cartão',
     source: 'import',
-    status: remainingInstallments > 0 ? 'active' : 'paid',
+    status: remainingInstallments > 0 ? ('active' as const) : ('paid' as const),
     installmentKey,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   };
 
-  let liabilityId = '';
+  const householdId = await resolveUserHouseholdId(userId);
 
-  if (!snap.empty) {
-    const existing = snap.docs[0];
-    const existingData = existing.data() as any;
+  // 3. Concurrency-safe atomic upsert on targetRef using runTransaction
+  await runTransaction(db, async (tx) => {
+    const existingSnap = await tx.get(targetRef);
+    if (existingSnap.exists()) {
+      const existingData = existingSnap.data() as any;
+      const existingCurrent = Number(existingData.currentInstallment || 0);
 
-    const existingCurrent = Number(existingData.currentInstallment || 0);
-
-    if (existingCurrent <= currentInstallment) {
-      await updateDoc(doc(db, 'liabilities', existing.id), {
+      if (existingCurrent <= currentInstallment) {
+        tx.update(targetRef, {
+          ...payload,
+          createdAt: existingData.createdAt || now,
+        });
+      }
+    } else {
+      tx.set(targetRef, {
         ...payload,
-        createdAt: existingData.createdAt,
+        id: targetId,
+        userId,
+        householdId,
+        createdAt: now,
       });
     }
-    liabilityId = existing.id;
-  } else {
-    const householdId = await resolveUserHouseholdId(userId);
-    const docRef = await addDoc(collection(db, 'liabilities'), {
-      ...payload,
-      userId,
-      householdId,
-      createdAt: new Date().toISOString(),
-    });
-    liabilityId = docRef.id;
-  }
+  });
+
+  const liabilityId = targetId;
 
   if (liabilityId && transaction.id) {
     const payment: LiabilityPayment = {
       liabilityId,
       userId,
-      owner: transaction.owner || 'PF',
+      owner,
       transactionId: transaction.id,
       installmentNumber: currentInstallment,
-      totalInstallments: totalInstallments,
+      totalInstallments,
       amount: installmentValue,
       principalAmount: installmentValue,
       interestAmount: 0,
       competenceMonthKey: transaction.competenceMonthKey || transaction.monthKey || '',
-      paidAt: transaction.date || new Date().toISOString(),
+      paidAt: transaction.date || now,
       status: 'paid',
     };
 
@@ -218,7 +350,7 @@ export async function addLiabilityPayment(userId: string, payment: LiabilityPaym
     String(payment.installmentNumber)
   );
 
-  const payload = {
+  const paymentPayload = {
     ...payment,
     userId,
     status: "paid" as const,
@@ -226,19 +358,33 @@ export async function addLiabilityPayment(userId: string, payment: LiabilityPaym
     updatedAt: now,
   };
 
-  await setDoc(paymentDocRef, payload);
-
-  // Atualiza o passivo pai
-  const remainingInstallments = Math.max(payment.totalInstallments - payment.installmentNumber, 0);
-  const remainingBalance = Number((remainingInstallments * payment.amount).toFixed(2));
-
   const liabilityRef = doc(db, "liabilities", payment.liabilityId);
-  await updateDoc(liabilityRef, {
-    currentInstallment: payment.installmentNumber,
-    remainingInstallments,
-    remainingBalance,
-    status: remainingInstallments > 0 ? "active" : "paid",
-    updatedAt: now,
+
+  await runTransaction(db, async (tx) => {
+    const liabilitySnap = await tx.get(liabilityRef);
+
+    // 1. Atomically write payment document (deterministic key)
+    tx.set(paymentDocRef, paymentPayload, { merge: true });
+
+    // 2. Monotonically update parent progression
+    if (liabilitySnap.exists()) {
+      const lData = liabilitySnap.data() as any;
+      const progression = calculateParentLiabilityProgression(lData, payment);
+      if (progression.shouldUpdate && progression.updates) {
+        tx.update(liabilityRef, {
+          ...progression.updates,
+          updatedAt: now,
+        });
+      }
+    } else {
+      const progression = calculateParentLiabilityProgression(null, payment);
+      if (progression.shouldUpdate && progression.updates) {
+        tx.update(liabilityRef, {
+          ...progression.updates,
+          updatedAt: now,
+        });
+      }
+    }
   });
 }
 
